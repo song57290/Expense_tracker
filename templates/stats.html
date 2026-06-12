@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang = "ko">
+    <head>
+        <meta charset = "UTF-8">
+    </head>
+    <body>
+        <h1>이번 달 카테고리별 지출</h1>
+        <ul>
+            {% for category, total in category_totals.items() %}
+            <li>{{ category }}: {{ total }}원</li>
+            {% endfor %}
+        </ul>
+        <a href = "/">홈으로 돌아가기</a>
+    </body>
+</html>

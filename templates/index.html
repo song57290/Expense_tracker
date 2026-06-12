@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang = "ko">
     <head>
-        <meta charset="UTF-8">
+        <meta charset = "UTF-8">
         <title>가계부</title>
     </head>
     <body>
         <h1>나의 가계부</h1>
         
         <!-- DB에 데이터를 넣기 위한 폼-->
-         <form action="/add" method = "post">
+         <form action = "/add" method = "post">
             <input type = "date" name = "date" id = "date" required>
-            <select name="type">
-                <option value="expense">지출</option>
-                    <option value="income">수입</option>
+            <select name = "type">
+                <option value = "expense">지출</option>
+                    <option value = "income">수입</option>
             </select>
             <input type = "text" name = "category" placeholder = "카테고리 (예: 식비)">
             <input type = "text" name = "description" placeholder = "항목 설명">
@@ -43,5 +43,6 @@
          <p>잔액: {{ balance }}원</p>
          <p>남은 예산: {{ remaining }}원</p>
          <a href = "/budget">예산 설정</a>
+         <a href = "/stats">카테고리별 통계</a>
     </body>
 </html>

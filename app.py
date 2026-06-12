@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 from models import db, Transaction, Budget
 from datetime import datetime
+from collections import defaultdict
 
 
 app = Flask(__name__)
@@ -82,6 +83,21 @@ def budget():
         db.session.commit()
         return redirect(url_for('index'))
     return render_template('budget.html')
+
+# 카테고리별 통계
+@app.route('/stats')
+def stats():
+    current_month = datetime.now().strftime('%Y-%m')
+    transactions = Transaction.query.filter(
+        Transaction.type == 'expense',
+        Transaction.date.like(f'{current_month}%')
+    ).all()
+
+    category_totals = defaultdict(int)
+    for tx in transactions:
+        category_totals[tx.category] += tx.amount
+    
+    return render_template('stats.html', category_totals=category_totals)
 
 
 if __name__ == '__main__':
