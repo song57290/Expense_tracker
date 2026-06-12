@@ -1,3 +1,7 @@
+<<<<<<< HEAD
 __pycache__/
 *.pyc
 instance/
+=======
+__pycache__/models.cpython-38.pyc
+>>>>>>> budget
