@@ -9,3 +9,9 @@ class Transaction(db.Model):        # 하나의 클래스 = 하나의 DB 테이�
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Integer, nullable=False)
+
+# 예산 설정
+class Budget(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    month = db.Column(db.String(7), nullable = False) # 예: "2026-06"
+    amount = db.Column(db.Integer, nullable = False)
