@@ -25,6 +25,7 @@
             {% for tx in transactions %} <!-- 반복문으로 Python for와 비슷함 -->
             <li>
                 {{ tx.date }} | {{ tx.category }} | {{ tx.description }} | {{ tx.amount }}원
+                <a href="/edit/{{ tx.id }}">수정</a>
                 <form action="/delete/{{ tx.id }}" method="post" style="display: inline">
                     <button type="submit">삭제</button>
                 </form>
