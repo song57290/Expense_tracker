@@ -71,7 +71,16 @@
                             <span>{{ c.spent }}원 / {{ c.target }}원</span>
                         </div>
                         <div class="progress">
-                            <div class="progress-bar" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            <!-- 20% 이하: 빨강, ~50%: 노랑, ~80%: 파랑, 80% 이상: 초록 -->
+                            {% if c.percent <= 20 %}
+                            <div class="progress-bar bg-danger" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            {% elif c.percent <= 50 %}
+                            <div class="progress-bar bg-warning" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            {% elif c.percent <= 80 %}
+                            <div class="progress-bar bg-primary" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            {% else %}
+                            <div class="progress-bar bg-success" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -120,13 +129,15 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <button type="submit" class="btn btn-primary w-100">추가</button>
-                        </div>
                         <!-- 오늘 날짜를 기본 날짜로 하기 위해서 -->
                         <script>
                             document.getElementById('date').valueAsDate = new Date();
                         </script>
+                        <!-- 저장/취소 버튼 오른쪽 정렬 -->
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary">저장</button>
+                            <button type="reset" class="btn btn-outline-secondary">취소</button>
+                        </div>
                     </form>
                 </div>
             </div>
