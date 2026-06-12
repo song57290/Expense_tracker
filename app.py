@@ -83,7 +83,8 @@ def budget():
             db.session.add(Budget(month=current_month, amount=int(request.form['amount'])))
         db.session.commit()
         return redirect(url_for('index'))
-    return render_template('budget.html')
+    current_budget = Budget.query.filter_by(month=current_month).first()
+    return render_template('budget.html', current_budget=current_budget, current_month=current_month)
 
 # 카테고리별 통계
 @app.route('/stats')
