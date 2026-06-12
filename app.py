@@ -83,9 +83,11 @@ def edit(tx_id):
         tx.category = request.form['category']
         tx.description = request.form['description']
         tx.amount = int(request.form['amount'])
+        tx.card = request.form.get('card') or None
         db.session.commit()
         return redirect(url_for('index'))
-    return render_template('edit.html', tx=tx)
+    card_list = Card.query.all()
+    return render_template('edit.html', tx=tx, card_list=card_list)
 
 # 예산 설정 - GET이면 설정 페이지, POST면 DB에 저장
 @app.route('/budget', methods=['GET', 'POST'])
