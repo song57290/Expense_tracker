@@ -15,3 +15,9 @@ class Budget(db.Model):
     id = db.Column(db.Integer, primary_key = True)
     month = db.Column(db.String(7), nullable = False) # 예: "2026-06"
     amount = db.Column(db.Integer, nullable = False)
+
+# 동적으로 카테고리 추가하기 위한 것
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    icon = db.Column(db.String(10), nullable=False)  # 이모지
