@@ -12,17 +12,22 @@ http://127.0.0.1:5000/
 | index.html | 내역 추가 폼 + 전체 목록 출력 + 요약(수입/지출/잔액) |
 
 # 진행상황
-===
 추가해야할 기능
-[] 삭제 (/delete)
-[] 수정 (/edit)
-[] 월별 필터링
-[] 카테고리별 통계
-[] 예산 설정
+- [] 삭제 (/delete)
+- [] 수정 (/edit)
+- [] 월별 필터링
+- [] 카테고리별 통계
+- [] 예산 설정
+---
 
 
-Expense_tracker/
+
+Expense_tracker/ \n
 ├── app.py          ← Flask 서버 (라우트 정의)
 ├── models.py       ← DB 테이블 정의
 └── templates/
     └── index.html  ← 화면 (HTML)
+
+
+### Github README.md 꾸미는 방법
+https://luvris2.tistory.com/130#google_vignette
