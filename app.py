@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 from models import db, Transaction, Budget
 from datetime import datetime
 from collections import defaultdict
+from models import db, Transaction, Budget, Category
 
 
 app = Flask(__name__)
@@ -99,6 +100,25 @@ def stats():
     
     return render_template('stats.html', category_totals=category_totals)
 
+# 카테고리 관리 - GET이면 목록 표시, POST면 새 카테고리 추가
+@app.route('/categories', methods=['GET', 'POST'])
+def categories():
+    if request.method == 'POST':
+        db.session.add(Category(
+            name=request.form['name'],
+            icon=request.form['icon']
+        ))
+        db.session.commit()
+    cats = Category.query.all()
+    return render_template('categories.html', categories=cats)
+
+# 카테고리 삭제
+@app.route('/categories/delete/<int:cat_id>', methods=['POST'])
+def delete_category(cat_id):
+    cat = Category.query.get_or_404(cat_id)
+    db.session.delete(cat)
+    db.session.commit()
+    return redirect(url_for('categories'))
 
 if __name__ == '__main__':
     app.run(debug=True) # 서버 실행 / debug=True면 코드 수정 시 자동 재시작
