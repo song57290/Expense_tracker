@@ -14,7 +14,7 @@ http://127.0.0.1:5000/
 # 진행상황
 추가해야할 기능
 - [x] 삭제 (/delete)
-- [ ] 수정 (/edit)
+- [x] 수정 (/edit)
 - [ ] 월별 필터링
 - [ ] 카테고리별 통계
 - [ ] 예산 설정
@@ -22,8 +22,14 @@ http://127.0.0.1:5000/
 
 ```
 Expense_tracker/
-├── app.py          ← Flask 서버 (라우트 정의)
-├── models.py       ← DB 테이블 정의
-└── templates/
-    └── index.html  ← 화면 (HTML)
+├─ app.py               ← Flask 서버 (라우트 정의)
+├─ models.py            ← DB 테이블 정의
+├─ README.md
+│      
+├─ instance
+│     └── expense.db    ← DB
+│      
+├─ templates
+      └── edit.html     ← 수정화면
+      └── index.html    ← 기본화면
 ```
