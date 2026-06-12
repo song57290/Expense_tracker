@@ -1,4 +1,5 @@
-```접속 사이트
+# 접속 사이트
+```
 http://127.0.0.1:5000/
 ```
 
@@ -35,7 +36,8 @@ Expense_tracker/
       └── index.html    ← 기본화면
 ```
 
-``` branch 합병
+# branch 합병
+```
 git add .
 git commit -m "Bootstrap 스타일 및 카테고리 관리 기능 추가"
 git checkout main
