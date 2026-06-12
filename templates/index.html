@@ -111,9 +111,9 @@
                         <div class="col-md-2">
                             <input type="number" name="amount" class="form-control" placeholder="금액" required>
                         </div>
-                        <!-- 카드 선택 드롭박스 -->
+                        <!-- 카드 선택 드롭박스 - DB에서 추가한 카드 목록 표시 -->
                         <div class="col-md-2">
-                            <select name="card" class="form-select">
+                            <select name="card" class="form-select" required>
                                 <option value="">카드 선택</option>
                                 {% for card in card_list %}
                                 <option value="{{ card.name }}">{{ card.name }}</option>
