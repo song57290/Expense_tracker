@@ -1,15 +1,52 @@
 <!DOCTYPE html>
-<html lang = "ko">
+<html lang="ko">
     <head>
-        <meta charset = "UTF-8">
+        <meta charset="UTF-8">
         <title>예산 설정</title>
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
-    <body>
-        <h1>이번 달 예산 설정</h1>
-        <form action = "/budget" method = "post">
-            <input type = "number" name = "amount" placeholder = "예산 금액">
-            <button type = "submit">저장</button>
-        </form>
-        <a href = "/">홈으로 돌아가기</a>
+    <body class="bg-light">
+
+        <!-- 상단 네비게이션 바 -->
+        <nav class="navbar navbar-dark bg-dark mb-4">
+            <div class="container">
+                <span class="navbar-brand">나의 가계부</span>
+                <a href="/" class="btn btn-outline-light btn-sm">홈으로</a>
+            </div>
+        </nav>
+
+        <div class="container">
+
+            <!-- 현재 예산 표시 -->
+            <div class="card mb-4 text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">{{ current_month }} 현재 예산</h6>
+                    <p class="fs-3 fw-bold">
+                        {% if current_budget %}
+                            {{ current_budget.amount | int }}원
+                        {% else %}
+                            설정된 예산 없음
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <!-- 예산 설정 폼 -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">예산 설정</h5>
+                    <form action="/budget" method="post" class="row g-2">
+                        <div class="col-md-4">
+                            <input type="number" name="amount" class="form-control" placeholder="예산 금액" step="10000" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">저장</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
     </body>
 </html>
