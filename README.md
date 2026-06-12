@@ -39,8 +39,8 @@ Expense_tracker/
 # branch 합병
 ```
 git add .
-git commit -m "Bootstrap 스타일 및 카테고리 관리 기능 추가"
+git commit -m ["change 명"]
 git checkout main
-git merge decorate
+git merge [branch 명]
 git push
 ```
