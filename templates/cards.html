@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <title>카드 관리</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-light">
+
+        <nav class="navbar navbar-dark bg-dark mb-4">
+            <div class="container">
+                <span class="navbar-brand">나의 가계부</span>
+                <a href="/" class="btn btn-outline-light btn-sm">홈으로</a>
+            </div>
+        </nav>
+
+        <div class="container">
+
+            <!-- 카드 추가 폼 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">카드 추가</h5>
+                    <form action="/cards" method="post" class="row g-2">
+                        <div class="col-md-4">
+                            <input type="text" name="name" class="form-control" placeholder="카드 이름 (예: 신한카드)">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="number" name="monthly_target" class="form-control" placeholder="월 목표 금액" step="10000">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">추가</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 카드 목록 -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">카드 목록</h5>
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>카드 이름</th>
+                                <th>월 목표 금액</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in cards %}
+                            <tr>
+                                <td>{{ card.name }}</td>
+                                <td>{{ card.monthly_target }}원</td>
+                                <td>
+                                    <form action="/cards/delete/{{ card.id }}" method="post" style="display:inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </body>
+</html>

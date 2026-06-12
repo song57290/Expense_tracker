@@ -13,6 +13,8 @@
             <div class="container">
                 <span class="navbar-brand">나의 가계부</span>
                 <div>
+                    <a href="/cards" class="btn btn-outline-light btn-sm me-2">카드 관리</a>
+                    <a href="/calendar" class="btn btn-outline-light btn-sm me-2">캘린더</a>
                     <a href="/stats" class="btn btn-outline-light btn-sm me-2">카테고리 통계</a>
                     <a href="/budget" class="btn btn-outline-light btn-sm">예산 설정</a>
                 </div>
@@ -57,6 +59,26 @@
                 </div>
             </div>
 
+            <!-- 카드 실적 진행 바 -->
+            {% if card_stats %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">카드 실적</h5>
+                    {% for c in card_stats %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{{ c.name }}</span>
+                            <span>{{ c.spent }}원 / {{ c.target }}원</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <!-- DB에 데이터를 넣기 위한 폼 -->
             <div class="card mb-4">
                 <div class="card-body">
@@ -83,11 +105,20 @@
                                 <option value="기타">📦 기타</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <input type="text" name="description" class="form-control" placeholder="항목 설명">
                         </div>
                         <div class="col-md-2">
-                            <input type="number" name="amount" class="form-control" placeholder="금액">
+                            <input type="number" name="amount" class="form-control" placeholder="금액" required>
+                        </div>
+                        <!-- 카드 선택 드롭박스 -->
+                        <div class="col-md-2">
+                            <select name="card" class="form-select">
+                                <option value="">카드 선택</option>
+                                {% for card in card_list %}
+                                <option value="{{ card.name }}">{{ card.name }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-md-1">
                             <button type="submit" class="btn btn-primary w-100">추가</button>
