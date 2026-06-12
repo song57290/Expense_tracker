@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <title>가계부</title>
+    </head>
+    <body>
+        <h1>나의 가계부</h1>
+        
+        <!-- DB에 데이터를 넣기 위한 폼-->
+         <form action="/add" method = "post">
+            <input type = "date" name = "date" required>
+            <select name="type">
+                <option value="expense">지출</option>
+                    <option value="income">수입</option>
+            </select>
+            <input type = "text" name = "category" placeholder = "카테고리 (예: 식비)">
+            <input type = "text" name = "description" placeholder = "항목 설명">
+            <input type = "number" name = "amount" placeholder = "금액">
+            <button type="submit">추가</button>
+         </form>
+
+         <h2>내역 목록</h2>
+         <ul>
+            {% for tx in transactions %} <!-- 반복문으로 Python for와 비슷함 -->
+            <li>
+                {{ tx.date }} | {{ tx.category }} | {{ tx.description }} | {{ tx.amount }}원
+            </li>
+            {% endfor %} <!-- 이걸로 반복문 종료 -->
+         </ul>
+
+         <h2>이번 달 요약</h2>
+         <p>수입: {{ income_total }}원</p>
+         <p>지출: {{ expense_total }}원</p>
+         <p>잔액: {{ balance }}원</p>
+    </body>
+</html>
