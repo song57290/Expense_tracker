@@ -46,5 +46,20 @@ def delete(tx_id):
     db.session.commit()
     return redirect(url_for('index'))
 
+# 내역 수정 - GET이면 수정 폼 표시, POST면 DB에 저장
+@app.route('/edit/<int:tx_id>', methods=['GET', 'POST'])
+def edit(tx_id):
+    tx = Transaction.query.get_or_404(tx_id)
+    if request.method == 'POST':
+        tx.date = request.form['date']
+        tx.type = request.form['type']
+        tx.category = request.form['category']
+        tx.description = request.form['description']
+        tx.amount = int(request.form['amount'])
+        db.session.commit()
+        return redirect(url_for('index'))
+    return render_template('edit.html', tx=tx)
+
+
 if __name__ == '__main__':
     app.run(debug=True) # 서버 실행 / debug=True면 코드 수정 시 자동 재시작
