@@ -1,22 +1,22 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang = "ko">
     <head>
-        <meta charset="UTF-8">
+        <meta charset = "UTF-8">
         <title>내역 수정</title>
     </head>
     <body>
         <h1>내역 수정</h1>
-        <form action="/edit/{{ tx.id }}" method="post">
-            <input type="date" name="date" value="{{ tx.date }}" required>
-            <select name="type">
-                <option value="expense" {% if tx.type == 'expense' %}selected{% endif %}>지출</option>
-                <option value="income" {% if tx.type == 'income' %}selected{% endif %}>수입</option>
+        <form actio = "/edit/{{ tx.id }}" method = "post">
+            <input type = "date" name="date" value = "{{ tx.date }}" required>
+            <select name = "type">
+                <option value = "expense" {% if tx.type == 'expense' %}selected{% endif %}>지출</option>
+                <option value = "income" {% if tx.type == 'income' %}selected{% endif %}>수입</option>
             </select>
             <input type = "text" name = "category" value = "{{ tx.category }}">
             <input type = "text" name = "description" value = "{{ tx.description }}">
             <input type = "number" name = "amount" value = "{{ tx.amount }}">
             <button type = "submit">저장</button>
         </form>
-        <a href="/">취소</a>
+        <a href = "/">취소</a>
     </body>
 </html>
