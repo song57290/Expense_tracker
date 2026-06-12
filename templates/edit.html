@@ -43,7 +43,7 @@
                                 <option value="기타" {% if tx.category == '기타' %}selected{% endif %}>📦 기타</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <input type="text" name="description" value="{{ tx.description }}" class="form-control">
                         </div>
                         <div class="col-md-2">
@@ -58,11 +58,12 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <button type="submit" class="btn btn-primary w-100">저장</button>
+                        <!-- 저장/취소 버튼 오른쪽 정렬 -->
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                            <button type="submit" id="saveBtn" class="btn btn-primary">저장</button>
+                            <a href="/" class="btn btn-outline-secondary">취소</a>
                         </div>
                     </form>
-                    <a href="/" class="btn btn-outline-secondary mt-3">취소</a>
                 </div>
             </div>
         </div>
