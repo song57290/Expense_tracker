@@ -16,7 +16,7 @@ http://127.0.0.1:5000/
 - [x] 삭제 (/delete)
 - [x] 수정 (/edit)
 - [x] 월별 필터링
-- [ ] 카테고리별 통계
+- [x] 카테고리별 통계
 - [x] 예산 설정
 - [ ] 앱으로 만들기
 ---
@@ -33,4 +33,12 @@ Expense_tracker/
 ├─ templates
       └── edit.html     ← 수정화면
       └── index.html    ← 기본화면
+```
+
+``` branch 합병
+git add .
+git commit -m "Bootstrap 스타일 및 카테고리 관리 기능 추가"
+git checkout main
+git merge decorate
+git push
 ```
