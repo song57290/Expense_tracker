@@ -146,11 +146,22 @@ def cards():
     if request.method == 'POST':
         db.session.add(Card(
             name=request.form['name'],
-            monthly_target=int(request.form['monthly_target'])
+            monthly_target=int(request.form['monthly_target']),
+            url=request.form.get('url') or None
         ))
         db.session.commit()
     card_list = Card.query.all()
     return render_template('cards.html', cards=card_list)
+
+# 카드 수정
+@app.route('/cards/edit/<int:card_id>', methods=['POST'])
+def edit_card(card_id):
+    card = Card.query.get_or_404(card_id)
+    card.name = request.form['name']
+    card.monthly_target = int(request.form['monthly_target'])
+    card.url = request.form.get('url') or None
+    db.session.commit()
+    return redirect(url_for('cards'))
 
 # 카드 삭제
 @app.route('/cards/delete/<int:card_id>', methods=['POST'])
