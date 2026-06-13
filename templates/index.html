@@ -6,34 +6,31 @@
         <title>가계부</title>
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link rel="manifest" href="/static/manifest.json">
-        <meta name="theme-color" content="#212529">
+        <meta name="theme-color" content="#ffffff">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-title" content="가계부">
-        <!-- Bootstrap CSS - 이걸 추가하면 Bootstrap 스타일 사용 가능 -->
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     </head>
     <body class="bg-light">
 
-        <!-- 상단 네비게이션 바 -->
-        <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+        <nav class="navbar mb-4" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); box-shadow: 0 2px 16px rgba(0,0,0,0.06);">
             <div class="container">
-                <span class="navbar-brand">나의 가계부</span>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navMenu">
-                    <div class="ms-auto mt-2 mt-md-0 d-flex flex-column flex-md-row gap-1">
-                        <a href="/cards" class="btn btn-outline-light btn-sm">카드 관리</a>
-                        <a href="/calendar" class="btn btn-outline-light btn-sm">캘린더</a>
-                        <a href="/stats" class="btn btn-outline-light btn-sm">카테고리 통계</a>
-                        <a href="/budget" class="btn btn-outline-light btn-sm">예산 설정</a>
-                    </div>
+                <a class="navbar-brand fw-semibold" href="/" style="color: #1a1a2e;">나의 가계부</a>
+                <a href="/" class="d-md-none">
+                    <img src="/static/home_icon.png" width="36" height="36" style="border-radius: 10px;">
+                </a>
+                <div class="d-none d-md-flex gap-1">
+                    <a href="/cards" class="btn btn-outline-secondary btn-sm">카드 관리</a>
+                    <a href="/calendar" class="btn btn-outline-secondary btn-sm">캘린더</a>
+                    <a href="/stats" class="btn btn-outline-secondary btn-sm">카테고리 통계</a>
+                    <a href="/budget" class="btn btn-outline-secondary btn-sm">예산 설정</a>
                 </div>
             </div>
         </nav>
 
-        <div class="container">
+        <div class="container pb-5 pb-md-0">
 
             <!-- 요약 카드 4개 - 예산/수입/지출/잔액 -->
             <div class="row mb-4">
@@ -198,6 +195,32 @@
             </div>
 
         </div>
+        <!-- 하단 탭바 (모바일 전용) -->
+        <nav class="d-md-none fixed-bottom" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.1); z-index: 1000;">
+            <div class="d-flex justify-content-around py-2">
+                <a href="/" class="text-center text-decoration-none" style="color: #555;">
+                    <img src="/static/home_icon.png" width="24" height="24" style="border-radius: 6px; display: block; margin: 0 auto 2px;">
+                    <small style="font-size: 10px;">홈</small>
+                </a>
+                <a href="/cards" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-credit-card fs-5 d-block"></i>
+                    <small style="font-size: 10px;">카드</small>
+                </a>
+                <a href="/calendar" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-calendar3 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">캘린더</small>
+                </a>
+                <a href="/stats" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-pie-chart fs-5 d-block"></i>
+                    <small style="font-size: 10px;">통계</small>
+                </a>
+                <a href="/budget" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-wallet2 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">예산</small>
+                </a>
+            </div>
+        </nav>
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             if ('serviceWorker' in navigator) {
