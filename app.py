@@ -10,7 +10,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위�
 db.init_app(app)
 
 with app.app_context():
-    db.create_all() # 테이블 자동 생성
+    db.create_all()
+    if not Category.query.first():
+        for name, icon in [('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]:
+            db.session.add(Category(name=name, icon=icon))
+        db.session.commit()
 
 # 메인 페이지 - DB에서 전체 내역 조회 후 합계 계산해서 화면에 표시
 @app.route('/') # 이 URL로 접속하면 아래의 함수를 실행
@@ -39,7 +43,8 @@ def index():
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         })
 
-    return render_template('index.html', # render_template를 하면 변수를 여러개 넘길 수 있음
+    categories = Category.query.order_by(Category.id).all()
+    return render_template('index.html',
                         transactions=transactions,
                         income_total=income_total,
                         expense_total=expense_total,
@@ -48,7 +53,8 @@ def index():
                         remaining=remaining,
                         card_stats=card_stats,
                         card_list=cards,
-                        ) # 계산 결과를 index.html에 넘겨서 화면에 표시
+                        categories=categories,
+                        )
 
 # 내역 추가 - 폼에서 입력한 데이터를 받아서 DB에 저장
 @app.route('/add', methods=['POST'])
@@ -88,7 +94,8 @@ def edit(tx_id):
         db.session.commit()
         return redirect(url_for('index'))
     card_list = Card.query.all()
-    return render_template('edit.html', tx=tx, card_list=card_list)
+    categories = Category.query.order_by(Category.id).all()
+    return render_template('edit.html', tx=tx, card_list=card_list, categories=categories)
 
 # 예산 설정 - GET이면 설정 페이지, POST면 DB에 저장
 @app.route('/budget', methods=['GET', 'POST'])
@@ -118,19 +125,30 @@ def stats():
     for tx in transactions:
         category_totals[tx.category] += tx.amount
     
-    return render_template('stats.html', category_totals=category_totals)
+    cats = Category.query.order_by(Category.id).all()
+    emoji_map = {c.name: c.icon for c in cats}
+    return render_template('stats.html', category_totals=category_totals, emoji_map=emoji_map)
 
 # 카테고리 관리 - GET이면 목록 표시, POST면 새 카테고리 추가
 @app.route('/categories', methods=['GET', 'POST'])
 def categories():
     if request.method == 'POST':
-        db.session.add(Category(
-            name=request.form['name'],
-            icon=request.form['icon']
-        ))
-        db.session.commit()
-    cats = Category.query.all()
+        name = request.form['name'].strip()
+        icon = request.form['icon'].strip()
+        if name and icon and not Category.query.filter_by(name=name).first():
+            db.session.add(Category(name=name, icon=icon))
+            db.session.commit()
+    cats = Category.query.order_by(Category.id).all()
     return render_template('categories.html', categories=cats)
+
+# 카테고리 수정
+@app.route('/categories/edit/<int:cat_id>', methods=['POST'])
+def edit_category(cat_id):
+    cat = Category.query.get_or_404(cat_id)
+    cat.name = request.form['name'].strip()
+    cat.icon = request.form['icon'].strip()
+    db.session.commit()
+    return redirect(url_for('categories'))
 
 # 카테고리 삭제
 @app.route('/categories/delete/<int:cat_id>', methods=['POST'])
@@ -184,7 +202,8 @@ def calendar():
             'color': '#36A2EB' if tx.type == 'income' else '#FF6384'
         })
     card_list = Card.query.all()
-    return render_template('calendar.html', events=events, card_list=card_list)
+    categories = Category.query.order_by(Category.id).all()
+    return render_template('calendar.html', events=events, card_list=card_list, categories=categories)
 
 @app.route('/sw.js')
 def service_worker():

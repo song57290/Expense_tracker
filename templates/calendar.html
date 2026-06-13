@@ -14,10 +14,13 @@
             /* 이벤트 바 스타일 - 간격과 둥근 모서리 */
             .fc-event {
                 border-radius: 6px !important;
-                margin: 5px 8px !important;
-                padding: 3px 8px !important;
-                font-size: 0.8em !important;
+                margin: 1px 2px !important;
+                padding: 2px 4px !important;
+                font-size: 0.72em !important;
                 border: none !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
             }
             /* 평일 헤더 및 날짜 검은색 */
             .fc-col-header-cell a,
@@ -63,6 +66,15 @@
             .fc-toolbar-chunk:first-child { flex: 1; }
             .fc-toolbar-chunk:nth-child(2) { flex: 1; text-align: center; }
             .fc-toolbar-chunk:last-child { flex: 1; display: flex; justify-content: flex-end; }
+            .fc-prev-button, .fc-next-button {
+                min-width: 44px !important;
+                height: 36px !important;
+                padding: 0 14px 5px !important;
+                font-size: 1.8rem !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
         </style>
     </head>
     <body class="bg-light">
@@ -80,6 +92,7 @@
                 <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
                 <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리 통계</a>
                 <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
+                <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
             </div>
         </nav>
         </div>
@@ -110,13 +123,9 @@
                                 <option value="income">수입</option>
                             </select>
                             <select name="category" class="form-select">
-                                <option value="식사">🍚 식사</option>
-                                <option value="간식">🍪 간식</option>
-                                <option value="쇼핑">🛍️ 쇼핑</option>
-                                <option value="자동차">🚗 자동차</option>
-                                <option value="교통">🚌 교통</option>
-                                <option value="의료">💊 의료</option>
-                                <option value="기타">📦 기타</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
+                                {% endfor %}
                             </select>
                             <input type="text" name="description" class="form-control" placeholder="항목 설명">
                             <input type="text" name="amount" class="form-control" placeholder="금액" inputmode="numeric" required>
