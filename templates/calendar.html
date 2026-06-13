@@ -36,16 +36,19 @@
             }
             /* 캘린더 버튼 색상 */
             .fc-button-primary {
-                background-color: #4A90D9 !important;
-                border: 2px solid #2c6fad !important;
-                border-radius: 6px !important;
-                margin: 0 1px !important;
+                background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%) !important;
+                border: none !important;
+                border-radius: 10px !important;
+                margin: 0 2px !important;
+                box-shadow: 0 2px 8px rgba(123,107,224,0.2) !important;
             }
             .fc-button-primary:hover {
-                background-color: #357ABD !important;
-                border-color: #1f5080 !important;
+                background: linear-gradient(135deg, #9a6ef5 0%, #5fa0e8 100%) !important;
+                border: none !important;
             }
-            .fc-button-primary:focus {
+            .fc-button-primary:focus, .fc-button-primary:active, .fc-button-primary:not(:disabled):active {
+                background: linear-gradient(135deg, #9a6ef5 0%, #5fa0e8 100%) !important;
+                border: none !important;
                 box-shadow: none !important;
             }
             /* 연월 제목 가운데, 버튼 오른쪽 */
