@@ -52,10 +52,20 @@
     </head>
     <body class="bg-light">
 
-        <nav class="navbar navbar-dark bg-dark mb-4">
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
             <div class="container">
-                <span class="navbar-brand">나의 가계부</span>
-                <a href="/" class="btn btn-outline-light btn-sm">홈으로</a>
+                <a class="navbar-brand" href="/">나의 가계부</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navMenu">
+                    <div class="ms-auto mt-2 mt-md-0 d-flex flex-column flex-md-row gap-1">
+                        <a href="/cards" class="btn btn-outline-light btn-sm">카드 관리</a>
+                        <a href="/calendar" class="btn btn-outline-light btn-sm">캘린더</a>
+                        <a href="/stats" class="btn btn-outline-light btn-sm">카테고리 통계</a>
+                        <a href="/budget" class="btn btn-outline-light btn-sm">예산 설정</a>
+                    </div>
+                </div>
             </div>
         </nav>
 
