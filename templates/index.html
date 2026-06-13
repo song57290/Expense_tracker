@@ -15,7 +15,7 @@
     </head>
     <body class="bg-light">
         <div id="topFade" class="d-md-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
-        <div class="d-md-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none;"></div>
+        <div id="bottomFade" class="d-md-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
@@ -129,7 +129,7 @@
                             <input type="text" name="description" class="form-control" placeholder="항목 설명">
                         </div>
                         <div class="col-md-2">
-                            <input type="number" name="amount" class="form-control" placeholder="금액" required>
+                            <input type="text" name="amount" class="form-control" placeholder="금액" inputmode="numeric" required>
                         </div>
                         <!-- 카드 선택 드롭박스 - DB에서 추가한 카드 목록 표시 -->
                         <div class="col-md-2">
@@ -146,7 +146,7 @@
                         </script>
                         <!-- 저장/취소 버튼 오른쪽 정렬 -->
                         <div class="col-12 d-flex justify-content-end gap-2 mt-3">
-                            <button type="submit" class="btn btn-primary">저장</button>
+                            <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
                             <button type="reset" class="btn btn-outline-secondary">취소</button>
                         </div>
                     </form>
@@ -231,11 +231,33 @@
         </script>
         <script>
             var topFade = document.getElementById('topFade');
-            if (topFade) {
-                window.addEventListener('scroll', function() {
-                    topFade.style.opacity = window.scrollY > 30 ? '1' : '0';
-                });
+            var bottomFade = document.getElementById('bottomFade');
+            function updateFades() {
+                var scrollY = window.scrollY;
+                var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+                if (topFade) topFade.style.opacity = scrollY > 30 ? '1' : '0';
+                if (bottomFade) bottomFade.style.opacity = maxScroll > 0 && (maxScroll - scrollY) > 30 ? '1' : '0';
             }
+            window.addEventListener('scroll', updateFades);
+            window.addEventListener('resize', updateFades);
+            updateFades();
+            document.querySelectorAll('input[name="amount"]').forEach(function(input) {
+                if (input.value) {
+                    var r = input.value.replace(/,/g, '');
+                    if (r !== '' && !isNaN(r)) input.value = parseInt(r).toLocaleString('ko-KR');
+                }
+                input.addEventListener('input', function() {
+                    var raw = this.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+                    this.value = raw !== '' ? parseInt(raw).toLocaleString('ko-KR') : '';
+                });
+            });
+            document.querySelectorAll('form').forEach(function(form) {
+                form.addEventListener('submit', function() {
+                    form.querySelectorAll('input[name="amount"]').forEach(function(inp) {
+                        inp.value = inp.value.replace(/,/g, '');
+                    });
+                });
+            });
         </script>
     </body>
 </html>
