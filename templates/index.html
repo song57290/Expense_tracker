@@ -28,6 +28,7 @@
                 <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
                 <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리 통계</a>
                 <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
+                <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
             </div>
         </nav>
         </div>
@@ -113,16 +114,11 @@
                                 <option value="income">수입</option>
                             </select>
                         </div>
-                        <!-- 드롭 박스 형식 -->
                         <div class="col-md-2">
                             <select name="category" class="form-select">
-                                <option value="식사">🍚 식사</option>
-                                <option value="간식">🍪 간식</option>
-                                <option value="쇼핑">🛍️ 쇼핑</option>
-                                <option value="자동차">🚗 자동차</option>
-                                <option value="교통">🚌 교통</option>
-                                <option value="의료">💊 의료</option>
-                                <option value="기타">📦 기타</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-2">

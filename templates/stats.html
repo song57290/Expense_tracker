@@ -27,6 +27,7 @@
                 <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
                 <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리 통계</a>
                 <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
+                <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
             </div>
         </nav>
         </div>
@@ -57,12 +58,10 @@
                                         <th>지출 합계</th>
                                     </tr>
                                 </thead>
-                                <!-- 카테고리 이름에 이모지 매핑 -->
-                                {% set emoji_map = {'식사': '🍚', '간식': '🍪', '쇼핑': '🛍️', '자동차': '🚗', '교통': '🚌', '의료': '💊', '기타': '📦'} %}
                                 <tbody>
                                     {% for category, total in category_totals.items() %}
                                     <tr>
-                                        <td>{{ emoji_map.get(category, '') }} {{ category }}</td>
+                                        <td>{{ emoji_map.get(category, '📦') }} {{ category }}</td>
                                         <td>{{ total }}원</td>
                                     </tr>
                                     {% endfor %}
