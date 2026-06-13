@@ -2,8 +2,8 @@
 <html lang="ko">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>카테고리별 통계</title>
-        <!-- Bootstrap CSS - 이걸 추가하면 Bootstrap 스타일 사용 가능 -->
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <!-- Chart.js - 차트 그리는 라이브러리 -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -64,6 +64,7 @@
             </div>
         </div>
 
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             // Jinja2에서 Python 데이터를 JS로 변환
             const labels = {{ category_totals.keys() | list | tojson }};
