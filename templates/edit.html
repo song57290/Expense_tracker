@@ -9,6 +9,8 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     </head>
     <body class="bg-light">
+        <div id="topFade" class="d-md-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
+        <div class="d-md-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none;"></div>
 
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
@@ -25,7 +27,7 @@
         </nav>
         </div>
 
-        <div class="container pb-5 pb-md-0">
+        <div class="container pb-md-0">
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">내역 수정</h5>
@@ -76,6 +78,7 @@
                     </form>
                 </div>
             </div>
+            <div class="d-md-none" style="height: 90px;"></div>
         </div>
         <nav class="d-md-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000;">
             <div class="d-flex justify-content-around py-2">
@@ -103,5 +106,13 @@
         </nav>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            var topFade = document.getElementById('topFade');
+            if (topFade) {
+                window.addEventListener('scroll', function() {
+                    topFade.style.opacity = window.scrollY > 30 ? '1' : '0';
+                });
+            }
+        </script>
     </body>
 </html>
