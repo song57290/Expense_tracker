@@ -63,7 +63,8 @@ def add():
     )
     db.session.add(tx) # DB에 추가 예약
     db.session.commit() # 실제로 DB에 저장
-    return redirect(url_for('index')) # 저장 후 메인 페이지로 이동
+    next_url = request.form.get('next', url_for('index'))
+    return redirect(next_url)
 
 # 내역 삭제 - URL의 id로 해당 내역을 찾아서 DB에서 삭제
 @app.route('/delete/<int:tx_id>', methods=['POST'])
@@ -171,7 +172,8 @@ def calendar():
             'start': tx.date,
             'color': '#36A2EB' if tx.type == 'income' else '#FF6384'
         })
-    return render_template('calendar.html', events=events)
+    card_list = Card.query.all()
+    return render_template('calendar.html', events=events, card_list=card_list)
 
 @app.route('/sw.js')
 def service_worker():

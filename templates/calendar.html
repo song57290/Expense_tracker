@@ -62,8 +62,50 @@
         <div class="container">
             <div class="card">
                 <div class="card-body">
-                    <!-- 캘린더가 그려질 영역 -->
                     <div id="calendar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 내역 추가 모달 -->
+        <div class="modal fade" id="addModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">내역 추가</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form action="/add" method="post">
+                        <input type="hidden" name="next" value="/calendar">
+                        <div class="modal-body d-flex flex-column gap-2">
+                            <input type="date" name="date" id="modalDate" class="form-control" required>
+                            <select name="type" class="form-select">
+                                <option value="expense">지출</option>
+                                <option value="income">수입</option>
+                            </select>
+                            <select name="category" class="form-select">
+                                <option value="식사">🍚 식사</option>
+                                <option value="간식">🍪 간식</option>
+                                <option value="쇼핑">🛍️ 쇼핑</option>
+                                <option value="자동차">🚗 자동차</option>
+                                <option value="교통">🚌 교통</option>
+                                <option value="의료">💊 의료</option>
+                                <option value="기타">📦 기타</option>
+                            </select>
+                            <input type="text" name="description" class="form-control" placeholder="항목 설명">
+                            <input type="number" name="amount" class="form-control" placeholder="금액" required>
+                            <select name="card" class="form-select" required>
+                                <option value="">카드 선택</option>
+                                {% for card in card_list %}
+                                <option value="{{ card.name }}">{{ card.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                            <button type="submit" class="btn btn-primary">저장</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -89,7 +131,13 @@
                         next: '›'
                     },
                     height: 'auto',
+                    fixedWeekCount: false,
+                    showNonCurrentDates: false,
                     events: events,
+                    dateClick: function(info) {
+                        document.getElementById('modalDate').value = info.dateStr;
+                        new bootstrap.Modal(document.getElementById('addModal')).show();
+                    },
                     eventClick: function(info) {
                         alert(info.event.title);
                     }
