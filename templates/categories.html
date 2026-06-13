@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>카테고리 관리</title>
+        <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>
+            .emoji-preview {
+                font-size: 2.4rem;
+                width: 64px; height: 64px;
+                display: flex; align-items: center; justify-content: center;
+                background: rgba(176,136,249,0.1);
+                border-radius: 16px;
+                border: 2px solid #b088f9;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+            .emoji-input {
+                font-size: 1.3rem;
+                text-align: center;
+                letter-spacing: 2px;
+            }
+        </style>
+    </head>
+    <body class="bg-light">
+        <div id="topFade" class="d-md-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
+        <div id="bottomFade" class="d-md-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
+
+        <div class="px-3 pt-3">
+        <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
+            <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
+            <a href="/" class="d-md-none" style="color: white;">
+                <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
+            </a>
+            <div class="d-none d-md-flex gap-1">
+                <a href="/cards" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카드 관리</a>
+                <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
+                <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리 통계</a>
+                <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
+                <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
+            </div>
+        </nav>
+        </div>
+
+        <div class="container pb-md-0">
+
+            <!-- 카테고리 추가 폼 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">카테고리 추가</h5>
+                    <form action="/categories" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">이모지 (최대 2개)</label>
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emoji-preview" id="addPreview" onclick="document.getElementById('addIcon').focus()">😊</div>
+                                <div class="flex-grow-1">
+                                    <input type="text" name="icon" id="addIcon" class="form-control emoji-input"
+                                        placeholder="이모지 입력" maxlength="8" required>
+                                    <small class="text-muted mt-1 d-block">
+                                        모바일: 키보드 이모지 탭 &nbsp;|&nbsp;
+                                        PC: <kbd>Win</kbd>+<kbd>.</kbd> 또는 <kbd>⌘</kbd>+<kbd>Ctrl</kbd>+<kbd>Space</kbd>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">카테고리 이름</label>
+                            <input type="text" name="name" class="form-control" placeholder="이름 입력" required>
+                        </div>
+                        <button type="submit" class="btn w-100" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">추가</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 카테고리 목록 -->
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">카테고리 목록</h5>
+                    <ul class="list-group list-group-flush">
+                        {% for cat in categories %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span style="font-size: 1.1rem;">{{ cat.icon }} {{ cat.name }}</span>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary me-1"
+                                    onclick="openEdit({{ cat.id }}, '{{ cat.icon }}', '{{ cat.name }}')">수정</button>
+                                <form action="/categories/delete/{{ cat.id }}" method="post" style="display:inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                                </form>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="d-md-none" style="height: 90px;"></div>
+        </div>
+
+        <!-- 수정 모달 -->
+        <div class="modal fade" id="editModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">카테고리 수정</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="editForm" method="post">
+                        <div class="modal-body d-flex flex-column gap-3">
+                            <div>
+                                <label class="form-label fw-semibold">이모지</label>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="emoji-preview" id="editPreview" onclick="document.getElementById('editIcon').focus()">😊</div>
+                                    <div class="flex-grow-1">
+                                        <input type="text" name="icon" id="editIcon" class="form-control emoji-input"
+                                            placeholder="이모지 입력" maxlength="8" required>
+                                        <small class="text-muted mt-1 d-block">
+                                            모바일: 키보드 이모지 탭 &nbsp;|&nbsp;
+                                            PC: <kbd>Win</kbd>+<kbd>.</kbd> 또는 <kbd>⌘</kbd>+<kbd>Ctrl</kbd>+<kbd>Space</kbd>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label fw-semibold">카테고리 이름</label>
+                                <input type="text" name="name" id="editName" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <nav class="d-md-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000;">
+            <div class="d-flex justify-content-around py-2">
+                <a href="/" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-house fs-5 d-block"></i>
+                    <small style="font-size: 10px;">홈</small>
+                </a>
+                <a href="/cards" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-credit-card fs-5 d-block"></i>
+                    <small style="font-size: 10px;">카드</small>
+                </a>
+                <a href="/calendar" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-calendar3 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">캘린더</small>
+                </a>
+                <a href="/stats" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-pie-chart fs-5 d-block"></i>
+                    <small style="font-size: 10px;">통계</small>
+                </a>
+                <a href="/budget" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-wallet2 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">예산</small>
+                </a>
+            </div>
+        </nav>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            function limitEmoji(str, max) {
+                if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+                    var segs = [...new Intl.Segmenter().segment(str)].map(function(s) { return s.segment; });
+                    return segs.slice(0, max).join('');
+                }
+                return [...str].slice(0, max).join('');
+            }
+
+            function updatePreview(inputId, previewId) {
+                var input = document.getElementById(inputId);
+                input.value = limitEmoji(input.value, 2);
+                var val = input.value;
+                var segs = (typeof Intl !== 'undefined' && Intl.Segmenter)
+                    ? [...new Intl.Segmenter().segment(val)].map(function(s) { return s.segment; })
+                    : [...val];
+                var preview = document.getElementById(previewId);
+                preview.textContent = val || '😊';
+                preview.style.fontSize = segs.length >= 2 ? '1.3rem' : '2.4rem';
+            }
+
+            document.getElementById('addIcon').addEventListener('input', function() {
+                updatePreview('addIcon', 'addPreview');
+            });
+
+            document.getElementById('editIcon').addEventListener('input', function() {
+                updatePreview('editIcon', 'editPreview');
+            });
+
+            function openEdit(id, icon, name) {
+                document.getElementById('editForm').action = '/categories/edit/' + id;
+                document.getElementById('editIcon').value = icon;
+                document.getElementById('editName').value = name;
+                updatePreview('editIcon', 'editPreview');
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            }
+
+            var topFade = document.getElementById('topFade');
+            var bottomFade = document.getElementById('bottomFade');
+            function updateFades() {
+                var scrollY = window.scrollY;
+                var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+                if (topFade) topFade.style.opacity = scrollY > 30 ? '1' : '0';
+                if (bottomFade) bottomFade.style.opacity = maxScroll > 0 && (maxScroll - scrollY) > 30 ? '1' : '0';
+            }
+            window.addEventListener('scroll', updateFades);
+            window.addEventListener('resize', updateFades);
+            updateFades();
+        </script>
+    </body>
+</html>
