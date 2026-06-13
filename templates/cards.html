@@ -6,38 +6,40 @@
         <title>카드 관리</title>
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     </head>
     <body class="bg-light">
 
-        <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+        <nav class="navbar mb-4" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); box-shadow: 0 2px 16px rgba(0,0,0,0.06);">
             <div class="container">
-                <a class="navbar-brand" href="/">나의 가계부</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navMenu">
-                    <div class="ms-auto mt-2 mt-md-0 d-flex flex-column flex-md-row gap-1">
-                        <a href="/cards" class="btn btn-outline-light btn-sm">카드 관리</a>
-                        <a href="/calendar" class="btn btn-outline-light btn-sm">캘린더</a>
-                        <a href="/stats" class="btn btn-outline-light btn-sm">카테고리 통계</a>
-                        <a href="/budget" class="btn btn-outline-light btn-sm">예산 설정</a>
-                    </div>
+                <a class="navbar-brand fw-semibold" href="/" style="color: #1a1a2e;">나의 가계부</a>
+                <a href="/" class="d-md-none">
+                    <img src="/static/home_icon.png" width="36" height="36" style="border-radius: 10px;">
+                </a>
+                <div class="d-none d-md-flex gap-1">
+                    <a href="/cards" class="btn btn-outline-secondary btn-sm">카드 관리</a>
+                    <a href="/calendar" class="btn btn-outline-secondary btn-sm">캘린더</a>
+                    <a href="/stats" class="btn btn-outline-secondary btn-sm">카테고리 통계</a>
+                    <a href="/budget" class="btn btn-outline-secondary btn-sm">예산 설정</a>
                 </div>
             </div>
         </nav>
 
-        <div class="container">
+        <div class="container pb-5 pb-md-0">
 
             <!-- 카드 추가 폼 -->
             <div class="card mb-4">
                 <div class="card-body">
                     <h5 class="card-title">카드 추가</h5>
                     <form action="/cards" method="post" class="row g-2">
-                        <div class="col-md-4">
-                            <input type="text" name="name" class="form-control" placeholder="카드 이름 (예: 신한카드)">
+                        <div class="col-md-3">
+                            <input type="text" name="name" class="form-control" placeholder="카드 이름 (예: 신한카드)" required>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="number" name="monthly_target" class="form-control" placeholder="월 목표 금액" step="10000" required>
                         </div>
                         <div class="col-md-4">
-                            <input type="number" name="monthly_target" class="form-control" placeholder="월 목표 금액" step="10000">
+                            <input type="url" name="url" class="form-control" placeholder="혜택 사이트 URL (선택)">
                         </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">추가</button>
@@ -56,6 +58,7 @@
                             <tr>
                                 <th>카드 이름</th>
                                 <th>월 목표 금액</th>
+                                <th>혜택 사이트</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -65,6 +68,15 @@
                                 <td>{{ card.name }}</td>
                                 <td>{{ card.monthly_target }}원</td>
                                 <td>
+                                    {% if card.url %}
+                                    <a href="{{ card.url }}" target="_blank" class="btn btn-sm btn-outline-primary">바로가기</a>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary me-1"
+                                        onclick="openEdit({{ card.id }}, '{{ card.name }}', {{ card.monthly_target }}, '{{ card.url or '' }}')">수정</button>
                                     <form action="/cards/delete/{{ card.id }}" method="post" style="display:inline">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
                                     </form>
@@ -78,6 +90,63 @@
             </div>
 
         </div>
+        <!-- 카드 수정 모달 -->
+        <div class="modal fade" id="editModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">카드 수정</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="editForm" method="post">
+                        <div class="modal-body d-flex flex-column gap-2">
+                            <input type="text" name="name" id="editName" class="form-control" placeholder="카드 이름" required>
+                            <input type="number" name="monthly_target" id="editTarget" class="form-control" placeholder="월 목표 금액" step="10000" required>
+                            <input type="url" name="url" id="editUrl" class="form-control" placeholder="혜택 사이트 URL (선택)">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">저장</button>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <nav class="d-md-none fixed-bottom" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.1); z-index: 1000;">
+            <div class="d-flex justify-content-around py-2">
+                <a href="/" class="text-center text-decoration-none" style="color: #555;">
+                    <img src="/static/home_icon.png" width="24" height="24" style="border-radius: 6px; display: block; margin: 0 auto 2px;">
+                    <small style="font-size: 10px;">홈</small>
+                </a>
+                <a href="/cards" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-credit-card fs-5 d-block"></i>
+                    <small style="font-size: 10px;">카드</small>
+                </a>
+                <a href="/calendar" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-calendar3 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">캘린더</small>
+                </a>
+                <a href="/stats" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-pie-chart fs-5 d-block"></i>
+                    <small style="font-size: 10px;">통계</small>
+                </a>
+                <a href="/budget" class="text-center text-decoration-none" style="color: #555;">
+                    <i class="bi bi-wallet2 fs-5 d-block"></i>
+                    <small style="font-size: 10px;">예산</small>
+                </a>
+            </div>
+        </nav>
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            function openEdit(id, name, target, url) {
+                document.getElementById('editForm').action = '/cards/edit/' + id;
+                document.getElementById('editName').value = name;
+                document.getElementById('editTarget').value = target;
+                document.getElementById('editUrl').value = url;
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            }
+        </script>
     </body>
 </html>

@@ -26,5 +26,6 @@ class Category(db.Model):
 # 카드별 실적 관리
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)       # 카드 이름 (예: 신한카드)
-    monthly_target = db.Column(db.Integer, nullable=False) # 월 목표 금액
+    name = db.Column(db.String(50), nullable=False)
+    monthly_target = db.Column(db.Integer, nullable=False)
+    url = db.Column(db.String(500), nullable=True)
