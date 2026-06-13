@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from models import db, Transaction, Budget
 from datetime import datetime
 from collections import defaultdict
@@ -172,6 +172,10 @@ def calendar():
             'color': '#36A2EB' if tx.type == 'income' else '#FF6384'
         })
     return render_template('calendar.html', events=events)
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('static', 'sw.js')
 
 if __name__ == '__main__':
     app.run(debug=True) # 서버 실행 / debug=True면 코드 수정 시 자동 재시작
