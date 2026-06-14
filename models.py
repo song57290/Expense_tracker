@@ -29,3 +29,6 @@ class Card(db.Model):
     name = db.Column(db.String(50), nullable=False)
     monthly_target = db.Column(db.Integer, nullable=False)
     url = db.Column(db.String(500), nullable=True)
+    tier1 = db.Column(db.Integer, nullable=True, server_default='20')
+    tier2 = db.Column(db.Integer, nullable=True, server_default='50')
+    tier3 = db.Column(db.Integer, nullable=True, server_default='80')

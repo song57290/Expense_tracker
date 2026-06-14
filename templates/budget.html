@@ -46,11 +46,11 @@
                             <span class="text-muted small text-nowrap">{{ "{:,}".format(c.spent | int) }}원 / {{ "{:,}".format(c.target | int) }}원</span>
                         </div>
                         <div class="progress">
-                            {% if c.percent <= 20 %}
+                            {% if c.percent <= c.tier1 %}
                             <div class="progress-bar bg-danger" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
-                            {% elif c.percent <= 50 %}
+                            {% elif c.percent <= c.tier2 %}
                             <div class="progress-bar bg-warning" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
-                            {% elif c.percent <= 80 %}
+                            {% elif c.percent <= c.tier3 %}
                             <div class="progress-bar bg-primary" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
                             {% else %}
                             <div class="progress-bar bg-success" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
@@ -148,6 +148,21 @@
                     });
                 });
             });
+        </script>
+        <script>
+            (function(ci) {
+                var pages = ['/cards', '/calendar', '/stats', '/budget', '/categories'];
+                var sx, sy;
+                document.addEventListener('touchstart', function(e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive:true});
+                document.addEventListener('touchend', function(e) {
+                    var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+                    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                    if (sx < 25 || sx > window.innerWidth - 25) return;
+                    if (e.target.closest && e.target.closest('.swipe-wrapper,.swipe-content,[data-no-page-swipe]')) return;
+                    var ni = ci + (dx < 0 ? 1 : -1);
+                    if (ni >= 0 && ni < pages.length) window.location.href = pages[ni];
+                }, {passive:true});
+            })(3);
         </script>
     </body>
 </html>
