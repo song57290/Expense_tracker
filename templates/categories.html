@@ -79,20 +79,20 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">카테고리 목록</h5>
-                    <ul class="list-group list-group-flush">
-                        {% for cat in categories %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                            <span style="font-size: 1.1rem;">{{ cat.icon }} {{ cat.name }}</span>
-                            <div>
-                                <button class="btn btn-sm btn-outline-secondary me-1"
-                                    onclick="openEdit({{ cat.id }}, '{{ cat.icon }}', '{{ cat.name }}')">수정</button>
-                                <form action="/categories/delete/{{ cat.id }}" method="post" style="display:inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
-                                </form>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                    <form id="catDeleteForm" method="post" style="display:none;"></form>
+                    {% for cat in categories %}
+                    <div class="swipe-wrapper"
+                         data-cat-id="{{ cat.id }}"
+                         data-cat-icon="{{ cat.icon }}"
+                         data-cat-name="{{ cat.name }}"
+                         style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
+                        <div style="position:absolute;right:0;top:0;height:100%;width:80px;background:#dc3545;display:flex;align-items:center;justify-content:center;color:white;font-size:0.85rem;font-weight:600;z-index:0;">삭제</div>
+                        <div style="position:absolute;left:0;top:0;height:100%;width:80px;background:#198754;display:flex;align-items:center;justify-content:center;color:white;font-size:0.85rem;font-weight:600;z-index:0;">수정</div>
+                        <div class="swipe-content" style="position:relative;z-index:1;background:white;padding:10px 14px;">
+                            <span style="font-size:1.1rem;">{{ cat.icon }} {{ cat.name }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
 
@@ -211,6 +211,62 @@
             window.addEventListener('scroll', updateFades);
             window.addEventListener('resize', updateFades);
             updateFades();
+        </script>
+        <script>
+            (function() {
+                var threshold = 60, maxSwipe = 80;
+                function doAction(w, curX) {
+                    var dx = curX - w._sx;
+                    var sc = w.querySelector('.swipe-content');
+                    sc.style.transition = 'transform 0.2s';
+                    sc.style.transform = 'translateX(0)';
+                    if (dx < -threshold) {
+                        var form = document.getElementById('catDeleteForm');
+                        form.action = '/categories/delete/' + w.dataset.catId;
+                        form.submit();
+                    } else if (dx > threshold) {
+                        openEdit(parseInt(w.dataset.catId), w.dataset.catIcon, w.dataset.catName);
+                    }
+                }
+                document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                    w.addEventListener('touchstart', function(e) {
+                        w._sx = e.touches[0].clientX;
+                        w.querySelector('.swipe-content').style.transition = 'none';
+                    }, {passive:true});
+                    w.addEventListener('touchmove', function(e) {
+                        var dx = e.touches[0].clientX - w._sx;
+                        w.querySelector('.swipe-content').style.transform = 'translateX(' + Math.max(-maxSwipe, Math.min(maxSwipe, dx)) + 'px)';
+                    }, {passive:true});
+                    w.addEventListener('touchend', function(e) { doAction(w, e.changedTouches[0].clientX); });
+                    w.addEventListener('mousedown', function(e) {
+                        w._sx = e.clientX; w._active = true;
+                        w.querySelector('.swipe-content').style.transition = 'none';
+                    });
+                });
+                document.addEventListener('mousemove', function(e) {
+                    document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                        if (!w._active) return;
+                        var dx = e.clientX - w._sx;
+                        w.querySelector('.swipe-content').style.transform = 'translateX(' + Math.max(-maxSwipe, Math.min(maxSwipe, dx)) + 'px)';
+                    });
+                });
+                document.addEventListener('mouseup', function(e) {
+                    document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                        if (!w._active) return;
+                        w._active = false;
+                        doAction(w, e.clientX);
+                    });
+                });
+                window.addEventListener('blur', function() {
+                    document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                        if (!w._active) return;
+                        w._active = false;
+                        var sc = w.querySelector('.swipe-content');
+                        sc.style.transition = 'transform 0.2s';
+                        sc.style.transform = 'translateX(0)';
+                    });
+                });
+            })();
         </script>
         <script>
             (function(ci) {
