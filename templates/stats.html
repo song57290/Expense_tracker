@@ -33,14 +33,28 @@
         </div>
 
         <div class="container pb-lg-0">
-            <div class="row">
+
+            <!-- 월 선택 -->
+            <div class="d-flex align-items-center justify-content-center gap-3 mb-4">
+                <a href="/stats?month={{ prev_month }}" class="btn btn-sm" style="background:rgba(176,136,249,0.15);color:#b088f9;border:1.5px solid #b088f9;border-radius:20px;padding:4px 18px;font-size:1.2rem;text-decoration:none;">‹</a>
+                <div class="text-center">
+                    <div class="fw-bold" style="font-size:1.1rem;">{{ month[:4] }}년 {{ month[5:7] }}월</div>
+                    {% if not is_current %}<a href="/stats" class="text-muted" style="font-size:0.75rem;">이번 달로 ↑</a>{% endif %}
+                </div>
+                <a href="/stats?month={{ next_month }}" class="btn btn-sm{% if is_current %} disabled pe-none{% endif %}" style="background:rgba(176,136,249,{% if is_current %}0.05{% else %}0.15{% endif %});color:{% if is_current %}#ccc{% else %}#b088f9{% endif %};border:1.5px solid {% if is_current %}#ccc{% else %}#b088f9{% endif %};border-radius:20px;padding:4px 18px;font-size:1.2rem;text-decoration:none;">›</a>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3 px-1" style="cursor:pointer;user-select:none;" onclick="toggleSection('catContent','catArrow')">
+                <span class="fw-bold" style="font-size:1rem;color:#333;">{{ month[:4] }}년 {{ month[5:7] }}월 카테고리별 지출</span>
+                <span id="catArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+            </div>
+            <div id="catContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
+            <div class="row mb-4">
 
                 <!-- 원형 차트 -->
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title">이번 달 카테고리별 지출</h5>
-                            <!-- 차트가 그려질 캔버스 -->
                             <canvas id="pieChart"></canvas>
                         </div>
                     </div>
@@ -71,6 +85,43 @@
                     </div>
                 </div>
 
+            </div>
+            </div>
+
+            {% if card_monthly %}
+            <!-- 카드별 지출 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">카드별 지출</h5>
+                    {% for c in card_monthly %}
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <span class="d-flex align-items-center gap-2">
+                            {% set logo = c.name | bank_logo %}
+                            {% if logo %}<img src="{{ logo }}" style="height:22px;width:22px;object-fit:contain;border-radius:4px;">{% endif %}
+                            {{ c.name }}
+                        </span>
+                        <span class="fw-semibold">{{ "{:,}".format(c.spent|int) }}원</span>
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex justify-content-between align-items-center pt-2">
+                        <span class="text-muted small">합계</span>
+                        <span class="fw-bold">{{ "{:,}".format(card_monthly|sum(attribute='spent')|int) }}원</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 월별 지출 추이 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title d-flex justify-content-between align-items-center" style="cursor:pointer;user-select:none;margin-bottom:0;" onclick="toggleSection('barContent','barArrow')">
+                        <span>월별 지출 추이 <span class="text-muted fw-normal" style="font-size:0.8rem;">(최근 6개월)</span></span>
+                        <span id="barArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+                    </h5>
+                    <div id="barContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
+                        <canvas id="barChart" style="max-height:180px;margin-top:8px;"></canvas>
+                    </div>
+                </div>
             </div>
             <div class="d-lg-none" style="height: 90px;"></div>
         </div>
@@ -160,6 +211,59 @@
             });
         </script>
         <script>
+            function toggleSection(id, arrowId) {
+                var el = document.getElementById(id);
+                var arrow = document.getElementById(arrowId);
+                var open = !el.classList.contains('sec-closed');
+                if (open) {
+                    el.style.maxHeight = el.scrollHeight + 'px';
+                    el.offsetHeight;
+                    el.style.maxHeight = '0';
+                    el.style.opacity = '0';
+                    el.classList.add('sec-closed');
+                    if (arrow) arrow.textContent = '▾';
+                } else {
+                    el.style.maxHeight = el.scrollHeight + 'px';
+                    el.style.opacity = '1';
+                    el.classList.remove('sec-closed');
+                    if (arrow) arrow.textContent = '▴';
+                }
+            }
+        </script>
+        <script>
+            var barLabels = {{ monthly_totals | map(attribute='month') | list | tojson }};
+            var barData = {{ monthly_totals | map(attribute='total') | list | tojson }};
+            var selMonth = {{ month | tojson }};
+            new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: barLabels.map(function(m) { return parseInt(m.slice(5)) + '월'; }),
+                    datasets: [{
+                        data: barData,
+                        backgroundColor: barLabels.map(function(m) {
+                            return m === selMonth ? 'rgba(176,136,249,0.9)' : 'rgba(176,136,249,0.32)';
+                        }),
+                        borderRadius: 6,
+                    }]
+                },
+                plugins: [ChartDataLabels],
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(v) { return v === 0 ? '0' : Math.round(v / 10000) + '만'; }
+                            }
+                        }
+                    }
+                }
+            });
+        </script>
+        <script>
             var topFade = document.getElementById('topFade');
             var bottomFade = document.getElementById('bottomFade');
             function updateFades() {
@@ -171,6 +275,21 @@
             window.addEventListener('scroll', updateFades);
             window.addEventListener('resize', updateFades);
             updateFades();
+        </script>
+        <script>
+            (function(ci) {
+                var pages = ['/cards', '/calendar', '/stats', '/budget', '/categories'];
+                var sx, sy;
+                document.addEventListener('touchstart', function(e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive:true});
+                document.addEventListener('touchend', function(e) {
+                    var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+                    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                    if (sx < 25 || sx > window.innerWidth - 25) return;
+                    if (e.target.closest && e.target.closest('.swipe-wrapper,.swipe-content,[data-no-page-swipe]')) return;
+                    var ni = ci + (dx < 0 ? 1 : -1);
+                    if (ni >= 0 && ni < pages.length) window.location.href = pages[ni];
+                }, {passive:true});
+            })(2);
         </script>
     </body>
 </html>

@@ -37,32 +37,32 @@
                     <form action="/cards" method="post" class="row g-2">
                         <div class="col-12">
                             <p class="mb-1 text-muted" style="font-size: 0.8rem; font-weight: 600;">은행</p>
-                            <div class="d-flex gap-2 overflow-auto pb-1" style="scrollbar-width: none; -ms-overflow-style: none;">
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('신한은행', this)"><img src="/static/cards/sinhanbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">신한은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('KB국민은행', this)"><img src="/static/cards/kbbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">KB국민</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('농협은행', this)"><img src="/static/cards/nhbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">농협은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('하나은행', this)"><img src="/static/cards/hanabank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">하나은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('우리은행', this)"><img src="/static/cards/wooribank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">우리은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('IBK기업은행', this)"><img src="/static/cards/ibkbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">IBK기업</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('카카오뱅크', this)"><img src="/static/cards/kakaobank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">카카오뱅크</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('토스뱅크', this)"><img src="/static/cards/tossbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">토스뱅크</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('케이뱅크', this)"><img src="/static/cards/kbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">케이뱅크</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('SC제일은행', this)"><img src="/static/cards/scbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">SC제일</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('씨티은행', this)"><img src="/static/cards/citibank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">씨티은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('iM뱅크', this)"><img src="/static/cards/imbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">iM뱅크</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('수협은행', this)"><img src="/static/cards/suhyupbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">수협은행</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('KDB산업은행', this)"><img src="/static/cards/kdbbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">KDB산업</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('BNK부산은행', this)"><img src="/static/cards/bnkbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">BNK부산</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('우체국은행', this)"><img src="/static/cards/epostbank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">우체국</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('SBI저축은행', this)"><img src="/static/cards/sbibank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">SBI저축</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('신협', this)"><img src="/static/cards/cubank.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">신협</span></button>
+                            <div class="d-flex gap-2 overflow-auto pb-1" data-no-page-swipe style="scrollbar-width: none; -ms-overflow-style: none;">
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('신한은행', this)"><img src="/static/cards/sinhanbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">신한은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('KB국민은행', this)"><img src="/static/cards/kbbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">KB국민</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('농협은행', this)"><img src="/static/cards/nhbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">농협은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('하나은행', this)"><img src="/static/cards/hanabank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">하나은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('우리은행', this)"><img src="/static/cards/wooribank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">우리은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('IBK기업은행', this)"><img src="/static/cards/ibkbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">IBK기업</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('카카오뱅크', this)"><img src="/static/cards/kakaobank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">카카오뱅크</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('토스뱅크', this)"><img src="/static/cards/tossbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">토스뱅크</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('케이뱅크', this)"><img src="/static/cards/kbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">케이뱅크</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('SC제일은행', this)"><img src="/static/cards/scbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">SC제일</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('씨티은행', this)"><img src="/static/cards/citibank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">씨티은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('iM뱅크', this)"><img src="/static/cards/imbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">iM뱅크</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('수협은행', this)"><img src="/static/cards/suhyupbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">수협은행</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('KDB산업은행', this)"><img src="/static/cards/kdbbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">KDB산업</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('BNK부산은행', this)"><img src="/static/cards/bnkbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">BNK부산</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('우체국은행', this)"><img src="/static/cards/epostbank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">우체국</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('SBI저축은행', this)"><img src="/static/cards/sbibank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">SBI저축</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('신협', this)"><img src="/static/cards/cubank.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">신협</span></button>
                             </div>
                             <p class="mb-1 mt-2 text-muted" style="font-size: 0.8rem; font-weight: 600;">카드사</p>
-                            <div class="d-flex gap-2 pb-1">
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('BC카드', this)"><img src="/static/banks/bccard.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">BC카드</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('현대카드', this)"><img src="/static/banks/hyundaicard.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">현대카드</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('롯데카드', this)"><img src="/static/banks/lottecard.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">롯데카드</span></button>
-                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 66px; cursor: pointer;" onclick="pickCard('삼성카드', this)"><img src="/static/banks/samsungcard.png" style="width: 36px; height: 36px; object-fit: contain;"><span style="font-size: 9px; color: #555; margin-top: 3px; text-align: center; line-height: 1.2;">삼성카드</span></button>
+                            <div class="d-flex gap-2 pb-1" data-no-page-swipe>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('BC카드', this)"><img src="/static/banks/bccard.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">BC카드</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('현대카드', this)"><img src="/static/banks/hyundaicard.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">현대카드</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('롯데카드', this)"><img src="/static/banks/lottecard.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">롯데카드</span></button>
+                                <button type="button" class="bank-btn flex-shrink-0 d-flex flex-column align-items-center rounded-3 p-2" style="border: 1.5px solid #e8d5ff; background: white; width: 82px; cursor: pointer;" onclick="pickCard('삼성카드', this)"><img src="/static/banks/samsungcard.png" style="width: 48px; height: 48px; object-fit: contain;"><span style="font-size: 11px; color: #555; margin-top: 4px; text-align: center; line-height: 1.2;">삼성카드</span></button>
                             </div>
                         </div>
                         <div class="col-12">
@@ -79,6 +79,21 @@
                         <div class="col-md-2">
                             <button type="submit" class="btn w-100" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">추가</button>
                         </div>
+                        <div class="col-12">
+                            <a href="#" id="addTierToggle" onclick="toggleTier('addTierSection','addTierToggle'); return false;" style="font-size:0.8rem; color:#b088f9;">실적 구간 설정 ▾</a>
+                            <div id="addTierSection" style="max-height:0; overflow:hidden; transition:max-height 0.35s ease, opacity 0.35s ease; opacity:0; margin-top:0;">
+                                <div class="d-flex align-items-center gap-2 flex-wrap" style="padding-top:6px;">
+                                    <span class="badge" style="background:#dc3545;">빨강 ≤</span>
+                                    <input type="number" name="tier1" class="form-control form-control-sm" style="width:60px;" value="20" min="0" max="100">
+                                    <span class="badge" style="background:#ffc107; color:#333;">노랑 ≤</span>
+                                    <input type="number" name="tier2" class="form-control form-control-sm" style="width:60px;" value="50" min="0" max="100">
+                                    <span class="badge" style="background:#0d6efd;">파랑 ≤</span>
+                                    <input type="number" name="tier3" class="form-control form-control-sm" style="width:60px;" value="80" min="0" max="100">
+                                    <span class="badge" style="background:#198754;">초록</span>
+                                    <span class="text-muted" style="font-size:0.75rem;">%</span>
+                                </div>
+                            </div>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -86,44 +101,46 @@
             <!-- 카드 목록 -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">카드 목록</h5>
-                    <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>카드 이름</th>
-                                <th>월 목표 금액</th>
-                                <th>혜택 사이트</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for card in cards %}
-                            <tr>
-                                <td>
+                    <h5 class="card-title">카드 목록 <span class="text-muted fw-normal" style="font-size:0.72rem;">← 삭제 &nbsp;/&nbsp; → 수정</span></h5>
+                    {% for card in cards %}
+                    <div class="swipe-wrapper"
+                         data-delete-url="/cards/delete/{{ card.id }}"
+                         data-edit-id="{{ card.id }}"
+                         data-edit-name="{{ card.name }}"
+                         data-edit-target="{{ card.monthly_target }}"
+                         data-edit-url-val="{{ card.url or '' }}"
+                         data-edit-tier1="{{ card.tier1 or 20 }}"
+                         data-edit-tier2="{{ card.tier2 or 50 }}"
+                         data-edit-tier3="{{ card.tier3 or 80 }}"
+                         style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
+                        <div style="position:absolute;right:0;top:0;height:100%;width:80px;background:#dc3545;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-size:0.75rem;gap:2px;">
+                            <i class="bi bi-trash" style="font-size:1.15rem;"></i>삭제
+                        </div>
+                        <div style="position:absolute;left:0;top:0;height:100%;width:80px;background:#198754;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-size:0.75rem;gap:2px;">
+                            <i class="bi bi-pencil" style="font-size:1.15rem;"></i>수정
+                        </div>
+                        <div class="swipe-content" style="position:relative;z-index:1;background:white;padding:12px 14px;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="d-flex align-items-center gap-2">
                                     {% set logo = card.name | bank_logo %}
-                                    {% if logo %}<img src="{{ logo }}" style="height: 28px; width: 28px; object-fit: contain; border-radius: 6px; margin-right: 6px;">{% endif %}{{ card.name }}
-                                </td>
-                                <td>{{ "{:,}".format(card.monthly_target | int) }}원</td>
-                                <td>
+                                    {% if logo %}<img src="{{ logo }}" style="height:28px;width:28px;object-fit:contain;border-radius:6px;">{% endif %}
+                                    <span class="fw-semibold">{{ card.name }}</span>
+                                </span>
+                                <div class="text-end">
+                                    <div class="text-muted small">{{ "{:,}".format(card.monthly_target|int) }}원/월</div>
                                     {% if card.url %}
-                                    <a href="{{ card.url }}" target="_blank" class="btn btn-sm btn-outline-primary">바로가기</a>
-                                    {% else %}
-                                    <span class="text-muted">-</span>
+                                    <div class="mt-1">
+                                        <a href="{{ card.url }}" target="_blank" class="btn btn-sm btn-outline-primary" style="font-size:0.68rem;padding:1px 7px;">혜택 사이트 →</a>
+                                    </div>
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-secondary me-1"
-                                        onclick="openEdit({{ card.id }}, '{{ card.name }}', {{ card.monthly_target }}, '{{ card.url or '' }}')">수정</button>
-                                    <form action="/cards/delete/{{ card.id }}" method="post" style="display:inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    {% endfor %}
+                    {% if not cards %}
+                    <p class="text-muted text-center py-3">등록된 카드가 없습니다.</p>
+                    {% endif %}
                 </div>
             </div>
             <div class="d-lg-none" style="height: 90px;"></div>
@@ -141,6 +158,20 @@
                             <input type="text" name="name" id="editName" class="form-control" placeholder="카드 이름" required>
                             <input type="number" name="monthly_target" id="editTarget" class="form-control" placeholder="월 목표 금액" step="10000" required>
                             <input type="url" name="url" id="editUrl" class="form-control" placeholder="혜택 사이트 URL (선택)">
+                            <div>
+                                <a href="#" id="editTierToggle" onclick="toggleTier('editTierSection','editTierToggle'); return false;" style="font-size:0.8rem; color:#b088f9;">실적 구간 설정 ▾</a>
+                                <div id="editTierSection" style="max-height:0; overflow:hidden; transition:max-height 0.35s ease, opacity 0.35s ease; opacity:0; margin-top:0;">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap" style="padding-top:6px;">
+                                        <span class="badge" style="background:#dc3545;">빨강 ≤</span>
+                                        <input type="number" name="tier1" id="editTier1" class="form-control form-control-sm" style="width:60px;" min="0" max="100">
+                                        <span class="badge" style="background:#ffc107; color:#333;">노랑 ≤</span>
+                                        <input type="number" name="tier2" id="editTier2" class="form-control form-control-sm" style="width:60px;" min="0" max="100">
+                                        <span class="badge" style="background:#0d6efd;">파랑 ≤</span>
+                                        <input type="number" name="tier3" id="editTier3" class="form-control form-control-sm" style="width:60px;" min="0" max="100">
+                                        <span class="badge" style="background:#198754;">초록</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
@@ -178,6 +209,20 @@
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
+            function toggleTier(sectionId, toggleId) {
+                var el = document.getElementById(sectionId);
+                var link = document.getElementById(toggleId);
+                var isOpen = el.style.maxHeight !== '0px' && el.style.maxHeight !== '';
+                if (isOpen) {
+                    el.style.maxHeight = '0';
+                    el.style.opacity = '0';
+                    link.textContent = '실적 구간 설정 ▾';
+                } else {
+                    el.style.maxHeight = el.scrollHeight + 'px';
+                    el.style.opacity = '1';
+                    link.textContent = '실적 구간 설정 ▴';
+                }
+            }
             function pickCard(name, el) {
                 document.querySelector('input[name="name"]').value = name;
                 document.querySelectorAll('.bank-btn').forEach(function(b) {
@@ -187,11 +232,14 @@
                 el.style.borderColor = '#b088f9';
                 el.style.background = 'rgba(176, 136, 249, 0.12)';
             }
-            function openEdit(id, name, target, url) {
+            function openEdit(id, name, target, url, tier1, tier2, tier3) {
                 document.getElementById('editForm').action = '/cards/edit/' + id;
                 document.getElementById('editName').value = name;
                 document.getElementById('editTarget').value = target;
                 document.getElementById('editUrl').value = url;
+                document.getElementById('editTier1').value = tier1;
+                document.getElementById('editTier2').value = tier2;
+                document.getElementById('editTier3').value = tier3;
                 new bootstrap.Modal(document.getElementById('editModal')).show();
             }
         </script>
@@ -207,6 +255,110 @@
             window.addEventListener('scroll', updateFades);
             window.addEventListener('resize', updateFades);
             updateFades();
+        </script>
+        <script>
+            // Swipe-to-action (touch + mouse drag) for card list items
+            (function() {
+                var active = null;
+
+                function doAction(w, curX) {
+                    if (curX < -60) {
+                        var url = w.dataset.deleteUrl;
+                        if (url) setTimeout(function() {
+                            if (confirm('삭제하시겠습니까?')) {
+                                var f = document.createElement('form');
+                                f.method = 'post'; f.action = url;
+                                document.body.appendChild(f); f.submit();
+                            }
+                        }, 50);
+                    } else if (curX > 60) {
+                        openEdit(w.dataset.editId, w.dataset.editName, w.dataset.editTarget,
+                                 w.dataset.editUrlVal, w.dataset.editTier1, w.dataset.editTier2, w.dataset.editTier3);
+                    }
+                }
+
+                document.addEventListener('mousemove', function(e) {
+                    if (!active) return;
+                    var dx = e.clientX - active.sx, dy = e.clientY - active.sy;
+                    if (!active.horiz) {
+                        if (Math.abs(dy) > Math.abs(dx)) { active = null; return; }
+                        if (Math.abs(dx) > 8) active.horiz = true; else return;
+                    }
+                    active.curX = Math.max(-110, Math.min(110, dx));
+                    active.c.style.transform = 'translateX(' + active.curX + 'px)';
+                });
+
+                document.addEventListener('mouseup', function() {
+                    if (!active) return;
+                    var a = active; active = null;
+                    a.c.style.cursor = 'grab';
+                    if (!a.horiz) return;
+                    a.c.style.transition = 'transform 0.22s ease';
+                    a.c.style.transform = 'translateX(0)';
+                    doAction(a.w, a.curX);
+                });
+
+                window.addEventListener('blur', function() {
+                    if (!active) return;
+                    active.c.style.transition = 'transform 0.22s ease';
+                    active.c.style.transform = 'translateX(0)';
+                    active.c.style.cursor = 'grab';
+                    active = null;
+                });
+
+                document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                    var c = w.querySelector('.swipe-content');
+                    c.style.cursor = 'grab';
+                    c.style.userSelect = 'none';
+
+                    c.addEventListener('mousedown', function(e) {
+                        if (e.button !== 0) return;
+                        active = { w: w, c: c, sx: e.clientX, sy: e.clientY, horiz: false, curX: 0 };
+                        c.style.transition = 'none';
+                        c.style.cursor = 'grabbing';
+                        e.preventDefault();
+                    });
+
+                    var sx, sy, tracking, horiz, curX;
+                    c.addEventListener('touchstart', function(e) {
+                        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+                        tracking = true; horiz = false; curX = 0;
+                        c.style.transition = 'none';
+                    }, {passive:true});
+                    c.addEventListener('touchmove', function(e) {
+                        if (!tracking) return;
+                        var dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+                        if (!horiz) {
+                            if (Math.abs(dy) > Math.abs(dx)) { tracking = false; return; }
+                            if (Math.abs(dx) > 8) horiz = true; else return;
+                        }
+                        e.preventDefault();
+                        curX = Math.max(-110, Math.min(110, dx));
+                        c.style.transform = 'translateX(' + curX + 'px)';
+                    }, {passive:false});
+                    c.addEventListener('touchend', function() {
+                        if (!tracking || !horiz) { tracking = false; return; }
+                        tracking = false;
+                        c.style.transition = 'transform 0.22s ease';
+                        c.style.transform = 'translateX(0)';
+                        doAction(w, curX);
+                    });
+                });
+            })();
+            // Page navigation swipe (touch only, /cards = index 0)
+            (function(ci) {
+                var pages = ['/cards', '/calendar', '/stats', '/budget', '/categories'];
+                var sx, sy;
+                document.addEventListener('touchstart', function(e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, {passive:true});
+                document.addEventListener('touchend', function(e) {
+                    var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+                    if (Math.abs(dx) < 80 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                    if (sx < 25 || sx > window.innerWidth - 25) return;
+                    if (e.target.closest && e.target.closest('.swipe-wrapper,.swipe-content,[data-no-page-swipe]')) return;
+                    var ni = ci + (dx < 0 ? 1 : -1);
+                    if (ni >= 0 && ni < pages.length) window.location.href = pages[ni];
+                }, {passive:true});
+            })(0);
         </script>
     </body>
 </html>
