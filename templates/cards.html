@@ -21,7 +21,7 @@
             <div class="d-none d-md-flex gap-1">
                 <a href="/cards" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카드 관리</a>
                 <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
-                <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리 통계</a>
+                <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">통계</a>
                 <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
                 <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
             </div>
@@ -69,7 +69,7 @@
                             {% for card in cards %}
                             <tr>
                                 <td>{{ card.name }}</td>
-                                <td>{{ card.monthly_target }}원</td>
+                                <td>{{ "{:,}".format(card.monthly_target | int) }}원</td>
                                 <td>
                                     {% if card.url %}
                                     <a href="{{ card.url }}" target="_blank" class="btn btn-sm btn-outline-primary">바로가기</a>
@@ -137,6 +137,10 @@
                 <a href="/budget" class="text-center text-decoration-none" style="color: white;">
                     <i class="bi bi-wallet2 fs-5 d-block"></i>
                     <small style="font-size: 10px;">예산</small>
+                </a>
+                <a href="/categories" class="text-center text-decoration-none" style="color: white;">
+                    <i class="bi bi-grid fs-5 d-block"></i>
+                    <small style="font-size: 10px;">카테</small>
                 </a>
             </div>
         </nav>
