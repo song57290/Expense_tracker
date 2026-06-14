@@ -50,6 +50,14 @@ def bank_logo_filter(card_name):
 
 with app.app_context():
     db.create_all()
+    from sqlalchemy import text
+    for col, default in [('tier1', 20), ('tier2', 50), ('tier3', 80)]:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE card ADD COLUMN {col} INTEGER DEFAULT {default}"))
+                conn.commit()
+        except Exception:
+            pass
     if not Category.query.first():
         for name, icon in [('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]:
             db.session.add(Category(name=name, icon=icon))
@@ -73,16 +81,28 @@ def index():
     cards = Card.query.all()
     card_stats = []
     for card in cards:
-        spent = sum(tx.amount for tx in transactions 
+        spent = sum(tx.amount for tx in transactions
                     if tx.type == 'expense' and tx.card == card.name)
         card_stats.append({
             'name': card.name,
             'target': card.monthly_target,
             'spent': spent,
-            'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+            'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
+            'tier1': card.tier1 or 20,
+            'tier2': card.tier2 or 50,
+            'tier3': card.tier3 or 80,
         })
 
     categories = Category.query.order_by(Category.id).all()
+    emoji_map = {c.name: c.icon for c in categories}
+
+    # 이번 달 카테고리별 지출
+    category_totals = defaultdict(int)
+    for tx in transactions:
+        if tx.type == 'expense' and tx.date.startswith(current_month):
+            category_totals[tx.category] += tx.amount
+    category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
+
     return render_template('index.html',
                         transactions=transactions,
                         income_total=income_total,
@@ -93,6 +113,9 @@ def index():
                         card_stats=card_stats,
                         card_list=cards,
                         categories=categories,
+                        emoji_map=emoji_map,
+                        category_totals=category_totals,
+                        current_month=current_month,
                         )
 
 # 내역 추가 - 폼에서 입력한 데이터를 받아서 DB에 저장
@@ -161,26 +184,69 @@ def budget():
             'name': card.name,
             'target': card.monthly_target,
             'spent': spent,
-            'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+            'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
+            'tier1': card.tier1 or 20,
+            'tier2': card.tier2 or 50,
+            'tier3': card.tier3 or 80,
         })
     return render_template('budget.html', current_budget=current_budget, current_month=current_month, card_stats=card_stats)
 
 # 카테고리별 통계
 @app.route('/stats')
 def stats():
-    current_month = datetime.now().strftime('%Y-%m')
+    now = datetime.now()
+    month = request.args.get('month', now.strftime('%Y-%m'))
     transactions = Transaction.query.filter(
         Transaction.type == 'expense',
-        Transaction.date.like(f'{current_month}%')
+        Transaction.date.like(f'{month}%')
     ).all()
 
     category_totals = defaultdict(int)
     for tx in transactions:
         category_totals[tx.category] += tx.amount
-    
+
+    # Last 6 months totals for monthly trend chart
+    monthly_totals = []
+    for i in range(5, -1, -1):
+        m = now.month - i
+        y = now.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        mo = f'{y}-{m:02d}'
+        mo_tx = Transaction.query.filter(
+            Transaction.type == 'expense',
+            Transaction.date.like(f'{mo}%')
+        ).all()
+        monthly_totals.append({'month': mo, 'total': sum(t.amount for t in mo_tx)})
+
+    # Per-card breakdown for selected month
+    cards = Card.query.all()
+    card_monthly = [
+        {'name': c.name, 'spent': sum(tx.amount for tx in transactions if tx.card == c.name)}
+        for c in cards
+    ]
+    card_monthly = [c for c in card_monthly if c['spent'] > 0]
+
+    # Prev/next month navigation
+    y, m = int(month[:4]), int(month[5:7])
+    pm, py = m - 1, y
+    if pm <= 0: pm, py = 12, y - 1
+    nm, ny = m + 1, y
+    if nm > 12: nm, ny = 1, y + 1
+
     cats = Category.query.order_by(Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
-    return render_template('stats.html', category_totals=category_totals, emoji_map=emoji_map)
+    return render_template('stats.html',
+        category_totals=category_totals,
+        emoji_map=emoji_map,
+        month=month,
+        prev_month=f'{py}-{pm:02d}',
+        next_month=f'{ny}-{nm:02d}',
+        is_current=(month == now.strftime('%Y-%m')),
+        monthly_totals=monthly_totals,
+        card_monthly=card_monthly,
+    )
 
 # 카테고리 관리 - GET이면 목록 표시, POST면 새 카테고리 추가
 @app.route('/categories', methods=['GET', 'POST'])
@@ -218,7 +284,10 @@ def cards():
         db.session.add(Card(
             name=request.form['name'],
             monthly_target=int(request.form['monthly_target']),
-            url=request.form.get('url') or None
+            url=request.form.get('url') or None,
+            tier1=int(request.form.get('tier1') or 20),
+            tier2=int(request.form.get('tier2') or 50),
+            tier3=int(request.form.get('tier3') or 80),
         ))
         db.session.commit()
     card_list = Card.query.all()
@@ -231,6 +300,9 @@ def edit_card(card_id):
     card.name = request.form['name']
     card.monthly_target = int(request.form['monthly_target'])
     card.url = request.form.get('url') or None
+    card.tier1 = int(request.form.get('tier1') or 20)
+    card.tier2 = int(request.form.get('tier2') or 50)
+    card.tier3 = int(request.form.get('tier3') or 80)
     db.session.commit()
     return redirect(url_for('cards'))
 
