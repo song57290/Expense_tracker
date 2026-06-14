@@ -13,16 +13,16 @@
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
     </head>
     <body class="bg-light">
-        <div id="topFade" class="d-md-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
-        <div id="bottomFade" class="d-md-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
+        <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
+        <div id="bottomFade" class="d-lg-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
             <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-md-none" style="color: white;">
+            <a href="/" class="d-lg-none" style="color: white;">
                 <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
             </a>
-            <div class="d-none d-md-flex gap-1">
+            <div class="d-none d-lg-flex gap-1">
                 <a href="/cards" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카드 관리</a>
                 <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
                 <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">통계</a>
@@ -32,7 +32,7 @@
         </nav>
         </div>
 
-        <div class="container pb-md-0">
+        <div class="container pb-lg-0">
             <div class="row">
 
                 <!-- 원형 차트 -->
@@ -72,10 +72,10 @@
                 </div>
 
             </div>
-            <div class="d-md-none" style="height: 90px;"></div>
+            <div class="d-lg-none" style="height: 90px;"></div>
         </div>
 
-        <nav class="d-md-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000;">
+        <nav class="d-lg-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000; overflow: hidden;">
             <div class="d-flex justify-content-around py-2">
                 <a href="/" class="text-center text-decoration-none" style="color: white;">
                     <i class="bi bi-house fs-5 d-block"></i>

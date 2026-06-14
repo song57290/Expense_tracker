@@ -3,11 +3,50 @@ from models import db, Transaction, Budget
 from datetime import datetime
 from collections import defaultdict
 from models import db, Transaction, Budget, Category, Card
-import json
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위치
 db.init_app(app)
+
+@app.template_filter('bank_logo')
+def bank_logo_filter(card_name):
+    mappings = [
+        ('신한', '/static/banks/sinhanbank.png'),
+        ('KB', '/static/banks/kbbank.png'),
+        ('국민', '/static/banks/kbbank.png'),
+        ('농협', '/static/banks/nhbank.png'),
+        ('NH', '/static/banks/nhbank.png'),
+        ('하나', '/static/banks/hanabank.png'),
+        ('우리', '/static/banks/wooribank.png'),
+        ('기업', '/static/banks/ibkbank.png'),
+        ('IBK', '/static/banks/ibkbank.png'),
+        ('카카오', '/static/banks/kakaobank.png'),
+        ('토스', '/static/banks/tossbank.png'),
+        ('케이뱅크', '/static/banks/kbank.png'),
+        ('K뱅크', '/static/banks/kbank.png'),
+        ('SC', '/static/banks/scbank.png'),
+        ('제일', '/static/banks/scbank.png'),
+        ('씨티', '/static/banks/citibank.png'),
+        ('citi', '/static/banks/citibank.png'),
+        ('IM', '/static/banks/imbank.png'),
+        ('iM', '/static/banks/imbank.png'),
+        ('수협', '/static/banks/suhyupbank.png'),
+        ('KDB', '/static/banks/kdbbank.png'),
+        ('산업', '/static/banks/kdbbank.png'),
+        ('BNK', '/static/banks/bnkbank.png'),
+        ('부산', '/static/banks/bnkbank.png'),
+        ('우체국', '/static/banks/epostbank.png'),
+        ('SBI', '/static/banks/sbibank.png'),
+        ('신협', '/static/banks/cubank.png'),
+        ('BC', '/static/cards/bccard.png'),
+        ('현대', '/static/cards/hyundaicard.png'),
+        ('롯데', '/static/cards/lottecard.png'),
+        ('삼성', '/static/cards/samsungcard.png'),
+    ]
+    for keyword, path in mappings:
+        if keyword in card_name:
+            return path
+    return None
 
 with app.app_context():
     db.create_all()
@@ -110,7 +149,21 @@ def budget():
         db.session.commit()
         return redirect(url_for('index'))
     current_budget = Budget.query.filter_by(month=current_month).first()
-    return render_template('budget.html', current_budget=current_budget, current_month=current_month)
+    transactions = Transaction.query.filter(
+        Transaction.type == 'expense',
+        Transaction.date.like(f'{current_month}%')
+    ).all()
+    cards = Card.query.all()
+    card_stats = []
+    for card in cards:
+        spent = sum(tx.amount for tx in transactions if tx.card == card.name)
+        card_stats.append({
+            'name': card.name,
+            'target': card.monthly_target,
+            'spent': spent,
+            'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        })
+    return render_template('budget.html', current_budget=current_budget, current_month=current_month, card_stats=card_stats)
 
 # 카테고리별 통계
 @app.route('/stats')
