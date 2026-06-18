@@ -22,6 +22,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     icon = db.Column(db.String(10), nullable=False)  # 이모지
+    position = db.Column(db.Integer, nullable=False, default=0)
 
 # 카드별 실적 관리
 class Card(db.Model):
