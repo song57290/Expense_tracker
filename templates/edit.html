@@ -34,31 +34,29 @@
                     <h5 class="card-title">내역 수정</h5>
                     <!-- 기존 값을 value에 미리 채워서 보여줌 -->
                     <form action="/edit/{{ tx.id }}" method="post" class="row g-2">
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <input type="date" name="date" value="{{ tx.date }}" class="form-control" required>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <select name="type" class="form-select">
-                                <!-- 기존 유형에 selected를 붙여서 현재 값이 선택된 상태로 보여줌 -->
                                 <option value="expense" {% if tx.type == 'expense' %}selected{% endif %}>지출</option>
                                 <option value="income" {% if tx.type == 'income' %}selected{% endif %}>수입</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <select name="category" class="form-select">
                                 {% for cat in categories %}
                                 <option value="{{ cat.name }}" {% if tx.category == cat.name %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <input type="text" name="description" value="{{ tx.description }}" class="form-control">
-                        </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <input type="text" name="amount" value="{{ tx.amount }}" class="form-control" inputmode="numeric">
                         </div>
-                        <!-- 카드 선택 - 기존 카드가 선택된 상태로 보여줌 -->
-                        <div class="col-md-2">
+                        <div class="col-12 col-lg-2">
+                            <input type="text" name="description" value="{{ tx.description }}" class="form-control" placeholder="항목 설명">
+                        </div>
+                        <div class="col-12 col-lg-2">
                             <select name="card" class="form-select" required>
                                 <option value="">카드 선택</option>
                                 {% for card in card_list %}
