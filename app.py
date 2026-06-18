@@ -210,14 +210,17 @@ def stats():
         category_totals[tx.category] += tx.amount
 
     # Last 6 months totals for monthly trend chart
-    monthly_totals = []
+    six_months = []
     for i in range(5, -1, -1):
         m = now.month - i
         y = now.year
         while m <= 0:
             m += 12
             y -= 1
-        mo = f'{y}-{m:02d}'
+        six_months.append(f'{y}-{m:02d}')
+
+    monthly_totals = []
+    for mo in six_months:
         mo_tx = Transaction.query.filter(
             Transaction.type == 'expense',
             Transaction.date.like(f'{mo}%')
@@ -231,6 +234,18 @@ def stats():
         for c in cards
     ]
     card_monthly = [c for c in card_monthly if c['spent'] > 0]
+
+    # Card-specific monthly trend (last 6 months per card)
+    card_monthly_trend = {}
+    for card in cards:
+        card_monthly_trend[card.name] = []
+        for mo in six_months:
+            mo_tx = Transaction.query.filter(
+                Transaction.type == 'expense',
+                Transaction.date.like(f'{mo}%'),
+                Transaction.card == card.name
+            ).all()
+            card_monthly_trend[card.name].append(sum(t.amount for t in mo_tx))
 
     # Prev/next month navigation
     y, m = int(month[:4]), int(month[5:7])
@@ -250,6 +265,8 @@ def stats():
         is_current=(month == now.strftime('%Y-%m')),
         monthly_totals=monthly_totals,
         card_monthly=card_monthly,
+        card_monthly_trend=card_monthly_trend,
+        card_list=[c.name for c in cards],
     )
 
 # 카테고리 관리 - GET이면 목록 표시, POST면 새 카테고리 추가
