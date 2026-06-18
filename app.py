@@ -1,8 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file
 from models import db, Transaction, Budget
 from datetime import datetime
 from collections import defaultdict
 from models import db, Transaction, Budget, Category, Card
+import openpyxl
+import xlrd
+from io import BytesIO
+import tempfile, json, os, re
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위치
@@ -329,6 +333,379 @@ def calendar():
     card_list = Card.query.all()
     categories = Category.query.order_by(Category.id).all()
     return render_template('calendar.html', events=events, card_list=card_list, categories=categories)
+
+# ── Excel import helpers ──────────────────────────────────────────────────────
+def _parse_date(val):
+    if val is None: return None
+    if hasattr(val, 'strftime'): return val.strftime('%Y-%m-%d')
+    s = str(val).strip().split(' ')[0].split('T')[0]
+    for fmt in ('%Y-%m-%d', '%Y.%m.%d', '%Y/%m/%d'):
+        try: return datetime.strptime(s, fmt).strftime('%Y-%m-%d')
+        except: pass
+    if len(s) == 8 and s.isdigit():
+        return f'{s[:4]}-{s[4:6]}-{s[6:8]}'
+    return None
+
+def _parse_amount(val):
+    if val is None: return None
+    if isinstance(val, (int, float)): return int(abs(val)) if val != 0 else None
+    s = str(val).replace(',', '').replace('원', '').replace(' ', '').strip()
+    try: v = float(s); return int(abs(v)) if v != 0 else None
+    except: return None
+
+def _parse_type(val):
+    if val is None: return None
+    s = str(val).strip()
+    for kw in ('출금', '지출', '결제', 'expense'):
+        if kw in s: return 'expense'
+    for kw in ('입금', '수입', '이자', 'income'):
+        if kw in s: return 'income'
+    return None
+
+_DATE_H = {'날짜','거래일자','거래일','일자','거래날짜','날짜(time)'}
+_TYPE_H = {'유형','구분','거래구분','거래유형','입출금구분','입출금'}
+_DESC_H = {'내용','적요','거래내용','메모','설명','항목','가맹점명','사용처','적요내용','거래처'}
+_AMT_H  = {'금액','거래금액','금액(원)','거래금액(원)'}
+_DEB_H  = {'출금','출금액','지출금액','출금금액','출금(원)','출금금액(원)','출금액(원)'}
+_CRD_H  = {'입금','입금액','수입금액','입금금액','입금(원)','입금금액(원)','입금액(원)'}
+_CAT_H  = {'카테고리','분류'}
+_CARD_H = {'카드','카드명','결제카드'}
+
+def _detect_cols(header):
+    cols = {}
+    for i, h in enumerate(header):
+        if h is None: continue
+        h = str(h).strip().replace(' ', '')
+        if h in _DATE_H: cols.setdefault('date', i)
+        elif h in _TYPE_H: cols.setdefault('type', i)
+        elif h in _DESC_H: cols.setdefault('desc', i)
+        elif h in _AMT_H: cols.setdefault('amount', i)
+        elif h in _DEB_H: cols['debit'] = i
+        elif h in _CRD_H: cols['credit'] = i
+        elif h in _CAT_H: cols.setdefault('category', i)
+        elif h in _CARD_H: cols.setdefault('card', i)
+    return cols
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route('/import/template')
+def import_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = '내역'
+    ws.append(['날짜', '유형', '카테고리', '설명', '금액', '카드'])
+    ws.append(['2026-06-17', '지출', '식사', '스타벅스', 50000, '신한카드'])
+    ws.append(['2026-06-17', '수입', '기타', '월급', 3000000, ''])
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, download_name='가계부_양식.xlsx', as_attachment=True,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/import', methods=['POST'])
+def import_excel():
+    file = request.files.get('file')
+    fname = (file.filename or '').lower()
+    if not file or not (fname.endswith('.xlsx') or fname.endswith('.xls')):
+        return redirect(url_for('index') + '?import_error=파일 형식 오류 (.xlsx 또는 .xls)')
+
+    all_rows = []
+    try:
+        if fname.endswith('.xlsx'):
+            wb = openpyxl.load_workbook(file)
+            ws = wb.active
+            for row in ws.iter_rows(values_only=True):
+                all_rows.append(list(row))
+        else:
+            wb = xlrd.open_workbook(file_contents=file.read())
+            ws = wb.sheet_by_index(0)
+            for i in range(ws.nrows):
+                parsed = []
+                for cell in ws.row(i):
+                    if cell.ctype == xlrd.XL_CELL_DATE:
+                        parsed.append(xlrd.xldate_as_datetime(cell.value, wb.datemode).strftime('%Y-%m-%d'))
+                    elif cell.ctype == xlrd.XL_CELL_EMPTY:
+                        parsed.append(None)
+                    else:
+                        parsed.append(cell.value)
+                all_rows.append(parsed)
+    except Exception as e:
+        app.logger.exception('Excel open error')
+        from urllib.parse import quote
+        return redirect(url_for('index') + '?import_error=' + quote(str(e)[:120]))
+
+    if not all_rows:
+        return redirect(url_for('index') + '?import_error=빈 파일입니다')
+
+    # 모든 값을 JSON 직렬화 가능한 형태로 변환
+    def serialize(v):
+        if v is None: return None
+        if hasattr(v, 'strftime'): return v.strftime('%Y-%m-%d')
+        return str(v)
+    all_rows = [[serialize(c) for c in row] for row in all_rows]
+
+    fd, path = tempfile.mkstemp(suffix='.json', prefix='impx_')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump(all_rows, f)
+
+    # 첫 15행 중에서 실제 헤더 행 찾기
+    header_row = 0
+    auto_cols = {}
+    for ri, row in enumerate(all_rows[:15]):
+        c = _detect_cols(row)
+        if 'date' in c or 'debit' in c or 'credit' in c or 'amount' in c:
+            header_row = ri
+            auto_cols = c
+            break
+
+    from urllib.parse import urlencode
+    params = urlencode({'tmp': os.path.basename(path), 'hr': header_row,
+                        **{k: v for k, v in auto_cols.items()}})
+    return redirect(url_for('import_map') + '?' + params)
+
+@app.route('/import/map')
+def import_map():
+    tmp = request.args.get('tmp', '')
+    if not tmp.startswith('impx_'):
+        return redirect(url_for('index'))
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if not os.path.exists(path):
+        return redirect(url_for('index'))
+    with open(path, encoding='utf-8') as f:
+        all_rows = json.load(f)
+    header_row = int(request.args.get('hr', 0))
+    headers = all_rows[header_row]
+    preview = all_rows[header_row + 1 : header_row + 6]
+    auto_cols = {k: int(v) for k, v in request.args.items()
+                 if k not in ('tmp', 'hr') and v.lstrip('-').isdigit()}
+    col_samples = []
+    for ci in range(len(headers)):
+        sample = ''
+        for row in preview:
+            if ci < len(row) and row[ci] is not None and str(row[ci]).strip():
+                sample = str(row[ci]).strip()
+                break
+        col_samples.append(sample)
+
+    return render_template('import_map.html', headers=headers, preview=preview,
+                           auto_cols=auto_cols, tmp=tmp, header_row=header_row,
+                           col_samples=col_samples)
+
+@app.route('/import/confirm', methods=['POST'])
+def import_confirm():
+    tmp = request.form.get('tmp', '')
+    if not tmp.startswith('impx_'):
+        return redirect(url_for('index'))
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if not os.path.exists(path):
+        return redirect(url_for('index') + '?import_error=세션이 만료되었습니다. 다시 업로드해주세요.')
+    with open(path, encoding='utf-8') as f:
+        all_rows = json.load(f)
+    os.remove(path)
+
+    header_row = int(request.form.get('header_row', 0))
+
+    def gi(name):
+        v = request.form.get(name, '')
+        return int(v) if v.lstrip('-').isdigit() else -1
+
+    col_date   = gi('col_date')
+    col_debit  = gi('col_debit')
+    col_credit = gi('col_credit')
+    col_amount = gi('col_amount')
+    col_type   = gi('col_type')
+    col_desc   = gi('col_desc')
+    col_cat    = gi('col_cat')
+
+    imported = 0
+    skipped = 0
+    for row in all_rows[header_row + 1:]:
+        if not any(row):
+            continue
+        try:
+            date_val = _parse_date(row[col_date]) if 0 <= col_date < len(row) else None
+            if not date_val:
+                skipped += 1; continue
+
+            if col_debit >= 0 and col_credit >= 0:
+                debit  = _parse_amount(row[col_debit])  if col_debit  < len(row) else None
+                credit = _parse_amount(row[col_credit]) if col_credit < len(row) else None
+                if debit:    tx_type, amount = 'expense', debit
+                elif credit: tx_type, amount = 'income',  credit
+                else:        skipped += 1; continue
+            elif col_amount >= 0 and col_type >= 0:
+                tx_type = _parse_type(row[col_type])
+                amount  = _parse_amount(row[col_amount])
+                if not tx_type or not amount:
+                    skipped += 1; continue
+            elif col_amount >= 0:
+                amount = _parse_amount(row[col_amount])
+                if not amount: skipped += 1; continue
+                tx_type = 'expense'
+            else:
+                skipped += 1; continue
+
+            desc_val = str(row[col_desc]).strip() if 0 <= col_desc < len(row) and row[col_desc] else ''
+            cat_val  = str(row[col_cat]).strip()  if 0 <= col_cat  < len(row) and row[col_cat]  else '기타'
+
+            db.session.add(Transaction(
+                date=date_val, type=tx_type, category=cat_val,
+                description=desc_val, amount=amount, card=None,
+            ))
+            imported += 1
+        except Exception:
+            skipped += 1
+
+    db.session.commit()
+    return redirect(f'/?imported={imported}&skipped={skipped}')
+
+def _parse_sms_line(line):
+    amount_m = re.search(r'([\d,]+)원', line)
+    if not amount_m:
+        return None
+    try:
+        amount = int(amount_m.group(1).replace(',', ''))
+    except Exception:
+        return None
+    if amount <= 0:
+        return None
+
+    # 날짜 추출
+    d = re.search(r'(\d{4})[-./](\d{1,2})[-./](\d{1,2})', line)
+    if d:
+        date_val = f"{d.group(1)}-{int(d.group(2)):02d}-{int(d.group(3)):02d}"
+    else:
+        d = re.search(r'(\d{1,2})[/.-](\d{1,2})', line)
+        year = datetime.now().year
+        date_val = f"{year}-{int(d.group(1)):02d}-{int(d.group(2)):02d}" if d else datetime.now().strftime('%Y-%m-%d')
+
+    # 유형
+    tx_type = 'income' if re.search(r'입금|환급|취소|환불', line) else 'expense'
+
+    # 카드명 — 대괄호 안 내용 우선 추출 (예: [신한체크승인] → 신한체크승인)
+    bracket_m = re.search(r'\[([^\]]+)\]', line)
+    if bracket_m:
+        card_val = bracket_m.group(1)
+    else:
+        card_m = re.search(r'[가-힣a-zA-Z]+(?:카드|은행|뱅크|bank)', line, re.IGNORECASE)
+        card_val = card_m.group(0) if card_m else None
+
+    # 설명 — 금액/날짜/카드명/불필요 키워드 제거 후 남은 텍스트
+    desc = line
+    desc = re.sub(r'\[[^\]]+\]', '', desc)              # [대괄호 내용] 전체 제거
+    desc = re.sub(r'[\d,]+원', '', desc)
+    desc = re.sub(r'\(금액\)', '', desc)
+    desc = re.sub(r'\d{4}[-./]\d{1,2}[-./]\d{1,2}', '', desc)
+    desc = re.sub(r'\d{1,2}[/.-]\d{1,2}', '', desc)
+    desc = re.sub(r'\d{2}:\d{2}', '', desc)
+    desc = re.sub(r'[가-힣]+(?:카드|은행|뱅크)', '', desc)
+    desc = re.sub(r'일시불|할부\d*|승인|취소|번호|이체|출금|입금|납부|결제|사용|신용|체크', '', desc)
+    desc = re.sub(r'\([^)]*\)', '', desc)               # (괄호 내용) 전체 제거
+    desc = re.sub(r'[\[\]（）]', '', desc)
+    desc = re.sub(r'\s+', ' ', desc).strip(' -_|,.')
+
+    return {'date': date_val, 'type': tx_type, 'amount': amount,
+            'description': desc, 'card': card_val, 'category': '기타'}
+
+@app.route('/import/text', methods=['POST'])
+def import_text():
+    raw = request.form.get('text', '').strip()
+    if not raw:
+        return redirect(url_for('index') + '?import_error=내용을 입력해주세요')
+
+    parsed = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        tx = _parse_sms_line(line)
+        if tx:
+            parsed.append(tx)
+
+    if not parsed:
+        return redirect(url_for('index') + '?import_error=인식된 거래 내역이 없습니다')
+
+    fd, path = tempfile.mkstemp(suffix='.json', prefix='impt_')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump(parsed, f, ensure_ascii=False)
+
+    return redirect(url_for('import_text_preview', tmp=os.path.basename(path)))
+
+@app.route('/import/text/preview')
+def import_text_preview():
+    tmp = request.args.get('tmp', '')
+    if not tmp.startswith('impt_'):
+        return redirect(url_for('index'))
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if not os.path.exists(path):
+        return redirect(url_for('index'))
+    with open(path, encoding='utf-8') as f:
+        parsed = json.load(f)
+    categories = Category.query.order_by(Category.id).all()
+    cards = Card.query.all()
+
+    # SMS에서 추출한 카드명을 DB 카드명과 매칭
+    _generic = {'카드', '은행', '뱅크', '체크', '신용', '승인', '출금', '입금', '이체', '결제', '납부'}
+
+    def match_card(sms_card):
+        if not sms_card:
+            return ''
+        for card in cards:
+            if card.name in sms_card or sms_card in card.name:
+                return card.name
+        # 카드명을 2~3자 슬라이딩 윈도우로 잘라 SMS 문자열 안에서 검색
+        # 예: "신한카드" → ["신한","한카","카드"] → "신한" ∈ "신한체크승인" → 매칭
+        for card in cards:
+            name = card.name
+            for length in (2, 3):
+                for i in range(len(name) - length + 1):
+                    chunk = name[i:i+length]
+                    if chunk in _generic:
+                        continue
+                    if chunk in sms_card:
+                        return card.name
+        return ''
+
+    for tx in parsed:
+        tx['card_matched'] = match_card(tx.get('card', ''))
+
+    return render_template('import_text_preview.html',
+                           parsed=parsed, tmp=tmp,
+                           categories=categories, card_list=cards)
+
+@app.route('/import/text/confirm', methods=['POST'])
+def import_text_confirm():
+    tmp = request.form.get('tmp', '')
+    if not tmp.startswith('impt_'):
+        return redirect(url_for('index'))
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if os.path.exists(path):
+        os.remove(path)
+
+    dates  = request.form.getlist('date')
+    types  = request.form.getlist('type')
+    descs  = request.form.getlist('description')
+    amts   = request.form.getlist('amount')
+    cats   = request.form.getlist('category')
+    cardss = request.form.getlist('card')
+    checks = set(request.form.getlist('include'))
+
+    imported = 0
+    for i in range(len(dates)):
+        if str(i) not in checks:
+            continue
+        try:
+            amount = int(str(amts[i]).replace(',', ''))
+            db.session.add(Transaction(
+                date=dates[i], type=types[i], category=cats[i],
+                description=descs[i], amount=amount,
+                card=cardss[i] if cardss[i] else None,
+            ))
+            imported += 1
+        except Exception:
+            pass
+
+    db.session.commit()
+    return redirect(f'/?imported={imported}')
 
 @app.route('/sw.js')
 def service_worker():

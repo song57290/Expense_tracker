@@ -35,6 +35,11 @@
         </div>
 
         <div class="container pb-lg-0">
+            <!-- 엑셀 가져오기 결과 알림 -->
+            <div id="importAlert" style="display:none;" class="alert alert-dismissible mb-3" role="alert">
+                <span id="importAlertMsg"></span>
+                <button type="button" class="btn-close" onclick="document.getElementById('importAlert').style.display='none'"></button>
+            </div>
 
             <!-- 요약 카드 4개 - 예산/수입/지출/잔액 -->
             <div class="d-flex justify-content-between align-items-center mb-2 px-1" style="cursor:pointer;user-select:none;" onclick="toggleSection('summaryContent','summaryArrow')">
@@ -177,6 +182,9 @@
                         </script>
                         <!-- 저장/취소 버튼 오른쪽 정렬 -->
                         <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModal" style="border-radius:10px;font-size:0.85rem;">
+                                <i class="bi bi-upload"></i> 가져오기
+                            </button>
                             <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
                             <button type="reset" class="btn btn-outline-secondary">취소</button>
                         </div>
@@ -223,6 +231,70 @@
             </div>
             <div class="d-lg-none" style="height: 90px;"></div>
         </div>
+        <!-- 가져오기 모달 -->
+        <div class="modal fade" id="importModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">내역 가져오기</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body pb-0">
+                        <!-- 탭 -->
+                        <ul class="nav nav-tabs mb-3" id="importTabs">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabText">
+                                    <i class="bi bi-chat-text text-primary"></i> 문자 붙여넣기
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabExcel">
+                                    <i class="bi bi-file-earmark-excel text-success"></i> 엑셀
+                                </button>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <!-- 엑셀 탭 -->
+                            <div class="tab-pane fade" id="tabExcel">
+                                <form action="/import" method="post" enctype="multipart/form-data">
+                                    <p class="text-muted" style="font-size:0.85rem;">
+                                        양식을 다운받아 작성 후 업로드하거나, 은행 내보내기 파일을 바로 올리세요.
+                                    </p>
+                                    <a href="/import/template" class="btn btn-sm btn-outline-success mb-3" style="border-radius:8px;">
+                                        <i class="bi bi-download"></i> 양식 다운로드
+                                    </a>
+                                    <input type="file" name="file" class="form-control mb-3" accept=".xlsx,.xls" required>
+                                    <div class="d-flex justify-content-end gap-2 pb-3">
+                                        <button type="submit" class="btn" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);color:white;border:none;border-radius:10px;">
+                                            다음
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <!-- 문자 탭 -->
+                            <div class="tab-pane fade show active" id="tabText">
+                                <form action="/import/text" method="post">
+                                    <p class="text-muted" style="font-size:0.85rem;">
+                                        카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.
+                                    </p>
+                                    <textarea name="text" class="form-control mb-3" rows="7"
+                                        placeholder="예) [신한카드] 일시불 50,000원 스타벅스 2026-06-17 14:30&#10;[KB국민카드] 32,000원 승인 올리브영 06/17"
+                                        style="font-size:0.82rem;resize:vertical;"></textarea>
+                                    <div class="d-flex justify-content-end gap-2 pb-3">
+                                        <button type="submit" class="btn" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);color:white;border:none;border-radius:10px;">
+                                            분석
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 하단 탭바 (모바일 전용) -->
         <nav class="d-lg-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000; overflow: hidden;">
             <div class="d-flex justify-content-around py-2">
@@ -250,6 +322,26 @@
         </nav>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            (function() {
+                var p = new URLSearchParams(location.search);
+                var alert = document.getElementById('importAlert');
+                var msg = document.getElementById('importAlertMsg');
+                if (p.get('imported') !== null) {
+                    var imp = parseInt(p.get('imported')), skp = parseInt(p.get('skipped') || 0);
+                    alert.className = 'alert alert-success alert-dismissible mb-3';
+                    msg.textContent = imp + '건 가져오기 완료' + (skp > 0 ? ' (오류 ' + skp + '건 제외)' : '');
+                    alert.style.display = 'block';
+                    history.replaceState(null, '', '/');
+                } else if (p.get('import_error') !== null) {
+                    alert.className = 'alert alert-danger alert-dismissible mb-3';
+                    var errDetail = p.get('import_error');
+                    msg.textContent = '가져오기 실패' + (errDetail && errDetail !== '1' ? ': ' + errDetail : ' — 파일을 확인해주세요.');
+                    alert.style.display = 'block';
+                    history.replaceState(null, '', '/');
+                }
+            })();
+        </script>
         <script>
             function toggleSection(id, arrowId) {
                 var el = document.getElementById(id);
