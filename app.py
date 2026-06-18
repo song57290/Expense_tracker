@@ -62,9 +62,19 @@ with app.app_context():
                 conn.commit()
         except Exception:
             pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE category ADD COLUMN position INTEGER DEFAULT 0"))
+            conn.commit()
+        cats = Category.query.order_by(Category.id).all()
+        for i, c in enumerate(cats):
+            c.position = i
+        db.session.commit()
+    except Exception:
+        pass
     if not Category.query.first():
-        for name, icon in [('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]:
-            db.session.add(Category(name=name, icon=icon))
+        for i, (name, icon) in enumerate([('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]):
+            db.session.add(Category(name=name, icon=icon, position=i))
         db.session.commit()
 
 # 메인 페이지 - DB에서 전체 내역 조회 후 합계 계산해서 화면에 표시
@@ -276,9 +286,10 @@ def categories():
         name = request.form['name'].strip()
         icon = request.form['icon'].strip()
         if name and icon and not Category.query.filter_by(name=name).first():
-            db.session.add(Category(name=name, icon=icon))
+            max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
+            db.session.add(Category(name=name, icon=icon, position=max_pos + 1))
             db.session.commit()
-    cats = Category.query.order_by(Category.id).all()
+    cats = Category.query.order_by(Category.position, Category.id).all()
     return render_template('categories.html', categories=cats)
 
 # 카테고리 수정
@@ -297,6 +308,17 @@ def delete_category(cat_id):
     db.session.delete(cat)
     db.session.commit()
     return redirect(url_for('categories'))
+
+# 카테고리 순서 저장
+@app.route('/categories/reorder', methods=['POST'])
+def reorder_categories():
+    ids = request.json.get('ids', [])
+    for i, cat_id in enumerate(ids):
+        cat = Category.query.get(cat_id)
+        if cat:
+            cat.position = i
+    db.session.commit()
+    return {'ok': True}
 
 # 카드 관리 - GET이면 목록 표시, POST면 새 카드 추가
 @app.route('/cards', methods=['GET', 'POST'])
@@ -339,17 +361,25 @@ def delete_card(card_id):
 @app.route('/calendar')
 def calendar():
     transactions = Transaction.query.all()
-    # FullCalendar에서 사용할 수 있는 형식으로 변환
+    cats = Category.query.all()
+    emoji_map = {c.name: c.icon for c in cats}
     events = []
     for tx in transactions:
         events.append({
             'title': f"{tx.amount:,}원 ({tx.category})",
             'start': tx.date,
-            'color': '#36A2EB' if tx.type == 'income' else '#FF6384'
+            'color': '#36A2EB' if tx.type == 'income' else '#FF6384',
+            'extendedProps': {
+                'type': tx.type,
+                'category': tx.category,
+                'icon': emoji_map.get(tx.category, '📦'),
+                'description': tx.description or '',
+                'amount': tx.amount,
+                'card': tx.card or ''
+            }
         })
     card_list = Card.query.all()
-    categories = Category.query.order_by(Category.id).all()
-    return render_template('calendar.html', events=events, card_list=card_list, categories=categories)
+    return render_template('calendar.html', events=events, card_list=card_list, categories=cats)
 
 # ── Excel import helpers ──────────────────────────────────────────────────────
 def _parse_date(val):

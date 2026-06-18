@@ -195,10 +195,13 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 class="card-title mb-0">내역 목록</h5>
-                        <div class="d-flex gap-1" id="txFilter">
-                            <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">전체</button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" data-filter="expense" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">지출</button>
-                            <button type="button" class="btn btn-outline-success btn-sm" data-filter="income" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">수입</button>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" id="sortToggle" class="btn btn-sm" data-asc="0" style="border-radius:20px;padding:3px 10px;font-size:0.8rem;color:#b088f9;border:1px solid #b088f9;background:transparent;">최신순</button>
+                            <div class="d-flex gap-1" id="txFilter">
+                                <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">전체</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-filter="expense" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">지출</button>
+                                <button type="button" class="btn btn-outline-success btn-sm" data-filter="income" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">수입</button>
+                            </div>
                         </div>
                     </div>
                     {% if transactions %}
@@ -207,6 +210,7 @@
                          data-delete-url="/delete/{{ tx.id }}"
                          data-edit-url="/edit/{{ tx.id }}"
                          data-type="{{ tx.type }}"
+                         data-date="{{ tx.date }}"
                          style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
                         <div style="position:absolute;right:0;top:0;height:100%;width:80px;background:#dc3545;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-size:0.75rem;gap:2px;">
                             <i class="bi bi-trash" style="font-size:1.15rem;"></i>삭제
@@ -517,6 +521,23 @@
                 document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
                     w.style.display = (filter === 'all' || w.dataset.type === filter) ? '' : 'none';
                 });
+            });
+
+            // 최신순 / 과거순 정렬 토글
+            document.getElementById('sortToggle').addEventListener('click', function() {
+                var asc = this.dataset.asc === '1';
+                asc = !asc;
+                this.dataset.asc = asc ? '1' : '0';
+                this.textContent = asc ? '과거순' : '최신순';
+                var wrappers = Array.from(document.querySelectorAll('.swipe-wrapper'));
+                if (!wrappers.length) return;
+                var parent = wrappers[0].parentNode;
+                wrappers.sort(function(a, b) {
+                    return asc
+                        ? a.dataset.date.localeCompare(b.dataset.date)
+                        : b.dataset.date.localeCompare(a.dataset.date);
+                });
+                wrappers.forEach(function(w) { parent.appendChild(w); });
             });
         </script>
     </body>
