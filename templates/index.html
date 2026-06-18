@@ -135,7 +135,6 @@
                         </div>
                     </div>
                     {% endfor %}
-                    <a href="/stats" class="btn btn-sm btn-outline-secondary mt-2" style="font-size:0.78rem;">전체 통계 →</a>
                 </div>
             </div>
             {% endif %}
@@ -145,30 +144,29 @@
                 <div class="card-body">
                     <h5 class="card-title">내역 추가</h5>
                     <form action="/add" method="post" class="row g-2">
-                        <div class="col-md-2">
+                        <div class="col-7 col-lg-2">
                             <input type="date" name="date" id="date" class="form-control" required>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-5 col-lg-2">
                             <select name="type" class="form-select">
                                 <option value="expense">지출</option>
                                 <option value="income">수입</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <select name="category" class="form-select">
                                 {% for cat in categories %}
                                 <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <input type="text" name="description" class="form-control" placeholder="항목 설명">
-                        </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-lg-2">
                             <input type="text" name="amount" class="form-control" placeholder="금액" inputmode="numeric" required>
                         </div>
-                        <!-- 카드 선택 드롭박스 - DB에서 추가한 카드 목록 표시 -->
-                        <div class="col-md-2">
+                        <div class="col-12 col-lg-2">
+                            <input type="text" name="description" class="form-control" placeholder="항목 설명">
+                        </div>
+                        <div class="col-12 col-lg-2">
                             <select name="card" class="form-select" required>
                                 <option value="">카드 선택</option>
                                 {% for card in card_list %}
@@ -176,17 +174,17 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <!-- 오늘 날짜를 기본 날짜로 하기 위해서 -->
                         <script>
                             document.getElementById('date').valueAsDate = new Date();
                         </script>
-                        <!-- 저장/취소 버튼 오른쪽 정렬 -->
-                        <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                        <div class="col-12 d-flex justify-content-between align-items-center mt-1">
                             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModal" style="border-radius:10px;font-size:0.85rem;">
                                 <i class="bi bi-upload"></i> 가져오기
                             </button>
-                            <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
-                            <button type="reset" class="btn btn-outline-secondary">취소</button>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); color: white; border: none; border-radius: 10px;">저장</button>
+                                <button type="reset" class="btn btn-outline-secondary">취소</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -195,12 +193,20 @@
             <!-- 내역 목록 -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">내역 목록 <span class="text-muted fw-normal" style="font-size:0.72rem;">← 삭제 &nbsp;/&nbsp; → 수정</span></h5>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0">내역 목록</h5>
+                        <div class="d-flex gap-1" id="txFilter">
+                            <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">전체</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-filter="expense" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">지출</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" data-filter="income" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">수입</button>
+                        </div>
+                    </div>
                     {% if transactions %}
                     {% for tx in transactions %}
                     <div class="swipe-wrapper"
                          data-delete-url="/delete/{{ tx.id }}"
                          data-edit-url="/edit/{{ tx.id }}"
+                         data-type="{{ tx.type }}"
                          style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
                         <div style="position:absolute;right:0;top:0;height:100%;width:80px;background:#dc3545;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-size:0.75rem;gap:2px;">
                             <i class="bi bi-trash" style="font-size:1.15rem;"></i>삭제
@@ -208,7 +214,7 @@
                         <div style="position:absolute;left:0;top:0;height:100%;width:80px;background:#198754;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-size:0.75rem;gap:2px;">
                             <i class="bi bi-pencil" style="font-size:1.15rem;"></i>수정
                         </div>
-                        <div class="swipe-content" style="position:relative;z-index:1;background:white;padding:10px 14px;">
+                        <div class="swipe-content" style="position:relative;z-index:1;background:white;padding:16px 14px;">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="me-2 min-w-0">
                                     <span class="text-muted" style="font-size:0.78rem;">{{ tx.date }}</span>
@@ -500,6 +506,18 @@
                     if (ni >= 0 && ni < pages.length) window.location.href = pages[ni];
                 }, {passive:true});
             })(-1);
+
+            // 지출/수입 필터
+            document.getElementById('txFilter').addEventListener('click', function(e) {
+                var btn = e.target.closest('button[data-filter]');
+                if (!btn) return;
+                document.querySelectorAll('#txFilter button').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                var filter = btn.dataset.filter;
+                document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                    w.style.display = (filter === 'all' || w.dataset.type === filter) ? '' : 'none';
+                });
+            });
         </script>
     </body>
 </html>
