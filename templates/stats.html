@@ -7,6 +7,11 @@
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}
+        .bar-chart-canvas{max-height:180px;}
+        @media(min-width:600px){.bar-chart-canvas{max-height:260px;}}
+        @media(min-width:900px){.bar-chart-canvas{max-height:340px;}}
+        </style>
         <!-- Chart.js - 차트 그리는 라이브러리 -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <!-- 차트 위에 라벨(금액, %) 표시하는 플러그인 -->
@@ -16,10 +21,11 @@
         <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
         <div id="bottomFade" class="d-lg-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
+        <div id="page-slide">
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
             <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-lg-none" style="color: white;">
+            <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
                 <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
             </a>
             <div class="d-none d-lg-flex gap-1">
@@ -56,6 +62,18 @@
                     <div class="card">
                         <div class="card-body">
                             <canvas id="pieChart"></canvas>
+                            {% if category_totals %}
+                            {% set colors = ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40','#66BB6A','#EF5350','#AB47BC','#26A69A','#FFA726','#D4E157'] %}
+                            <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:14px;justify-content:center;">
+                                {% for category in category_totals.keys() %}
+                                {% set color = colors[loop.index0 % colors|length] %}
+                                <div style="display:flex;align-items:center;gap:5px;font-size:0.78rem;color:#555;">
+                                    <div style="width:10px;height:10px;border-radius:50%;background:{{ color }};flex-shrink:0;"></div>
+                                    <span>{{ emoji_map.get(category,'📦') }} {{ category }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -65,7 +83,7 @@
                     <div class="card">
                         <div class="card-body">
                             <h5 class="card-title">상세 내역</h5>
-                            <table class="table table-hover">
+                            <table class="table table-hover" style="user-select:none;-webkit-user-select:none;">
                                 <thead>
                                     <tr>
                                         <th>카테고리</th>
@@ -125,12 +143,13 @@
                             <option value="{{ name }}">{{ name }}</option>
                             {% endfor %}
                         </select>
-                        <canvas id="barChart" style="max-height:180px;margin-top:8px;"></canvas>
+                        <canvas id="barChart" class="bar-chart-canvas" style="margin-top:8px;"></canvas>
                     </div>
                 </div>
             </div>
             <div class="d-lg-none" style="height: 90px;"></div>
         </div>
+        </div><!-- /page-slide -->
 
         <nav class="d-lg-none" style="position: fixed; bottom: 16px; left: 16px; right: 16px; background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3); z-index: 1000; overflow: hidden;">
             <div class="d-flex justify-content-around py-2">
@@ -248,6 +267,19 @@
                 });
             }
 
+            function niceYAxis(data) {
+                var m = Math.max.apply(null, data.concat([0]));
+                if (m === 0) return { max: 20000, step: 5000 };
+                var step = Math.ceil(m / 4 / 5000) * 5000;
+                if (step === 0) step = 5000;
+                return { max: step * 4, step: step };
+            }
+            function yLabel(v) {
+                if (v === 0) return '0';
+                return (v / 10000) + '만';
+            }
+
+            var initAxis = niceYAxis(barDataAll);
             var barChart = new Chart(document.getElementById('barChart'), {
                 type: 'bar',
                 data: {
@@ -268,9 +300,13 @@
                     },
                     scales: {
                         y: {
+                            min: 0,
+                            max: initAxis.max,
                             ticks: {
-                                callback: function(v) { return v === 0 ? '0' : Math.round(v / 10000) + '만'; }
-                            }
+                                callback: yLabel,
+                                stepSize: initAxis.step
+                            },
+                            grid: { color: 'rgba(0,0,0,0.06)' }
                         }
                     }
                 }
@@ -281,6 +317,9 @@
                 var newData = val === '__all__' ? barDataAll : (cardTrend[val] || barDataAll);
                 barChart.data.datasets[0].data = newData;
                 barChart.data.datasets[0].backgroundColor = getBgColors(newData);
+                var ax = niceYAxis(newData);
+                barChart.options.scales.y.max = ax.max;
+                barChart.options.scales.y.ticks.stepSize = ax.step;
                 barChart.update();
             });
 
@@ -291,6 +330,37 @@
             });
         </script>
         <script>
+            (function() {
+                var po = {'/': -1, '/cards': 0, '/calendar': 1, '/stats': 2, '/budget': 3, '/categories': 4};
+                var ci = po[window.location.pathname] !== undefined ? po[window.location.pathname] : -1;
+                var sd = sessionStorage.getItem('navDir');
+                var _ps = document.getElementById('page-slide');
+                if (sd && _ps) { sessionStorage.removeItem('navDir'); _ps.style.transform = sd === 'up' ? 'translateY(60px)' : 'translateX(' + (sd === 'right' ? '80px' : '-80px') + ')'; }
+                function init() {
+                    var ps = document.getElementById('page-slide');
+                    if (!ps) return;
+                    requestAnimationFrame(function() {
+                        ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
+                        ps.style.transform = 'translateX(0)';
+                        ps.style.opacity = '1';
+                    });
+                    document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
+                        var href = a.getAttribute('href');
+                        if (!href || href === '#' || href.startsWith('http') || a.dataset.bsToggle) return;
+                        a.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var ti = po[href] !== undefined ? po[href] : -1;
+                            var d = href === '/' ? 'up' : (ti >= ci ? 'right' : 'left');
+                            sessionStorage.setItem('navDir', d);
+                            ps.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            ps.style.transform = d === 'up' ? 'translateY(-60px)' : 'translateX(' + (d === 'right' ? '-80px' : '80px') + ')';
+                            ps.style.opacity = '0';
+                            setTimeout(function() { window.location.href = href; }, 200);
+                        });
+                    });
+                }
+                if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+            })();
             var topFade = document.getElementById('topFade');
             var bottomFade = document.getElementById('bottomFade');
             function updateFades() {
