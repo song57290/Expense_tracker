@@ -7,6 +7,7 @@
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
         <style>
             .emoji-preview {
                 font-size: 2.4rem;
@@ -29,10 +30,11 @@
         <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
         <div id="bottomFade" class="d-lg-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
+        <div id="page-slide">
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
             <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-lg-none" style="color: white;">
+            <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
                 <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
             </a>
             <div class="d-none d-lg-flex gap-1">
@@ -52,6 +54,14 @@
                 <div class="card-body">
                     <h5 class="card-title">카테고리 추가</h5>
                     <form action="/categories" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">종류</label>
+                            <div style="display:flex;background:#f0eeff;border-radius:20px;padding:3px;gap:2px;width:fit-content;">
+                                <button type="button" id="typeBtnExpense" onclick="pickCatType('expense')" style="border-radius:16px;padding:4px 18px;font-size:0.85rem;background:white;color:#b088f9;border:none;box-shadow:0 1px 4px rgba(0,0,0,0.12);font-weight:600;">지출</button>
+                                <button type="button" id="typeBtnIncome" onclick="pickCatType('income')" style="border-radius:16px;padding:4px 18px;font-size:0.85rem;background:transparent;color:#888;border:none;">수입</button>
+                            </div>
+                            <input type="hidden" name="cat_type" id="addCatType" value="expense">
+                        </div>
                         <div class="mb-3">
                             <label class="form-label fw-semibold">이모지 (최대 2개)</label>
                             <div class="d-flex align-items-center gap-3">
@@ -78,7 +88,15 @@
             <!-- 카테고리 목록 -->
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">카테고리 목록</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0">카테고리 목록</h5>
+                        <div id="catFilter" style="display:flex;background:#f0eeff;border-radius:20px;padding:3px;gap:2px;position:relative;">
+                            <div id="catTabIndicator" style="position:absolute;top:3px;bottom:3px;background:white;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.12);z-index:0;pointer-events:none;transition:left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94);"></div>
+                            <button type="button" class="cat-tab active" data-filter="all" style="position:relative;z-index:1;border-radius:16px;padding:2px 10px;font-size:0.78rem;background:transparent;color:#b088f9;border:none;font-weight:600;transition:color 0.22s;">전체</button>
+                            <button type="button" class="cat-tab" data-filter="expense" style="position:relative;z-index:1;border-radius:16px;padding:2px 10px;font-size:0.78rem;background:transparent;color:#888;border:none;transition:color 0.22s;">지출</button>
+                            <button type="button" class="cat-tab" data-filter="income" style="position:relative;z-index:1;border-radius:16px;padding:2px 10px;font-size:0.78rem;background:transparent;color:#888;border:none;transition:color 0.22s;">수입</button>
+                        </div>
+                    </div>
                     <small class="text-muted d-block mb-2" style="font-size:0.78rem;">≡ 을 길게 누르면 순서 변경</small>
                     <form id="catDeleteForm" method="post" style="display:none;"></form>
                     <div id="catList">
@@ -87,6 +105,7 @@
                          data-cat-id="{{ cat.id }}"
                          data-cat-icon="{{ cat.icon }}"
                          data-cat-name="{{ cat.name }}"
+                         data-cat-type="{{ cat.cat_type }}"
                          style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
                         <div style="position:absolute;right:0;top:0;height:100%;width:80px;background:#dc3545;display:flex;align-items:center;justify-content:center;color:white;font-size:0.85rem;font-weight:600;z-index:0;">삭제</div>
                         <div style="position:absolute;left:0;top:0;height:100%;width:80px;background:#198754;display:flex;align-items:center;justify-content:center;color:white;font-size:0.85rem;font-weight:600;z-index:0;">수정</div>
@@ -101,6 +120,18 @@
             </div>
 
             <div class="d-lg-none" style="height: 90px;"></div>
+        </div>
+        </div><!-- /page-slide -->
+
+        <!-- 삭제 확인 -->
+        <div id="catConfirmSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2000;align-items:center;justify-content:center;">
+            <div style="background:white;border-radius:20px;padding:24px 20px;width:min(88vw,320px);box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+                <p class="text-center fw-semibold mb-4" style="font-size:1rem;">삭제하시겠습니까?</p>
+                <div class="d-flex gap-2">
+                    <button id="catConfirmYes" class="btn flex-fill" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);color:white;border:none;border-radius:10px;">삭제</button>
+                    <button id="catConfirmNo" class="btn btn-outline-secondary flex-fill" style="border-radius:10px;">취소</button>
+                </div>
+            </div>
         </div>
 
         <!-- 수정 모달 -->
@@ -205,10 +236,89 @@
                 new bootstrap.Modal(document.getElementById('editModal')).show();
             }
 
+            function pickCatType(type) {
+                var isExp = type === 'expense';
+                var expBtn = document.getElementById('typeBtnExpense');
+                var incBtn = document.getElementById('typeBtnIncome');
+                expBtn.style.background = isExp ? 'white' : 'transparent';
+                expBtn.style.color = isExp ? '#b088f9' : '#888';
+                expBtn.style.boxShadow = isExp ? '0 1px 4px rgba(0,0,0,0.12)' : 'none';
+                expBtn.style.fontWeight = isExp ? '600' : '';
+                incBtn.style.background = !isExp ? 'white' : 'transparent';
+                incBtn.style.color = !isExp ? '#b088f9' : '#888';
+                incBtn.style.boxShadow = !isExp ? '0 1px 4px rgba(0,0,0,0.12)' : 'none';
+                incBtn.style.fontWeight = !isExp ? '600' : '';
+                document.getElementById('addCatType').value = type;
+            }
+
+            (function() {
+                var catIndicator = document.getElementById('catTabIndicator');
+                function moveCatIndicator(btn) {
+                    catIndicator.style.left = btn.offsetLeft + 'px';
+                    catIndicator.style.width = btn.offsetWidth + 'px';
+                }
+                requestAnimationFrame(function() {
+                    var active = document.querySelector('#catFilter .cat-tab.active');
+                    if (active) {
+                        catIndicator.style.transition = 'none';
+                        moveCatIndicator(active);
+                        requestAnimationFrame(function() {
+                            catIndicator.style.transition = 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
+                        });
+                    }
+                });
+                document.getElementById('catFilter').addEventListener('click', function(e) {
+                    var btn = e.target.closest('button[data-filter]');
+                    if (!btn) return;
+                    document.querySelectorAll('#catFilter .cat-tab').forEach(function(b) {
+                        b.classList.remove('active');
+                        b.style.color = '#888';
+                        b.style.fontWeight = '';
+                    });
+                    btn.classList.add('active');
+                    btn.style.color = '#b088f9';
+                    btn.style.fontWeight = '600';
+                    moveCatIndicator(btn);
+                    var filter = btn.dataset.filter;
+                    var list = document.getElementById('catList');
+                    list.style.transition = 'opacity 0.18s ease';
+                    list.style.opacity = '0';
+                    setTimeout(function() {
+                        document.querySelectorAll('#catList .swipe-wrapper').forEach(function(w) {
+                            w.style.display = (filter === 'all' || w.dataset.catType === filter) ? '' : 'none';
+                        });
+                        list.style.opacity = '1';
+                    }, 180);
+                });
+            })();
+
+            var _reordering = false;
+            var _catPendingDelete = null;
+
+            function showCatConfirm(catId) {
+                _catPendingDelete = catId;
+                document.getElementById('catConfirmSheet').style.display = 'flex';
+            }
+            document.getElementById('catConfirmYes').addEventListener('click', function() {
+                document.getElementById('catConfirmSheet').style.display = 'none';
+                if (_catPendingDelete) {
+                    var form = document.getElementById('catDeleteForm');
+                    form.action = '/categories/delete/' + _catPendingDelete;
+                    _catPendingDelete = null;
+                    form.submit();
+                }
+            });
+            document.getElementById('catConfirmNo').addEventListener('click', function() {
+                document.getElementById('catConfirmSheet').style.display = 'none';
+                _catPendingDelete = null;
+            });
+
             Sortable.create(document.getElementById('catList'), {
                 handle: '.drag-handle',
                 animation: 150,
+                onStart: function() { _reordering = true; },
                 onEnd: function() {
+                    _reordering = false;
                     var ids = Array.from(document.querySelectorAll('#catList .swipe-wrapper'))
                         .map(function(el) { return parseInt(el.dataset.catId); });
                     fetch('/categories/reorder', {
@@ -219,6 +329,37 @@
                 }
             });
 
+            (function() {
+                var po = {'/': -1, '/cards': 0, '/calendar': 1, '/stats': 2, '/budget': 3, '/categories': 4};
+                var ci = po[window.location.pathname] !== undefined ? po[window.location.pathname] : -1;
+                var sd = sessionStorage.getItem('navDir');
+                var _ps = document.getElementById('page-slide');
+                if (sd && _ps) { sessionStorage.removeItem('navDir'); _ps.style.transform = sd === 'up' ? 'translateY(60px)' : 'translateX(' + (sd === 'right' ? '80px' : '-80px') + ')'; }
+                function init() {
+                    var ps = document.getElementById('page-slide');
+                    if (!ps) return;
+                    requestAnimationFrame(function() {
+                        ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
+                        ps.style.transform = 'translateX(0)';
+                        ps.style.opacity = '1';
+                    });
+                    document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
+                        var href = a.getAttribute('href');
+                        if (!href || href === '#' || href.startsWith('http') || a.dataset.bsToggle) return;
+                        a.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var ti = po[href] !== undefined ? po[href] : -1;
+                            var d = href === '/' ? 'up' : (ti >= ci ? 'right' : 'left');
+                            sessionStorage.setItem('navDir', d);
+                            ps.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            ps.style.transform = d === 'up' ? 'translateY(-60px)' : 'translateX(' + (d === 'right' ? '-80px' : '80px') + ')';
+                            ps.style.opacity = '0';
+                            setTimeout(function() { window.location.href = href; }, 200);
+                        });
+                    });
+                }
+                if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+            })();
             var topFade = document.getElementById('topFade');
             var bottomFade = document.getElementById('bottomFade');
             function updateFades() {
@@ -239,10 +380,9 @@
                     var sc = w.querySelector('.swipe-content');
                     sc.style.transition = 'transform 0.2s';
                     sc.style.transform = 'translateX(0)';
+                    if (_reordering) return;
                     if (dx < -threshold) {
-                        var form = document.getElementById('catDeleteForm');
-                        form.action = '/categories/delete/' + w.dataset.catId;
-                        form.submit();
+                        showCatConfirm(w.dataset.catId);
                     } else if (dx > threshold) {
                         openEdit(parseInt(w.dataset.catId), w.dataset.catIcon, w.dataset.catName);
                     }

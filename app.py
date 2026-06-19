@@ -12,6 +12,47 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위치
 db.init_app(app)
 
+@app.template_filter('bank_color')
+def bank_color_filter(card_name):
+    if not card_name:
+        return 'background:#6c757d;color:white;'
+    mappings = [
+        ('신한', '#0046A0', 'white'),
+        ('KB', '#FFB800', '#333'),
+        ('국민', '#FFB800', '#333'),
+        ('농협', '#009900', 'white'),
+        ('NH', '#009900', 'white'),
+        ('하나', '#009A8C', 'white'),
+        ('우리', '#0069C8', 'white'),
+        ('기업', '#005BB5', 'white'),
+        ('IBK', '#005BB5', 'white'),
+        ('카카오', '#FAE100', '#333'),
+        ('토스', '#0064FF', 'white'),
+        ('케이뱅크', '#00B4B4', 'white'),
+        ('K뱅크', '#00B4B4', 'white'),
+        ('SC', '#1B5DA0', 'white'),
+        ('제일', '#1B5DA0', 'white'),
+        ('씨티', '#003087', 'white'),
+        ('iM', '#E8182C', 'white'),
+        ('IM', '#E8182C', 'white'),
+        ('수협', '#009ABF', 'white'),
+        ('KDB', '#003087', 'white'),
+        ('산업', '#003087', 'white'),
+        ('BNK', '#0057A8', 'white'),
+        ('부산', '#0057A8', 'white'),
+        ('우체국', '#D40511', 'white'),
+        ('SBI', '#E8391D', 'white'),
+        ('신협', '#005BAB', 'white'),
+        ('BC', '#D60B2F', 'white'),
+        ('현대', '#1A1A1A', 'white'),
+        ('롯데', '#CC0000', 'white'),
+        ('삼성', '#005BAB', 'white'),
+    ]
+    for keyword, bg, fg in mappings:
+        if keyword in card_name:
+            return f'background:{bg};color:{fg};'
+    return 'background:#6c757d;color:white;'
+
 @app.template_filter('bank_logo')
 def bank_logo_filter(card_name):
     mappings = [
@@ -72,9 +113,27 @@ with app.app_context():
         db.session.commit()
     except Exception:
         pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE category ADD COLUMN cat_type VARCHAR(10) DEFAULT 'expense'"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE card ADD COLUMN account_balance INTEGER DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
     if not Category.query.first():
         for i, (name, icon) in enumerate([('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]):
-            db.session.add(Category(name=name, icon=icon, position=i))
+            db.session.add(Category(name=name, icon=icon, position=i, cat_type='expense'))
+        db.session.commit()
+    if not Category.query.filter_by(cat_type='income').first():
+        max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
+        for i, (name, icon) in enumerate([('급여','💰'),('부업','💼'),('용돈','🎁'),('이자','🏦'),('기타수입','📥')]):
+            if not Category.query.filter_by(name=name).first():
+                db.session.add(Category(name=name, icon=icon, position=max_pos+i+1, cat_type='income'))
         db.session.commit()
 
 # 메인 페이지 - DB에서 전체 내역 조회 후 합계 계산해서 화면에 표시
@@ -107,7 +166,9 @@ def index():
             'tier3': card.tier3 or 80,
         })
 
-    categories = Category.query.order_by(Category.id).all()
+    expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
+    income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    categories = expense_cats + income_cats
     emoji_map = {c.name: c.icon for c in categories}
 
     # 이번 달 카테고리별 지출
@@ -127,6 +188,8 @@ def index():
                         card_stats=card_stats,
                         card_list=cards,
                         categories=categories,
+                        expense_cats_json=[[c.name, c.icon] for c in expense_cats],
+                        income_cats_json=[[c.name, c.icon] for c in income_cats],
                         emoji_map=emoji_map,
                         category_totals=category_totals,
                         current_month=current_month,
@@ -170,8 +233,11 @@ def edit(tx_id):
         db.session.commit()
         return redirect(url_for('index'))
     card_list = Card.query.all()
-    categories = Category.query.order_by(Category.id).all()
-    return render_template('edit.html', tx=tx, card_list=card_list, categories=categories)
+    expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
+    income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    return render_template('edit.html', tx=tx, card_list=card_list,
+                           expense_cats_json=[[c.name, c.icon] for c in expense_cats],
+                           income_cats_json=[[c.name, c.icon] for c in income_cats])
 
 # 예산 설정 - GET이면 설정 페이지, POST면 DB에 저장
 @app.route('/budget', methods=['GET', 'POST'])
@@ -186,16 +252,22 @@ def budget():
         db.session.commit()
         return redirect(url_for('index'))
     current_budget = Budget.query.filter_by(month=current_month).first()
-    transactions = Transaction.query.filter(
-        Transaction.type == 'expense',
-        Transaction.date.like(f'{current_month}%')
-    ).all()
+    month_tx = Transaction.query.filter(Transaction.date.like(f'{current_month}%')).all()
+    all_tx   = Transaction.query.all()
     cards = Card.query.all()
     card_stats = []
     for card in cards:
-        spent = sum(tx.amount for tx in transactions if tx.card == card.name)
+        total_income  = sum(tx.amount for tx in all_tx if tx.card == card.name and tx.type == 'income')
+        total_expense = sum(tx.amount for tx in all_tx if tx.card == card.name and tx.type == 'expense')
+        spent = sum(tx.amount for tx in month_tx if tx.card == card.name and tx.type == 'expense')
+        initial = card.account_balance or 0
         card_stats.append({
+            'id': card.id,
             'name': card.name,
+            'initial_balance': initial,
+            'balance': initial + total_income - total_expense,
+            'total_income': total_income,
+            'total_expense': total_expense,
             'target': card.monthly_target,
             'spent': spent,
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
@@ -264,7 +336,7 @@ def stats():
     nm, ny = m + 1, y
     if nm > 12: nm, ny = 1, y + 1
 
-    cats = Category.query.order_by(Category.id).all()
+    cats = Category.query.order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
     return render_template('stats.html',
         category_totals=category_totals,
@@ -285,9 +357,10 @@ def categories():
     if request.method == 'POST':
         name = request.form['name'].strip()
         icon = request.form['icon'].strip()
+        cat_type = request.form.get('cat_type', 'expense')
         if name and icon and not Category.query.filter_by(name=name).first():
             max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
-            db.session.add(Category(name=name, icon=icon, position=max_pos + 1))
+            db.session.add(Category(name=name, icon=icon, position=max_pos + 1, cat_type=cat_type))
             db.session.commit()
     cats = Category.query.order_by(Category.position, Category.id).all()
     return render_template('categories.html', categories=cats)
@@ -341,13 +414,16 @@ def cards():
 def edit_card(card_id):
     card = Card.query.get_or_404(card_id)
     card.name = request.form['name']
-    card.monthly_target = int(request.form['monthly_target'])
+    card.monthly_target = int(request.form['monthly_target'].replace(',', ''))
     card.url = request.form.get('url') or None
     card.tier1 = int(request.form.get('tier1') or 20)
     card.tier2 = int(request.form.get('tier2') or 50)
     card.tier3 = int(request.form.get('tier3') or 80)
+    raw_bal = request.form.get('account_balance', '').replace(',', '')
+    if raw_bal.lstrip('-').isdigit():
+        card.account_balance = int(raw_bal)
     db.session.commit()
-    return redirect(url_for('cards'))
+    return redirect(request.form.get('next', url_for('cards')))
 
 # 카드 삭제
 @app.route('/cards/delete/<int:card_id>', methods=['POST'])
@@ -355,13 +431,13 @@ def delete_card(card_id):
     card = Card.query.get_or_404(card_id)
     db.session.delete(card)
     db.session.commit()
-    return redirect(url_for('cards'))
+    return redirect(request.form.get('next', url_for('cards')))
 
 # 캘린더 - 날짜별 지출/수입 내역 표시
 @app.route('/calendar')
 def calendar():
     transactions = Transaction.query.all()
-    cats = Category.query.all()
+    cats = Category.query.order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
     events = []
     for tx in transactions:
@@ -379,7 +455,11 @@ def calendar():
             }
         })
     card_list = Card.query.all()
-    return render_template('calendar.html', events=events, card_list=card_list, categories=cats)
+    expense_cats = [c for c in cats if c.cat_type == 'expense']
+    income_cats_list = [c for c in cats if c.cat_type == 'income']
+    return render_template('calendar.html', events=events, card_list=card_list, categories=cats,
+                           expense_cats_json=[[c.name, c.icon] for c in expense_cats],
+                           income_cats_json=[[c.name, c.icon] for c in income_cats_list])
 
 # ── Excel import helpers ──────────────────────────────────────────────────────
 def _parse_date(val):
@@ -648,6 +728,7 @@ def _parse_sms_line(line):
     desc = re.sub(r'일시불|할부\d*|승인|취소|번호|이체|출금|입금|납부|결제|사용|신용|체크', '', desc)
     desc = re.sub(r'\([^)]*\)', '', desc)               # (괄호 내용) 전체 제거
     desc = re.sub(r'[\[\]（）]', '', desc)
+    desc = re.sub(r'[가-힣][*]+[가-힣]+', '', desc)          # 마스킹된 이름 제거 (홍*동 등)
     desc = re.sub(r'\s+', ' ', desc).strip(' -_|,.')
 
     return {'date': date_val, 'type': tx_type, 'amount': amount,

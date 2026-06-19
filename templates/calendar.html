@@ -10,6 +10,7 @@
         <!-- FullCalendar - 캘린더 라이브러리 -->
         <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
         <style>
             /* 이벤트 바 스타일 - 간격과 둥근 모서리 */
             .fc-event {
@@ -123,10 +124,11 @@
         <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
         <div id="bottomFade" class="d-lg-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
+        <div id="page-slide">
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
             <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-lg-none" style="color: white;">
+            <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
                 <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
             </a>
             <div class="d-none d-lg-flex gap-1">
@@ -160,15 +162,11 @@
                         <input type="hidden" name="next" value="/calendar">
                         <div class="modal-body d-flex flex-column gap-2">
                             <input type="date" name="date" id="modalDate" class="form-control" required>
-                            <select name="type" class="form-select">
+                            <select name="type" id="calTypeSelect" class="form-select">
                                 <option value="expense">지출</option>
                                 <option value="income">수입</option>
                             </select>
-                            <select name="category" class="form-select">
-                                {% for cat in categories %}
-                                <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <select name="category" id="calCatSelect" class="form-select"></select>
                             <input type="text" name="description" class="form-control" placeholder="항목 설명">
                             <input type="text" name="amount" class="form-control" placeholder="금액" inputmode="numeric" required>
                             <select name="card" class="form-select" required>
@@ -186,6 +184,8 @@
                 </div>
             </div>
         </div>
+
+        </div><!-- /page-slide -->
 
         <!-- 날짜 상세 카드 -->
         <div id="dayOverlay" onclick="closeDaySheet()"></div>
@@ -228,6 +228,27 @@
         </nav>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            (function() {
+                var expCats = {{ expense_cats_json | tojson }};
+                var incCats = {{ income_cats_json | tojson }};
+                function fillCalCats(typeVal) {
+                    var cats = typeVal === 'expense' ? expCats : incCats;
+                    var sel = document.getElementById('calCatSelect');
+                    if (!sel) return;
+                    sel.innerHTML = cats.map(function(c) {
+                        return '<option value="' + c[0] + '">' + c[1] + ' ' + c[0] + '</option>';
+                    }).join('');
+                }
+                document.addEventListener('DOMContentLoaded', function() {
+                    var typeEl = document.getElementById('calTypeSelect');
+                    if (typeEl) {
+                        typeEl.addEventListener('change', function() { fillCalCats(this.value); });
+                        fillCalCats('expense');
+                    }
+                });
+            })();
+        </script>
         <script>
             const allEvents = {{ events | tojson }};
 
@@ -279,6 +300,26 @@
         <script>
             var _selectedDate = '';
 
+            function bankColor(name) {
+                if (!name) return {bg:'#6c757d', fg:'white'};
+                var m = [
+                    ['신한','#0046A0','white'],['KB','#FFB800','#333'],['국민','#FFB800','#333'],
+                    ['농협','#009900','white'],['NH','#009900','white'],['하나','#009A8C','white'],
+                    ['우리','#0069C8','white'],['기업','#005BB5','white'],['IBK','#005BB5','white'],
+                    ['카카오','#FAE100','#333'],['토스','#0064FF','white'],['케이뱅크','#00B4B4','white'],
+                    ['K뱅크','#00B4B4','white'],['SC','#1B5DA0','white'],['제일','#1B5DA0','white'],
+                    ['씨티','#003087','white'],['iM','#E8182C','white'],['IM','#E8182C','white'],
+                    ['수협','#009ABF','white'],['KDB','#003087','white'],['산업','#003087','white'],
+                    ['BNK','#0057A8','white'],['부산','#0057A8','white'],['우체국','#D40511','white'],
+                    ['SBI','#E8391D','white'],['신협','#005BAB','white'],['BC','#D60B2F','white'],
+                    ['현대','#1A1A1A','white'],['롯데','#CC0000','white'],['삼성','#005BAB','white'],
+                ];
+                for (var i=0; i<m.length; i++) {
+                    if (name.indexOf(m[i][0]) >= 0) return {bg:m[i][1], fg:m[i][2]};
+                }
+                return {bg:'#6c757d', fg:'white'};
+            }
+
             function openDaySheet(dateStr, originEl) {
                 _selectedDate = dateStr;
                 var d = new Date(dateStr + 'T00:00:00');
@@ -298,13 +339,14 @@
                         var amtClass  = isIncome ? 'text-success' : 'text-danger';
                         var sign = isIncome ? '+' : '-';
                         var amt = parseInt(p.amount || 0).toLocaleString('ko-KR');
+                        var cc = p.card ? bankColor(p.card) : null;
                         return '<div style="padding:10px 0;border-bottom:1px solid #e8e8e8;">' +
                             '<div class="d-flex justify-content-between align-items-center">' +
                             '<div>' +
                             '<span class="badge ' + badgeClass + ' me-1" style="font-size:0.65rem;">' + (isIncome ? '수입' : '지출') + '</span>' +
                             '<span style="font-size:0.88rem;">' + (p.icon||'') + ' ' + (p.category||'') + '</span>' +
                             (p.description ? '<span class="text-muted ms-1" style="font-size:0.82rem;">' + p.description + '</span>' : '') +
-                            (p.card ? '<span class="badge bg-secondary ms-1" style="font-size:0.63rem;">' + p.card + '</span>' : '') +
+                            (p.card && cc ? '<span class="badge ms-1" style="font-size:0.63rem;background:' + cc.bg + ';color:' + cc.fg + ';">' + p.card + '</span>' : '') +
                             '</div>' +
                             '<span class="fw-bold ' + amtClass + '" style="font-size:0.92rem;white-space:nowrap;">' + sign + amt + '원</span>' +
                             '</div></div>';
@@ -374,6 +416,38 @@
             })(1);
         </script>
         <script>
+            // 페이지 슬라이딩 전환
+            (function() {
+                var po = {'/': -1, '/cards': 0, '/calendar': 1, '/stats': 2, '/budget': 3, '/categories': 4};
+                var ci = po[window.location.pathname] !== undefined ? po[window.location.pathname] : -1;
+                var sd = sessionStorage.getItem('navDir');
+                var _ps = document.getElementById('page-slide');
+                if (sd && _ps) { sessionStorage.removeItem('navDir'); _ps.style.transform = sd === 'up' ? 'translateY(60px)' : 'translateX(' + (sd === 'right' ? '80px' : '-80px') + ')'; }
+                function init() {
+                    var ps = document.getElementById('page-slide');
+                    if (!ps) return;
+                    requestAnimationFrame(function() {
+                        ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
+                        ps.style.transform = 'translateX(0)';
+                        ps.style.opacity = '1';
+                    });
+                    document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
+                        var href = a.getAttribute('href');
+                        if (!href || href === '#' || href.startsWith('http') || a.dataset.bsToggle) return;
+                        a.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var ti = po[href] !== undefined ? po[href] : -1;
+                            var d = href === '/' ? 'up' : (ti >= ci ? 'right' : 'left');
+                            sessionStorage.setItem('navDir', d);
+                            ps.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            ps.style.transform = d === 'up' ? 'translateY(-60px)' : 'translateX(' + (d === 'right' ? '-80px' : '80px') + ')';
+                            ps.style.opacity = '0';
+                            setTimeout(function() { window.location.href = href; }, 200);
+                        });
+                    });
+                }
+                if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+            })();
             var topFade = document.getElementById('topFade');
             var bottomFade = document.getElementById('bottomFade');
             function updateFades() {
