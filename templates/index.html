@@ -12,16 +12,17 @@
         <meta name="apple-mobile-web-app-title" content="가계부">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-        <style>.table td, .table th { white-space: nowrap; }</style>
+        <style>.table td, .table th { white-space: nowrap; } html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
     </head>
     <body class="bg-light">
         <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
         <div id="bottomFade" class="d-lg-none" style="position: fixed; bottom: 0; left: 0; right: 0; height: 110px; background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 1; transition: opacity 0.3s;"></div>
 
+        <div id="page-slide">
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
             <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-lg-none" style="color: white;">
+            <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
                 <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
             </a>
             <div class="d-none d-lg-flex gap-1">
@@ -87,9 +88,13 @@
             {% if card_stats %}
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">카드 실적</h5>
+                    <div class="d-flex justify-content-between align-items-center" style="cursor:pointer;user-select:none;" onclick="toggleSection('cardStatContent','cardStatArrow')">
+                        <h5 class="card-title mb-0">카드 실적</h5>
+                        <span id="cardStatArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+                    </div>
+                    <div id="cardStatContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
                     {% for c in card_stats %}
-                    <div class="mb-3">
+                    <div class="mb-3 mt-2">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="d-flex align-items-center gap-2">
                                 {% set logo = c.name | bank_logo %}
@@ -98,19 +103,21 @@
                             </span>
                             <span class="text-nowrap">{{ "{:,}".format(c.spent | int) }}원 / {{ "{:,}".format(c.target | int) }}원</span>
                         </div>
-                        <div class="progress">
+                        <div class="progress card-stat-bar" data-card="{{ c.name }}" style="cursor:pointer;position:relative;height:22px;">
                             {% if c.percent <= c.tier1 %}
-                            <div class="progress-bar bg-danger" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            <div class="progress-bar bg-danger" style="width: {{ c.percent }}%;"></div>
                             {% elif c.percent <= c.tier2 %}
-                            <div class="progress-bar bg-warning" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            <div class="progress-bar bg-warning" style="width: {{ c.percent }}%;"></div>
                             {% elif c.percent <= c.tier3 %}
-                            <div class="progress-bar bg-primary" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            <div class="progress-bar bg-primary" style="width: {{ c.percent }}%;"></div>
                             {% else %}
-                            <div class="progress-bar bg-success" style="width: {{ c.percent }}%">{{ c.percent }}%</div>
+                            <div class="progress-bar bg-success" style="width: {{ c.percent }}%;"></div>
                             {% endif %}
+                            <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:0.72rem;font-weight:700;color:#333;pointer-events:none;white-space:nowrap;text-shadow:0 0 4px rgba(255,255,255,0.9);">{{ c.percent }}%</span>
                         </div>
                     </div>
                     {% endfor %}
+                    </div><!-- /cardStatContent -->
                 </div>
             </div>
             {% endif %}
@@ -120,12 +127,13 @@
             {% set cat_sum = category_totals.values() | list | sum %}
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title d-flex justify-content-between align-items-center">
-                        카테고리별 지출
-                        <span class="text-muted fw-normal" style="font-size:0.78rem;">{{ current_month }}</span>
-                    </h5>
+                    <div class="d-flex justify-content-between align-items-center" style="cursor:pointer;user-select:none;" onclick="toggleSection('catSpendContent','catSpendArrow')">
+                        <h5 class="card-title mb-0">카테고리별 지출 <span class="text-muted fw-normal" style="font-size:0.78rem;">{{ current_month }}</span></h5>
+                        <span id="catSpendArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+                    </div>
+                    <div id="catSpendContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
                     {% for category, amount in category_totals.items() %}
-                    <div class="mb-2">
+                    <div class="mb-2 mt-2">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span style="font-size:0.9rem;">{{ emoji_map.get(category, '📦') }} {{ category }}</span>
                             <span class="text-muted" style="font-size:0.8rem;">{{ "{:,}".format(amount|int) }}원&nbsp;<span style="font-size:0.72rem;">({{ ((amount / cat_sum * 100) | round | int) if cat_sum > 0 else 0 }}%)</span></span>
@@ -135,6 +143,7 @@
                         </div>
                     </div>
                     {% endfor %}
+                    </div><!-- /catSpendContent -->
                 </div>
             </div>
             {% endif %}
@@ -142,23 +151,23 @@
             <!-- DB에 데이터를 넣기 위한 폼 -->
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title">내역 추가</h5>
-                    <form action="/add" method="post" class="row g-2">
+                    <div class="d-flex justify-content-between align-items-center" style="cursor:pointer;user-select:none;" onclick="toggleSection('addTxContent','addTxArrow')">
+                        <h5 class="card-title mb-0">내역 추가</h5>
+                        <span id="addTxArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+                    </div>
+                    <div id="addTxContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
+                    <form action="/add" method="post" class="row g-2 mt-1">
                         <div class="col-6 col-lg-2">
                             <input type="date" name="date" id="date" class="form-control" required>
                         </div>
                         <div class="col-6 col-lg-2">
-                            <select name="type" class="form-select">
+                            <select name="type" id="addTypeSelect" class="form-select">
                                 <option value="expense">지출</option>
                                 <option value="income">수입</option>
                             </select>
                         </div>
                         <div class="col-6 col-lg-2">
-                            <select name="category" class="form-select">
-                                {% for cat in categories %}
-                                <option value="{{ cat.name }}">{{ cat.icon }} {{ cat.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <select name="category" id="addCatSelect" class="form-select"></select>
                         </div>
                         <div class="col-6 col-lg-2">
                             <input type="text" name="amount" class="form-control" placeholder="금액" inputmode="numeric" required>
@@ -187,6 +196,7 @@
                             </div>
                         </div>
                     </form>
+                    </div><!-- /addTxContent -->
                 </div>
             </div>
 
@@ -194,21 +204,28 @@
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="card-title mb-0">내역 목록</h5>
+                        <div class="d-flex align-items-center gap-2" style="cursor:pointer;user-select:none;" onclick="toggleSection('txListContent','txListArrow')">
+                            <h5 class="card-title mb-0">내역 목록</h5>
+                            <span id="txListArrow" style="font-size:1.4rem;color:#b088f9;line-height:1;">▴</span>
+                        </div>
                         <div class="d-flex align-items-center gap-2">
                             <button type="button" id="sortToggle" class="btn btn-sm" data-asc="0" style="border-radius:20px;padding:3px 10px;font-size:0.8rem;color:#b088f9;border:1px solid #b088f9;background:transparent;">최신순</button>
-                            <div class="d-flex gap-1" id="txFilter">
-                                <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">전체</button>
-                                <button type="button" class="btn btn-outline-danger btn-sm" data-filter="expense" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">지출</button>
-                                <button type="button" class="btn btn-outline-success btn-sm" data-filter="income" style="border-radius:20px;padding:3px 14px;font-size:0.8rem;">수입</button>
+                            <div id="txFilter" style="display:flex;background:#f0eeff;border-radius:20px;padding:3px;gap:2px;position:relative;">
+                                <div id="txTabIndicator" style="position:absolute;top:3px;bottom:3px;background:white;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.12);z-index:0;pointer-events:none;transition:left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94);"></div>
+                                <button type="button" class="tx-tab active" data-filter="all" style="position:relative;z-index:1;border-radius:16px;padding:3px 12px;font-size:0.8rem;background:transparent;color:#b088f9;border:none;font-weight:600;transition:color 0.22s;">전체</button>
+                                <button type="button" class="tx-tab" data-filter="expense" style="position:relative;z-index:1;border-radius:16px;padding:3px 12px;font-size:0.8rem;background:transparent;color:#888;border:none;transition:color 0.22s;">지출</button>
+                                <button type="button" class="tx-tab" data-filter="income" style="position:relative;z-index:1;border-radius:16px;padding:3px 12px;font-size:0.8rem;background:transparent;color:#888;border:none;transition:color 0.22s;">수입</button>
                             </div>
                         </div>
                     </div>
+                    <div id="txListContent" style="overflow:hidden;opacity:1;transition:max-height 0.35s ease,opacity 0.35s ease;">
+                    <div id="txListBody" style="transition:opacity 0.18s ease;">
                     {% if transactions %}
                     {% for tx in transactions %}
                     <div class="swipe-wrapper"
                          data-delete-url="/delete/{{ tx.id }}"
                          data-edit-url="/edit/{{ tx.id }}"
+                         data-card="{{ tx.card }}"
                          data-type="{{ tx.type }}"
                          data-date="{{ tx.date }}"
                          style="position:relative;overflow:hidden;border-radius:10px;margin-bottom:6px;border:1px solid #eee;">
@@ -222,10 +239,13 @@
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="me-2 min-w-0">
                                     <span class="text-muted" style="font-size:0.78rem;">{{ tx.date }}</span>
+                                    <span class="ms-1 text-muted" style="font-size:0.7rem;opacity:0.35;vertical-align:middle;">|</span>
+                                    {% if tx.card %}<span class="ms-1 badge" style="font-size:0.65rem;{{ tx.card | bank_color }}">{{ tx.card }}</span>{% endif %}
                                     <span class="ms-1 badge {% if tx.type == 'income' %}bg-success{% else %}bg-danger{% endif %}" style="font-size:0.68rem;">{% if tx.type == 'income' %}수입{% else %}지출{% endif %}</span>
+                                    <span class="ms-1 text-muted" style="font-size:0.7rem;opacity:0.35;vertical-align:middle;">|</span>
                                     <span class="ms-1" style="font-size:0.85rem;">{{ tx.category }}</span>
+                                    <span class="ms-1 text-muted" style="font-size:0.7rem;opacity:0.35;vertical-align:middle;">|</span>
                                     {% if tx.description %}<span class="ms-1 text-muted" style="font-size:0.82rem;">{{ tx.description }}</span>{% endif %}
-                                    {% if tx.card %}<span class="ms-1 badge bg-secondary" style="font-size:0.65rem;">{{ tx.card }}</span>{% endif %}
                                 </div>
                                 <div class="text-end flex-shrink-0">
                                     <div class="fw-bold {% if tx.type == 'income' %}text-success{% else %}text-danger{% endif %}" style="font-size:0.95rem;">{% if tx.type == 'income' %}+{% else %}-{% endif %}{{ "{:,}".format(tx.amount|int) }}원</div>
@@ -237,10 +257,14 @@
                     {% else %}
                     <p class="text-muted text-center py-3">내역이 없습니다.</p>
                     {% endif %}
+                    </div><!-- /txListBody -->
+                    </div><!-- /txListContent -->
                 </div>
             </div>
             <div class="d-lg-none" style="height: 90px;"></div>
         </div>
+        </div><!-- /page-slide -->
+
         <!-- 가져오기 모달 -->
         <div class="modal fade" id="importModal" tabindex="-1">
             <div class="modal-dialog">
@@ -302,6 +326,28 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 내역 삭제 확인 -->
+        <div id="txConfirmSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2000;align-items:center;justify-content:center;">
+            <div style="background:white;border-radius:20px;padding:24px 20px;width:min(88vw,320px);box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+                <p class="text-center fw-semibold mb-4" style="font-size:1rem;">삭제하시겠습니까?</p>
+                <div class="d-flex gap-2">
+                    <button id="txConfirmYes" class="btn flex-fill" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);color:white;border:none;border-radius:10px;">확인</button>
+                    <button id="txConfirmNo" class="btn btn-outline-secondary flex-fill" style="border-radius:10px;">취소</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 카드별 내역 시트 -->
+        <div id="cardTxSheet" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2000;align-items:flex-end;justify-content:center;opacity:0;transition:opacity 0.28s ease;">
+            <div id="cardTxPanel" style="background:white;border-radius:20px 20px 0 0;width:100%;max-height:72vh;overflow-y:auto;padding:20px 16px 32px;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold" id="cardTxSheetTitle">카드 내역</h6>
+                    <button id="cardTxSheetClose" style="background:none;border:none;font-size:1.5rem;color:#aaa;line-height:1;padding:0 4px;">&times;</button>
+                </div>
+                <div id="cardTxList"></div>
             </div>
         </div>
 
@@ -369,6 +415,7 @@
                     el.style.opacity = '1';
                     el.classList.remove('sec-closed');
                     if (arrow) arrow.textContent = '▴';
+                    setTimeout(function() { if (!el.classList.contains('sec-closed')) el.style.maxHeight = 'none'; }, 380);
                 }
             }
         </script>
@@ -412,16 +459,28 @@
             (function() {
                 var active = null;
 
+                var _txPendingDelete = null;
+                document.getElementById('txConfirmYes').addEventListener('click', function() {
+                    document.getElementById('txConfirmSheet').style.display = 'none';
+                    if (_txPendingDelete) {
+                        var f = document.createElement('form');
+                        f.method = 'post'; f.action = _txPendingDelete;
+                        _txPendingDelete = null;
+                        document.body.appendChild(f); f.submit();
+                    }
+                });
+                document.getElementById('txConfirmNo').addEventListener('click', function() {
+                    document.getElementById('txConfirmSheet').style.display = 'none';
+                    _txPendingDelete = null;
+                });
+
                 function doAction(w, curX) {
                     if (curX < -60) {
                         var url = w.dataset.deleteUrl;
-                        if (url) setTimeout(function() {
-                            if (confirm('삭제하시겠습니까?')) {
-                                var f = document.createElement('form');
-                                f.method = 'post'; f.action = url;
-                                document.body.appendChild(f); f.submit();
-                            }
-                        }, 50);
+                        if (url) {
+                            _txPendingDelete = url;
+                            document.getElementById('txConfirmSheet').style.display = 'flex';
+                        }
                     } else if (curX > 60) {
                         var editUrl = w.dataset.editUrl;
                         if (editUrl) window.location.href = editUrl;
@@ -511,17 +570,136 @@
                 }, {passive:true});
             })(-1);
 
-            // 지출/수입 필터
-            document.getElementById('txFilter').addEventListener('click', function(e) {
-                var btn = e.target.closest('button[data-filter]');
-                if (!btn) return;
-                document.querySelectorAll('#txFilter button').forEach(function(b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                var filter = btn.dataset.filter;
-                document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
-                    w.style.display = (filter === 'all' || w.dataset.type === filter) ? '' : 'none';
+            // 지출/수입 탭 필터 (슬라이딩 인디케이터)
+            (function() {
+                var indicator = document.getElementById('txTabIndicator');
+                function moveIndicator(btn) {
+                    indicator.style.left = btn.offsetLeft + 'px';
+                    indicator.style.width = btn.offsetWidth + 'px';
+                }
+                requestAnimationFrame(function() {
+                    var active = document.querySelector('#txFilter .tx-tab.active');
+                    if (active) {
+                        indicator.style.transition = 'none';
+                        moveIndicator(active);
+                        requestAnimationFrame(function() {
+                            indicator.style.transition = 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
+                        });
+                    }
                 });
-            });
+                document.getElementById('txFilter').addEventListener('click', function(e) {
+                    var btn = e.target.closest('button[data-filter]');
+                    if (!btn) return;
+                    document.querySelectorAll('#txFilter .tx-tab').forEach(function(b) {
+                        b.classList.remove('active');
+                        b.style.color = '#888';
+                        b.style.fontWeight = '';
+                    });
+                    btn.classList.add('active');
+                    btn.style.color = '#b088f9';
+                    btn.style.fontWeight = '600';
+                    moveIndicator(btn);
+                    var filter = btn.dataset.filter;
+                    var body = document.getElementById('txListBody');
+                    body.style.opacity = '0';
+                    setTimeout(function() {
+                        document.querySelectorAll('.swipe-wrapper').forEach(function(w) {
+                            w.style.display = (filter === 'all' || w.dataset.type === filter) ? '' : 'none';
+                        });
+                        body.style.opacity = '1';
+                    }, 180);
+                });
+            })();
+
+            // 지출/수입 카테고리 동적 교체 (추가 폼)
+            (function() {
+                var expCats = {{ expense_cats_json | tojson }};
+                var incCats = {{ income_cats_json | tojson }};
+                function fillAddCats(typeVal) {
+                    var cats = typeVal === 'expense' ? expCats : incCats;
+                    var sel = document.getElementById('addCatSelect');
+                    sel.innerHTML = cats.map(function(c) {
+                        return '<option value="' + c[0] + '">' + c[1] + ' ' + c[0] + '</option>';
+                    }).join('');
+                }
+                var typeEl = document.getElementById('addTypeSelect');
+                typeEl.addEventListener('change', function() { fillAddCats(this.value); });
+                fillAddCats('expense');
+            })();
+
+            // 페이지 슬라이딩 전환
+            (function() {
+                var po = {'/': -1, '/cards': 0, '/calendar': 1, '/stats': 2, '/budget': 3, '/categories': 4};
+                var ci = po[window.location.pathname] !== undefined ? po[window.location.pathname] : -1;
+                var sd = sessionStorage.getItem('navDir');
+                var _ps = document.getElementById('page-slide');
+                if (sd && _ps) { sessionStorage.removeItem('navDir'); _ps.style.transform = sd === 'up' ? 'translateY(60px)' : 'translateX(' + (sd === 'right' ? '80px' : '-80px') + ')'; }
+                function init() {
+                    var ps = document.getElementById('page-slide');
+                    if (!ps) return;
+                    requestAnimationFrame(function() {
+                        ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
+                        ps.style.transform = 'translateX(0)';
+                        ps.style.opacity = '1';
+                    });
+                    document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
+                        var href = a.getAttribute('href');
+                        if (!href || href === '#' || href.startsWith('http') || a.dataset.bsToggle) return;
+                        a.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            var ti = po[href] !== undefined ? po[href] : -1;
+                            var d = href === '/' ? 'up' : (ti >= ci ? 'right' : 'left');
+                            sessionStorage.setItem('navDir', d);
+                            ps.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                            ps.style.transform = d === 'up' ? 'translateY(-60px)' : 'translateX(' + (d === 'right' ? '-80px' : '80px') + ')';
+                            ps.style.opacity = '0';
+                            setTimeout(function() { window.location.href = href; }, 200);
+                        });
+                    });
+                }
+                if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+            })();
+            // 카드 실적 바 클릭 → 해당 카드 내역 시트
+            (function() {
+                var sheet = document.getElementById('cardTxSheet');
+                var panel = document.getElementById('cardTxPanel');
+                var title = document.getElementById('cardTxSheetTitle');
+                var list = document.getElementById('cardTxList');
+                function openSheet() {
+                    sheet.style.display = 'flex';
+                    requestAnimationFrame(function() {
+                        requestAnimationFrame(function() {
+                            sheet.style.opacity = '1';
+                            panel.style.transform = 'translateY(0)';
+                        });
+                    });
+                }
+                function closeSheet() {
+                    sheet.style.opacity = '0';
+                    panel.style.transform = 'translateY(100%)';
+                    setTimeout(function() { sheet.style.display = 'none'; }, 350);
+                }
+                document.getElementById('cardTxSheetClose').addEventListener('click', closeSheet);
+                sheet.addEventListener('click', function(e) { if (e.target === sheet) closeSheet(); });
+                document.querySelectorAll('.card-stat-bar').forEach(function(bar) {
+                    bar.addEventListener('click', function() {
+                        var cardName = this.dataset.card;
+                        title.textContent = cardName + ' 내역';
+                        var items = document.querySelectorAll('.swipe-wrapper[data-card="' + cardName + '"]');
+                        if (!items.length) {
+                            list.innerHTML = '<p class="text-muted text-center py-3">내역이 없습니다.</p>';
+                        } else {
+                            var html = '';
+                            items.forEach(function(w) {
+                                var content = w.querySelector('.swipe-content');
+                                html += '<div style="border-bottom:1px solid #f0f0f0;padding:10px 2px;">' + content.innerHTML + '</div>';
+                            });
+                            list.innerHTML = html;
+                        }
+                        openSheet();
+                    });
+                });
+            })();
 
             // 최신순 / 과거순 정렬 토글
             document.getElementById('sortToggle').addEventListener('click', function() {

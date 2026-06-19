@@ -23,6 +23,7 @@ class Category(db.Model):
     name = db.Column(db.String(50), nullable=False)
     icon = db.Column(db.String(10), nullable=False)  # 이모지
     position = db.Column(db.Integer, nullable=False, default=0)
+    cat_type = db.Column(db.String(10), nullable=False, default='expense')  # 'expense' or 'income'
 
 # 카드별 실적 관리
 class Card(db.Model):
@@ -33,3 +34,4 @@ class Card(db.Model):
     tier1 = db.Column(db.Integer, nullable=True, server_default='20')
     tier2 = db.Column(db.Integer, nullable=True, server_default='50')
     tier3 = db.Column(db.Integer, nullable=True, server_default='80')
+    account_balance = db.Column(db.Integer, nullable=False, default=0)
