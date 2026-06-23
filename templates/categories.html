@@ -249,6 +249,29 @@
                 ind.style.left = btn.offsetLeft + 'px';
                 ind.style.width = btn.offsetWidth + 'px';
                 document.getElementById('addCatType').value = type;
+                // catFilter 탭도 동기화
+                document.querySelectorAll('#catFilter .cat-tab').forEach(function(b) {
+                    var active = b.dataset.filter === type;
+                    b.classList.toggle('active', active);
+                    b.style.color = active ? '#b088f9' : '#888';
+                    b.style.fontWeight = active ? '600' : '';
+                });
+                var activeTab = document.querySelector('#catFilter .cat-tab[data-filter="' + type + '"]');
+                var catInd = document.getElementById('catTabIndicator');
+                if (activeTab && catInd) {
+                    catInd.style.left = activeTab.offsetLeft + 'px';
+                    catInd.style.width = activeTab.offsetWidth + 'px';
+                }
+                // 목록 필터링
+                var list = document.getElementById('catList');
+                list.style.transition = 'opacity 0.18s ease';
+                list.style.opacity = '0';
+                setTimeout(function() {
+                    document.querySelectorAll('#catList .swipe-wrapper').forEach(function(w) {
+                        w.style.display = w.dataset.catType === type ? '' : 'none';
+                    });
+                    list.style.opacity = '1';
+                }, 180);
             }
 
             (function() {
@@ -291,6 +314,20 @@
                     btn.style.fontWeight = '600';
                     moveCatIndicator(btn);
                     var filter = btn.dataset.filter;
+                    // 종류 토글도 동기화 (expense/income일 때만)
+                    if (filter === 'expense' || filter === 'income') {
+                        var isExp = filter === 'expense';
+                        var expB = document.getElementById('typeBtnExpense');
+                        var incB = document.getElementById('typeBtnIncome');
+                        expB.style.color = isExp ? '#b088f9' : '#888';
+                        expB.style.fontWeight = isExp ? '600' : '';
+                        incB.style.color = !isExp ? '#b088f9' : '#888';
+                        incB.style.fontWeight = !isExp ? '600' : '';
+                        var typeInd = document.getElementById('typeTabIndicator');
+                        var activeTypeBtn = isExp ? expB : incB;
+                        if (typeInd) { typeInd.style.left = activeTypeBtn.offsetLeft + 'px'; typeInd.style.width = activeTypeBtn.offsetWidth + 'px'; }
+                        document.getElementById('addCatType').value = filter;
+                    }
                     var list = document.getElementById('catList');
                     list.style.transition = 'opacity 0.18s ease';
                     list.style.opacity = '0';
