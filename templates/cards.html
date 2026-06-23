@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
     <head>
         <meta charset="UTF-8">
@@ -7,7 +7,7 @@
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}nav.d-lg-none{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
     </head>
     <body class="bg-light">
         <div id="topFade" class="d-lg-none" style="position: fixed; top: 0; left: 0; right: 0; height: 80px; background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%); z-index: 998; pointer-events: none; opacity: 0; transition: opacity 0.3s;"></div>
@@ -225,6 +225,8 @@
                         ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
                         ps.style.transform = 'translateX(0)';
                         ps.style.opacity = '1';
+                        var nav = document.querySelector('nav.d-lg-none');
+                        if (nav) { nav.style.transition = 'opacity 0.28s ease'; nav.style.opacity = '1'; }
                     });
                     document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
                         var href = a.getAttribute('href');
@@ -237,6 +239,8 @@
                             ps.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
                             ps.style.transform = d === 'up' ? 'translateY(-60px)' : 'translateX(' + (d === 'right' ? '-80px' : '80px') + ')';
                             ps.style.opacity = '0';
+                            var nav = document.querySelector('nav.d-lg-none');
+                            if (nav) { nav.style.transition = 'opacity 0.2s ease'; nav.style.opacity = '0'; }
                             setTimeout(function() { window.location.href = href; }, 200);
                         });
                     });
