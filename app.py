@@ -796,9 +796,13 @@ def import_text_preview():
     for tx in parsed:
         tx['card_matched'] = match_card(tx.get('card', ''))
 
+    expense_cats = [c for c in categories if c.cat_type == 'expense']
+    income_cats = [c for c in categories if c.cat_type == 'income']
     return render_template('import_text_preview.html',
                            parsed=parsed, tmp=tmp,
-                           categories=categories, card_list=cards)
+                           categories=categories, card_list=cards,
+                           expense_cats_json=[[c.name, c.icon] for c in expense_cats],
+                           income_cats_json=[[c.name, c.icon] for c in income_cats])
 
 @app.route('/import/text/confirm', methods=['POST'])
 def import_text_confirm():
