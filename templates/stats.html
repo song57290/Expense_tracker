@@ -24,21 +24,24 @@
         <div id="page-slide">
         <div class="px-3 pt-3">
         <nav class="navbar mb-4" style="background: linear-gradient(135deg, #b088f9 0%, #7baff0 100%); border-radius: 20px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(123,107,224,0.3);">
-            <a class="navbar-brand fw-bold fs-5" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-            <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
-                <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
-            </a>
-            <div class="d-none d-lg-flex gap-1">
-                <a href="/cards" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카드 관리</a>
-                <a href="/calendar" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">캘린더</a>
-                <a href="/stats" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">통계</a>
-                <a href="/budget" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">예산 설정</a>
-                <a href="/categories" class="btn btn-sm" style="color: white; border: 1px solid rgba(255,255,255,0.5); border-radius: 10px;">카테고리</a>
+            <div class="d-flex align-items-center gap-3">
+                <button onclick="toggleSidebar()" class="d-none d-lg-flex" style="align-items:center;justify-content:center;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:38px;height:38px;border-radius:10px;font-size:1.4rem;cursor:pointer;flex-shrink:0;">
+                    <i class="bi bi-list"></i>
+                </button>
+                <a class="navbar-brand fw-bold fs-5 mb-0" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="/" class="d-lg-none nav-home-btn" style="color: white; transition: transform 0.12s, opacity 0.12s;">
+                    <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
+                </a>
+                <a href="/" class="d-none d-lg-flex" style="align-items:center;justify-content:center;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:38px;height:38px;border-radius:10px;transition:background 0.15s;">
+                    <i class="bi bi-house" style="font-size:1.2rem;"></i>
+                </a>
             </div>
         </nav>
         </div>
 
-        <div class="container pb-lg-0">
+        <div class="container-fluid px-3 px-lg-4 pb-lg-0">
 
             <!-- 월 선택 -->
             <div class="d-flex align-items-center justify-content-center gap-3 mb-4" style="padding-bottom:0.6rem;">
@@ -409,6 +412,27 @@
                 ind.style.left = curTab.offsetLeft + 'px';
                 ind.style.width = curTab.offsetWidth + 'px';
             })(2);
+        </script>
+        <div id="sidebarOverlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1500;"></div>
+        <div id="pcSidebar" style="position:fixed;top:0;left:-280px;width:260px;height:100%;background:white;z-index:1600;box-shadow:4px 0 24px rgba(0,0,0,0.15);border-radius:0 20px 20px 0;transition:left 0.3s cubic-bezier(0.25,0.46,0.45,0.94);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+                <span style="color:white;font-weight:700;font-size:1.05rem;text-shadow:0 0 12px rgba(255,255,255,0.5);">나의 가계부</span>
+                <button onclick="closeSidebar()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:32px;height:32px;border-radius:8px;font-size:0.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div style="padding:12px 8px;">
+                <a href="/" class="pc-sb-link"><i class="bi bi-house"></i><span>홈</span></a>
+                <a href="/cards" class="pc-sb-link"><i class="bi bi-credit-card"></i><span>카드 관리</span></a>
+                <a href="/calendar" class="pc-sb-link"><i class="bi bi-calendar3"></i><span>캘린더</span></a>
+                <a href="/stats" class="pc-sb-link"><i class="bi bi-pie-chart"></i><span>통계</span></a>
+                <a href="/budget" class="pc-sb-link"><i class="bi bi-wallet2"></i><span>예산 설정</span></a>
+                <a href="/categories" class="pc-sb-link"><i class="bi bi-grid"></i><span>카테고리</span></a>
+            </div>
+        </div>
+        <style>.pc-sb-link{display:flex;align-items:center;gap:14px;padding:11px 16px;border-radius:12px;color:#333;text-decoration:none;font-size:0.93rem;margin-bottom:2px;transition:background 0.15s;}.pc-sb-link:hover{background:#f0eeff;color:#b088f9;}.pc-sb-link i{font-size:1.15rem;color:#b088f9;width:22px;text-align:center;flex-shrink:0;}</style>
+        <script>
+        function toggleSidebar(){var sb=document.getElementById('pcSidebar'),ov=document.getElementById('sidebarOverlay');if(sb.style.left==='0px'){sb.style.left='-280px';ov.style.display='none';}else{sb.style.left='0px';ov.style.display='block';}}
+        function closeSidebar(){document.getElementById('pcSidebar').style.left='-280px';document.getElementById('sidebarOverlay').style.display='none';}
+        document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSidebar();});
         </script>
     </body>
 </html>
