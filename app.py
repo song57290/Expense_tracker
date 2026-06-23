@@ -290,6 +290,7 @@ def stats():
     category_totals = defaultdict(int)
     for tx in transactions:
         category_totals[tx.category] += tx.amount
+    category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
     # Last 6 months totals for monthly trend chart
     six_months = []
