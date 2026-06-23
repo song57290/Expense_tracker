@@ -56,9 +56,10 @@
                     <form action="/categories" method="post">
                         <div class="mb-3">
                             <label class="form-label fw-semibold">종류</label>
-                            <div style="display:flex;background:#f0eeff;border-radius:20px;padding:3px;gap:2px;width:fit-content;">
-                                <button type="button" id="typeBtnExpense" onclick="pickCatType('expense')" style="border-radius:16px;padding:4px 18px;font-size:0.85rem;background:white;color:#b088f9;border:none;box-shadow:0 1px 4px rgba(0,0,0,0.12);font-weight:600;">지출</button>
-                                <button type="button" id="typeBtnIncome" onclick="pickCatType('income')" style="border-radius:16px;padding:4px 18px;font-size:0.85rem;background:transparent;color:#888;border:none;">수입</button>
+                            <div id="catTypeFilter" style="display:flex;background:#f0eeff;border-radius:20px;padding:3px;gap:2px;width:fit-content;position:relative;">
+                                <div id="typeTabIndicator" style="position:absolute;top:3px;bottom:3px;background:white;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.12);z-index:0;pointer-events:none;"></div>
+                                <button type="button" id="typeBtnExpense" onclick="pickCatType('expense')" style="position:relative;z-index:1;border-radius:16px;padding:4px 18px;font-size:0.85rem;background:transparent;color:#b088f9;border:none;font-weight:600;">지출</button>
+                                <button type="button" id="typeBtnIncome" onclick="pickCatType('income')" style="position:relative;z-index:1;border-radius:16px;padding:4px 18px;font-size:0.85rem;background:transparent;color:#888;border:none;">수입</button>
                             </div>
                             <input type="hidden" name="cat_type" id="addCatType" value="expense">
                         </div>
@@ -69,9 +70,8 @@
                                 <div class="flex-grow-1">
                                     <input type="text" name="icon" id="addIcon" class="form-control emoji-input"
                                         placeholder="이모지 입력" maxlength="8" required>
-                                    <small class="text-muted mt-1 d-block">
-                                        모바일: 키보드 이모지 탭 &nbsp;|&nbsp;
-                                        PC: <kbd>Win</kbd>+<kbd>.</kbd> 또는 <kbd>⌘</kbd>+<kbd>Ctrl</kbd>+<kbd>Space</kbd>
+                                    <small class="text-muted mt-1 d-none d-lg-block" style="white-space:nowrap;">
+                                        <kbd>Win</kbd>+<kbd>.</kbd> 또는 <kbd>⌘</kbd>+<kbd>Ctrl</kbd>+<kbd>Space</kbd>
                                     </small>
                                 </div>
                             </div>
@@ -240,14 +240,14 @@
                 var isExp = type === 'expense';
                 var expBtn = document.getElementById('typeBtnExpense');
                 var incBtn = document.getElementById('typeBtnIncome');
-                expBtn.style.background = isExp ? 'white' : 'transparent';
                 expBtn.style.color = isExp ? '#b088f9' : '#888';
-                expBtn.style.boxShadow = isExp ? '0 1px 4px rgba(0,0,0,0.12)' : 'none';
                 expBtn.style.fontWeight = isExp ? '600' : '';
-                incBtn.style.background = !isExp ? 'white' : 'transparent';
                 incBtn.style.color = !isExp ? '#b088f9' : '#888';
-                incBtn.style.boxShadow = !isExp ? '0 1px 4px rgba(0,0,0,0.12)' : 'none';
                 incBtn.style.fontWeight = !isExp ? '600' : '';
+                var btn = isExp ? expBtn : incBtn;
+                var ind = document.getElementById('typeTabIndicator');
+                ind.style.left = btn.offsetLeft + 'px';
+                ind.style.width = btn.offsetWidth + 'px';
                 document.getElementById('addCatType').value = type;
             }
 
@@ -257,13 +257,24 @@
                     catIndicator.style.left = btn.offsetLeft + 'px';
                     catIndicator.style.width = btn.offsetWidth + 'px';
                 }
+                var TRANS = 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
                 requestAnimationFrame(function() {
                     var active = document.querySelector('#catFilter .cat-tab.active');
                     if (active) {
                         catIndicator.style.transition = 'none';
                         moveCatIndicator(active);
                         requestAnimationFrame(function() {
-                            catIndicator.style.transition = 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)';
+                            catIndicator.style.transition = TRANS;
+                        });
+                    }
+                    var typeInd = document.getElementById('typeTabIndicator');
+                    var expBtn = document.getElementById('typeBtnExpense');
+                    if (typeInd && expBtn) {
+                        typeInd.style.transition = 'none';
+                        typeInd.style.left = expBtn.offsetLeft + 'px';
+                        typeInd.style.width = expBtn.offsetWidth + 'px';
+                        requestAnimationFrame(function() {
+                            typeInd.style.transition = TRANS;
                         });
                     }
                 });
