@@ -7,7 +7,7 @@
         <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}nav.d-lg-none{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
         <style>
             .emoji-preview {
                 font-size: 2.4rem;
@@ -390,8 +390,6 @@
                         ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
                         ps.style.transform = 'translateX(0)';
                         ps.style.opacity = '1';
-                        var nav = document.querySelector('nav.d-lg-none');
-                        if (nav) { nav.style.transition = 'opacity 0.28s ease'; nav.style.opacity = '1'; }
                     });
                     document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
                         var href = a.getAttribute('href');
@@ -493,6 +491,16 @@
                     if (ni >= 0 && ni < pages.length) window.location.href = pages[ni];
                 }, {passive:true});
             })(4);
+        </script>
+        <script>
+            window.addEventListener('pageshow', function(e) {
+                if (e.persisted) {
+                    var ps = document.getElementById('page-slide');
+                    if (ps) { ps.style.transition = 'none'; ps.style.opacity = '1'; ps.style.transform = 'none'; }
+                    var nav = document.querySelector('nav.d-lg-none');
+                    if (nav) { nav.style.transition = 'none'; nav.style.opacity = '1'; }
+                }
+            });
         </script>
     </body>
 </html>
