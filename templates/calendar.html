@@ -10,7 +10,7 @@
         <!-- FullCalendar - 캘린더 라이브러리 -->
         <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}nav.d-lg-none{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
+        <style>html{overflow-x:hidden;}#page-slide{opacity:0;}.nav-home-btn:active{transform:scale(0.78);opacity:0.6;}</style>
         <style>
             /* 이벤트 바 스타일 - 간격과 둥근 모서리 */
             .fc-event {
@@ -430,8 +430,6 @@
                         ps.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.28s ease';
                         ps.style.transform = 'translateX(0)';
                         ps.style.opacity = '1';
-                        var nav = document.querySelector('nav.d-lg-none');
-                        if (nav) { nav.style.transition = 'opacity 0.28s ease'; nav.style.opacity = '1'; }
                     });
                     document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
                         var href = a.getAttribute('href');
@@ -479,6 +477,16 @@
                         inp.value = inp.value.replace(/,/g, '');
                     });
                 });
+            });
+        </script>
+        <script>
+            window.addEventListener('pageshow', function(e) {
+                if (e.persisted) {
+                    var ps = document.getElementById('page-slide');
+                    if (ps) { ps.style.transition = 'none'; ps.style.opacity = '1'; ps.style.transform = 'none'; }
+                    var nav = document.querySelector('nav.d-lg-none');
+                    if (nav) { nav.style.transition = 'none'; nav.style.opacity = '1'; }
+                }
             });
         </script>
     </body>
