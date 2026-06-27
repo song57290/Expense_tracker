@@ -48,6 +48,8 @@
             var resp = await fetch('/api/vapid-public-key');
             var keyData = await resp.json();
             var reg = await navigator.serviceWorker.ready;
+            var existing = await reg.pushManager.getSubscription();
+            if (existing) await existing.unsubscribe();
             var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(keyData.key) });
             var subJson = sub.toJSON();
             subJson.notify_hour = parseInt(parts[0]);
