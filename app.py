@@ -6,7 +6,7 @@ from models import db, Transaction, Budget, Category, Card
 import openpyxl
 import xlrd
 from io import BytesIO
-import tempfile, json, os, re
+import tempfile, json, os, re, base64
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위치
@@ -843,6 +843,87 @@ def import_text_confirm():
 @app.route('/sw.js')
 def service_worker():
     return send_from_directory('static', 'sw.js')
+
+# ── Push Notification ─────────────────────────────────────────────────────────
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+VAPID_KEYS_FILE = os.path.join(_BASE_DIR, 'vapid_keys.json')
+SUBSCRIPTIONS_FILE = os.path.join(_BASE_DIR, 'subscriptions.json')
+
+def _get_vapid_keys():
+    if os.path.exists(VAPID_KEYS_FILE):
+        with open(VAPID_KEYS_FILE) as f:
+            return json.load(f)
+    try:
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        pk = ec.generate_private_key(ec.SECP256R1())
+        priv_pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()).decode()
+        pub_b64 = base64.urlsafe_b64encode(pk.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)).rstrip(b'=').decode()
+        keys = {'private': priv_pem, 'public': pub_b64}
+        with open(VAPID_KEYS_FILE, 'w') as f:
+            json.dump(keys, f)
+        return keys
+    except Exception:
+        return {'private': '', 'public': ''}
+
+vapid_keys = _get_vapid_keys()
+
+def _load_subs():
+    if not os.path.exists(SUBSCRIPTIONS_FILE):
+        return []
+    with open(SUBSCRIPTIONS_FILE) as f:
+        return json.load(f)
+
+def _save_subs(subs):
+    with open(SUBSCRIPTIONS_FILE, 'w') as f:
+        json.dump(subs, f)
+
+@app.route('/api/vapid-public-key')
+def vapid_public_key():
+    return {'key': vapid_keys['public']}
+
+@app.route('/api/subscribe', methods=['POST'])
+def push_subscribe():
+    data = request.json or {}
+    subs = [s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')]
+    subs.append(data)
+    _save_subs(subs)
+    return {'ok': True}
+
+@app.route('/api/unsubscribe', methods=['POST'])
+def push_unsubscribe():
+    data = request.json or {}
+    _save_subs([s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')])
+    return {'ok': True}
+
+def _send_push_notifications():
+    try:
+        from pywebpush import webpush
+        now = datetime.now()
+        for sub in _load_subs():
+            if now.hour == sub.get('notify_hour', 21) and now.minute == sub.get('notify_minute', 0):
+                try:
+                    webpush(
+                        subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
+                        data=json.dumps({'title': '나의 가계부', 'body': '오늘 지출을 기록했나요? 📝', 'url': '/'}),
+                        vapid_private_key=vapid_keys['private'],
+                        vapid_claims={'sub': 'mailto:song57290@gmail.com'}
+                    )
+                except Exception as e:
+                    app.logger.error('Push failed: %s', e)
+    except ImportError:
+        pass
+
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        import atexit
+        _scheduler = BackgroundScheduler()
+        _scheduler.add_job(_send_push_notifications, 'cron', minute='*')
+        _scheduler.start()
+        atexit.register(lambda: _scheduler.shutdown(wait=False))
+    except ImportError:
+        pass
 
 if __name__ == '__main__':
     app.run(debug=True) # 서버 실행 / debug=True면 코드 수정 시 자동 재시작
