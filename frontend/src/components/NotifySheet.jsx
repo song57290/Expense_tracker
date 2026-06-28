@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import api from '../api.js'
 
 function urlB64ToUint8Array(b64) {
@@ -92,14 +92,50 @@ export default function NotifySheet() {
     applyTime(`${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
   }
 
+  // 드래그 피커 컬럼 컴포넌트
+  function DragCol({ value, display, onDelta }) {
+    const startY = useRef(null)
+    const lastStep = useRef(0)
+    const STEP_PX = 28
+
+    const onPointerDown = e => {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      startY.current = e.clientY
+      lastStep.current = 0
+    }
+    const onPointerMove = e => {
+      if (startY.current === null) return
+      const dy = startY.current - e.clientY // 위로 드래그 = 양수 = 증가
+      const step = Math.round(dy / STEP_PX)
+      const diff = step - lastStep.current
+      if (diff !== 0) { lastStep.current = step; onDelta(diff) }
+    }
+    const onPointerUp = () => { startY.current = null; lastStep.current = 0 }
+
+    const ARR = (dir) => (
+      <svg width="20" height="12" viewBox="0 0 20 12" fill="none" style={{ opacity: 0.35, display:'block' }}>
+        {dir === 'up'
+          ? <path d="M2 10L10 2L18 10" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          : <path d="M2 2L10 10L18 2" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        }
+      </svg>
+    )
+
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, cursor:'ns-resize', userSelect:'none', WebkitUserSelect:'none', touchAction:'none' }}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+        <div style={{ padding:'8px 28px' }}>{ARR('up')}</div>
+        <div style={{ fontSize:'3rem', fontWeight:700, color:'#1c1c1e', minWidth:72, textAlign:'center', lineHeight:1 }}>{display}</div>
+        <div style={{ padding:'8px 28px' }}>{ARR('down')}</div>
+      </div>
+    )
+  }
+
   if (!open) return null
 
   const [h24, mn] = time.split(':').map(Number)
   const isPm = h24 >= 12
   const h12 = h24 % 12 || 12
-  const ARR_UP = <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 10L10 2L18 10" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-  const ARR_DN = <svg width="20" height="12" viewBox="0 0 20 12" fill="none"><path d="M2 2L10 10L18 2" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-  const btnS = { background:'none', border:'none', cursor:'pointer', padding:'10px 28px', display:'flex', alignItems:'center', justifyContent:'center' }
 
   return (
     <div onClick={e => e.target === e.currentTarget && close()} style={{ display:'flex', position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', zIndex:2000, alignItems:'flex-end', justifyContent:'center', opacity: visible ? 1 : 0, transition:'opacity 0.25s ease' }}>
@@ -140,18 +176,11 @@ export default function NotifySheet() {
                       ))}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1 }}>
-                        <button style={btnS} onClick={() => adjustHour(1)}>{ARR_UP}</button>
-                        <div style={{ fontSize:'3rem', fontWeight:700, color:'#1c1c1e', minWidth:72, textAlign:'center', lineHeight:1 }}>{h12}</div>
-                        <button style={btnS} onClick={() => adjustHour(-1)}>{ARR_DN}</button>
-                      </div>
+                      <DragCol value={h12} display={h12} onDelta={d => adjustHour(d)} />
                       <div style={{ fontSize:'2.6rem', fontWeight:700, color:'#d0d0d0', padding:'0 4px', flexShrink:0, marginTop:2 }}>:</div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1 }}>
-                        <button style={btnS} onClick={() => adjustMinute(5)}>{ARR_UP}</button>
-                        <div style={{ fontSize:'3rem', fontWeight:700, color:'#1c1c1e', minWidth:72, textAlign:'center', lineHeight:1 }}>{String(mn).padStart(2,'0')}</div>
-                        <button style={btnS} onClick={() => adjustMinute(-5)}>{ARR_DN}</button>
-                      </div>
+                      <DragCol value={mn} display={String(mn).padStart(2,'0')} onDelta={d => adjustMinute(d * 5)} />
                     </div>
+                    <p style={{ textAlign:'center', fontSize:'0.75rem', color:'#aaa', marginTop:12, marginBottom:0 }}>위아래로 드래그해서 시간을 조절하세요</p>
                   </div>
                 )}
               </>
