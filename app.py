@@ -9,7 +9,11 @@ from io import BytesIO
 import tempfile, json, os, re, base64
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db' # DB 파일 위치
+_DATA_DIR_ENV = os.environ.get('DATA_DIR', '')
+if _DATA_DIR_ENV:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(_DATA_DIR_ENV, 'expense.db')
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db'
 db.init_app(app)
 
 @app.template_filter('bank_color')
@@ -846,8 +850,9 @@ def service_worker():
 
 # ── Push Notification ─────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-VAPID_KEYS_FILE = os.path.join(_BASE_DIR, 'vapid_keys.json')
-SUBSCRIPTIONS_FILE = os.path.join(_BASE_DIR, 'subscriptions.json')
+_FILE_DIR = os.environ.get('DATA_DIR', _BASE_DIR)
+VAPID_KEYS_FILE = os.path.join(_FILE_DIR, 'vapid_keys.json')
+SUBSCRIPTIONS_FILE = os.path.join(_FILE_DIR, 'subscriptions.json')
 
 def _get_vapid_keys():
     if os.path.exists(VAPID_KEYS_FILE):
