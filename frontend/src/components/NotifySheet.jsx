@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../api.js'
 
 function urlB64ToUint8Array(b64) {
@@ -12,6 +12,57 @@ function fmt12(t) {
   const [h, m] = t.split(':').map(Number)
   const ampm = h >= 12 ? '오후' : '오전'
   return `${ampm} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
+}
+
+// iOS 드럼롤 피커 컬럼
+function DrumPicker({ items, value, onChange }) {
+  const ITEM_H = 44
+  const SHOW = 5
+  const PAD = Math.floor(SHOW / 2)
+  const ref = useRef(null)
+  const timer = useRef(null)
+  const busy = useRef(false)
+
+  // 초기 스크롤 위치 설정
+  useEffect(() => {
+    if (!ref.current || busy.current) return
+    const idx = items.indexOf(value)
+    if (idx >= 0) ref.current.scrollTop = idx * ITEM_H
+  }, [value, items])
+
+  const onScroll = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      if (!ref.current) return
+      const idx = Math.max(0, Math.min(items.length - 1, Math.round(ref.current.scrollTop / ITEM_H)))
+      busy.current = true
+      ref.current.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' })
+      setTimeout(() => { busy.current = false }, 400)
+      if (items[idx] !== value) onChange(items[idx])
+    }, 100)
+  }
+
+  return (
+    <div style={{ position: 'relative', height: ITEM_H * SHOW, flex: 1, overflow: 'hidden', userSelect: 'none' }}>
+      {/* 선택 영역 하이라이트 */}
+      <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 6, right: 6, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
+      {/* 상단 페이드 */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      {/* 하단 페이드 */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to top, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      {/* 스크롤 드럼 */}
+      <div ref={ref} onScroll={onScroll} className="drum-scroll"
+        style={{ position: 'absolute', inset: 0, overflowY: 'scroll', scrollSnapType: 'y mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+        {Array.from({ length: PAD }).map((_, i) => <div key={`t${i}`} style={{ height: ITEM_H }} />)}
+        {items.map(item => (
+          <div key={item} style={{ height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center', scrollSnapAlign: 'center', fontSize: '1.45rem', fontWeight: item === value ? 700 : 400, color: item === value ? '#1c1c1e' : '#bbb', transition: 'all 0.15s' }}>
+            {item}
+          </div>
+        ))}
+        {Array.from({ length: PAD }).map((_, i) => <div key={`b${i}`} style={{ height: ITEM_H }} />)}
+      </div>
+    </div>
+  )
 }
 
 export default function NotifySheet() {
@@ -70,87 +121,51 @@ export default function NotifySheet() {
     } catch (e) { console.warn(e) }
   }
 
-  function adjustHour(d) {
-    const [h, m] = time.split(':').map(Number)
-    const pm = h >= 12; let h12 = h % 12 || 12
-    h12 += d; if (h12 > 12) h12 = 1; if (h12 < 1) h12 = 12
-    const h24 = pm ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12)
-    applyTime(`${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-  }
-
-  function adjustMinute(d) {
-    const [h, m] = time.split(':').map(Number)
-    const newM = ((Math.round(m / 5) * 5 + d) % 60 + 60) % 60
-    applyTime(`${String(h).padStart(2,'0')}:${String(newM).padStart(2,'0')}`)
-  }
-
-  function setAmPm(pm) {
-    const [h, m] = time.split(':').map(Number)
-    const isPm = h >= 12
-    if (pm === isPm) return
-    const h24 = pm ? h + 12 : h - 12
-    applyTime(`${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-  }
-
-  // 드래그 피커 컬럼 컴포넌트
-  function DragCol({ value, display, onDelta }) {
-    const startY = useRef(null)
-    const lastStep = useRef(0)
-    const STEP_PX = 28
-
-    const onPointerDown = e => {
-      e.currentTarget.setPointerCapture(e.pointerId)
-      startY.current = e.clientY
-      lastStep.current = 0
-    }
-    const onPointerMove = e => {
-      if (startY.current === null) return
-      const dy = startY.current - e.clientY // 위로 드래그 = 양수 = 증가
-      const step = Math.round(dy / STEP_PX)
-      const diff = step - lastStep.current
-      if (diff !== 0) { lastStep.current = step; onDelta(diff) }
-    }
-    const onPointerUp = () => { startY.current = null; lastStep.current = 0 }
-
-    const ARR = (dir) => (
-      <svg width="20" height="12" viewBox="0 0 20 12" fill="none" style={{ opacity: 0.35, display:'block' }}>
-        {dir === 'up'
-          ? <path d="M2 10L10 2L18 10" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          : <path d="M2 2L10 10L18 2" stroke="#b088f9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        }
-      </svg>
-    )
-
-    return (
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, cursor:'ns-resize', userSelect:'none', WebkitUserSelect:'none', touchAction:'none' }}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-        <div style={{ padding:'8px 28px' }}>{ARR('up')}</div>
-        <div style={{ fontSize:'3rem', fontWeight:700, color:'#1c1c1e', minWidth:72, textAlign:'center', lineHeight:1 }}>{display}</div>
-        <div style={{ padding:'8px 28px' }}>{ARR('down')}</div>
-      </div>
-    )
-  }
-
-  if (!open) return null
+  // 드럼 피커용 아이템 목록
+  const ampmItems = ['오전', '오후']
+  const hourItems = Array.from({ length: 12 }, (_, i) => String(i + 1))
+  const minItems = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
 
   const [h24, mn] = time.split(':').map(Number)
   const isPm = h24 >= 12
   const h12 = h24 % 12 || 12
+  const ampmVal = isPm ? '오후' : '오전'
+  const hourVal = String(h12)
+  const minVal = String(Math.round(mn / 5) * 5 % 60).padStart(2, '0')
+
+  function onAmPm(val) {
+    const newPm = val === '오후'
+    if (newPm === isPm) return
+    const h24New = newPm ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12)
+    applyTime(`${String(h24New).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
+  }
+
+  function onHour(val) {
+    const h12New = parseInt(val)
+    const h24New = isPm ? (h12New === 12 ? 12 : h12New + 12) : (h12New === 12 ? 0 : h12New)
+    applyTime(`${String(h24New).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
+  }
+
+  function onMin(val) {
+    applyTime(`${String(h24).padStart(2, '0')}:${val}`)
+  }
+
+  if (!open) return null
 
   return (
-    <div onClick={e => e.target === e.currentTarget && close()} style={{ display:'flex', position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', zIndex:2000, alignItems:'flex-end', justifyContent:'center', opacity: visible ? 1 : 0, transition:'opacity 0.25s ease' }}>
-      <div style={{ background:'white', borderRadius:'24px 24px 0 0', width:'100%', maxWidth:520, transform: visible ? 'translateY(0)' : 'translateY(100%)', transition:'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
-        <div style={{ padding:'20px 20px 0' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-            <span style={{ fontWeight:700, fontSize:'1.05rem', color:'#1c1c1e' }}>알림 설정</span>
-            <button onClick={close} style={{ background:'#f2f2f7', border:'none', width:30, height:30, borderRadius:15, fontSize:'1.1rem', color:'#6e6e73', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>&times;</button>
+    <div onClick={e => e.target === e.currentTarget && close()} style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}>
+      <div style={{ background: 'white', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 520, transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+        <div style={{ padding: '20px 20px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1c1c1e' }}>알림 설정</span>
+            <button onClick={close} style={{ background: '#f2f2f7', border: 'none', width: 30, height: 30, borderRadius: 15, fontSize: '1.1rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
           </div>
-          <div style={{ background:'#f7f7f7', borderRadius:14, overflow:'hidden' }}>
-            <div style={{ display:'flex', alignItems:'center', padding:'14px 16px' }}>
-              <div style={{ width:32, height:32, background:'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <i className="bi bi-bell-fill" style={{ fontSize:'0.85rem', color:'white' }} />
+          <div style={{ background: '#f7f7f7', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px' }}>
+              <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <i className="bi bi-bell-fill" style={{ fontSize: '0.85rem', color: 'white' }} />
               </div>
-              <span style={{ flex:1, marginLeft:12, fontSize:'0.95rem', fontWeight:500 }}>알림</span>
+              <span style={{ flex: 1, marginLeft: 12, fontSize: '0.95rem', fontWeight: 500 }}>알림</span>
               <div className="ios-toggle" onClick={handleToggle}>
                 <div className={`ios-track${active ? ' on' : ''}`} />
                 <div className={`ios-dot${active ? ' on' : ''}`} />
@@ -158,29 +173,24 @@ export default function NotifySheet() {
             </div>
             {active && (
               <>
-                <div onClick={() => setPickerOpen(p => !p)} style={{ display:'flex', alignItems:'center', borderTop:'1px solid #ebebeb', padding:'14px 16px', cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
-                  <div style={{ width:32, height:32, background:'#f0eeff', borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <i className="bi bi-clock" style={{ fontSize:'0.85rem', color:'#b088f9' }} />
+                <div onClick={() => setPickerOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #ebebeb', padding: '14px 16px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                  <div style={{ width: 32, height: 32, background: '#f0eeff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <i className="bi bi-clock" style={{ fontSize: '0.85rem', color: '#b088f9' }} />
                   </div>
-                  <span style={{ flex:1, marginLeft:12, fontSize:'0.95rem' }}>알림 시간</span>
-                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                    <span style={{ color:'#b088f9', fontSize:'0.95rem', fontWeight:600 }}>{fmt12(time)}</span>
-                    <i className="bi bi-chevron-down" style={{ color:'#b088f9', fontSize:'0.78rem', display:'inline-block', transform: pickerOpen ? 'rotate(180deg)' : '', transition:'transform 0.25s' }} />
+                  <span style={{ flex: 1, marginLeft: 12, fontSize: '0.95rem' }}>알림 시간</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: '#b088f9', fontSize: '0.95rem', fontWeight: 600 }}>{fmt12(time)}</span>
+                    <i className="bi bi-chevron-down" style={{ color: '#b088f9', fontSize: '0.78rem', display: 'inline-block', transform: pickerOpen ? 'rotate(180deg)' : '', transition: 'transform 0.25s' }} />
                   </div>
                 </div>
                 {pickerOpen && (
-                  <div style={{ borderTop:'1px solid #ebebeb', padding:'20px 24px 24px' }}>
-                    <div style={{ display:'flex', gap:8, marginBottom:24 }}>
-                      {[['오전', false], ['오후', true]].map(([label, pm]) => (
-                        <button key={label} onClick={() => setAmPm(pm)} style={{ flex:1, height:40, border:'none', borderRadius:20, fontSize:'0.9rem', fontWeight:600, cursor:'pointer', transition:'all 0.2s', background: isPm === pm ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#efefef', color: isPm === pm ? 'white' : '#888', boxShadow: isPm === pm ? '0 2px 10px rgba(176,136,249,0.35)' : 'none' }}>{label}</button>
-                      ))}
+                  <div style={{ borderTop: '1px solid #ebebeb', padding: '8px 16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <DrumPicker items={ampmItems} value={ampmVal} onChange={onAmPm} />
+                      <DrumPicker items={hourItems} value={hourVal} onChange={onHour} />
+                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ccc', flexShrink: 0, marginBottom: 2 }}>:</div>
+                      <DrumPicker items={minItems} value={minVal} onChange={onMin} />
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <DragCol value={h12} display={h12} onDelta={d => adjustHour(d)} />
-                      <div style={{ fontSize:'2.6rem', fontWeight:700, color:'#d0d0d0', padding:'0 4px', flexShrink:0, marginTop:2 }}>:</div>
-                      <DragCol value={mn} display={String(mn).padStart(2,'0')} onDelta={d => adjustMinute(d * 5)} />
-                    </div>
-                    <p style={{ textAlign:'center', fontSize:'0.75rem', color:'#aaa', marginTop:12, marginBottom:0 }}>위아래로 드래그해서 시간을 조절하세요</p>
                   </div>
                 )}
               </>
