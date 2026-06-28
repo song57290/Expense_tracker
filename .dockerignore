@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+instance/
+vapid_keys.json
+subscriptions.json
+.git/
+.venv/
+venv/
+env/
+*.db
