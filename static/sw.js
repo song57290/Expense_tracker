@@ -1,6 +1,42 @@
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(clients.claim()));
-self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
+var NAV_CACHE = 'nav-prefetch-v1';
+
+self.addEventListener('install', function (e) { self.skipWaiting(); });
+self.addEventListener('activate', function (e) { e.waitUntil(clients.claim()); });
+
+// prefetch.js → SW로 PREFETCH 메시지 수신 → 캐싱
+self.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'PREFETCH') return;
+    var url = e.data.url;
+    e.waitUntil(
+        caches.open(NAV_CACHE).then(function (cache) {
+            return cache.match(url).then(function (hit) {
+                if (hit) return; // 이미 캐시됨
+                return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+                    if (r.ok) return cache.put(url, r);
+                }).catch(function () {});
+            });
+        })
+    );
+});
+
+// 내비게이션 요청: 캐시 우선 → 사용 후 삭제 (1회용 캐시)
+self.addEventListener('fetch', function (e) {
+    if (e.request.mode === 'navigate') {
+        e.respondWith(
+            caches.open(NAV_CACHE).then(function (cache) {
+                return cache.match(e.request.url).then(function (cached) {
+                    if (cached) {
+                        cache.delete(e.request.url);
+                        return cached;
+                    }
+                    return fetch(e.request);
+                });
+            })
+        );
+        return;
+    }
+    e.respondWith(fetch(e.request));
+});
 
 self.addEventListener('push', function (e) {
     var data = e.data ? e.data.json() : {};
