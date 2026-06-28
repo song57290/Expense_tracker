@@ -159,6 +159,14 @@ html, body {
   transition: opacity 0.3s;
 }
 
+/* FullCalendar day colors */
+.fc-day-sun .fc-daygrid-day-number { color: #ff3b30 !important; }
+.fc-day-sat .fc-daygrid-day-number { color: #007aff !important; }
+.fc-col-header-cell.fc-day-sun a,
+.fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #ff3b30 !important; }
+.fc-col-header-cell.fc-day-sat a,
+.fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #007aff !important; }
+
 /* Misc */
 .pill-btn {
   border: none; border-radius: 20px;
