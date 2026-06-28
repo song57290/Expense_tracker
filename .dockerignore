@@ -9,3 +9,4 @@ subscriptions.json
 venv/
 env/
 *.db
+frontend/node_modules/

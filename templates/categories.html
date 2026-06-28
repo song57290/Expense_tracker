@@ -391,10 +391,7 @@
                 function init() {
                     var ps = document.getElementById('page-slide');
                     if (!ps) return;
-                    requestAnimationFrame(function() {
-                        ps.style.transition = 'opacity 0.22s ease';
-                        ps.style.opacity = '1';
-                    });
+                    ps.style.opacity = '1';
                     document.querySelectorAll('.navbar a[href], nav.d-lg-none a[href]').forEach(function(a) {
                         var href = a.getAttribute('href');
                         if (!href || href === '#' || href.startsWith('http') || a.dataset.bsToggle) return;
@@ -563,6 +560,7 @@
         function closeSidebar(){document.getElementById('pcSidebar').style.left='-280px';document.getElementById('sidebarOverlay').style.display='none';}
         document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSidebar();});
         </script>
+        <script src="/static/prefetch.js"></script>
         <script src="/static/push.js"></script>
     </body>
 </html>
