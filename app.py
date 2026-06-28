@@ -239,6 +239,8 @@ def api_cards():
         db.session.add(Card(
             name=data['name'], monthly_target=int(data.get('target', 0)),
             tier1=int(data.get('tier1', 20)), tier2=int(data.get('tier2', 50)), tier3=int(data.get('tier3', 80)),
+            account_balance=int(data.get('account_balance', 0)),
+            url=data.get('url') or None,
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -253,7 +255,7 @@ def api_cards():
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
         }
     return jsonify({
-        'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target,
+        'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target, 'url': c.url or '',
                    'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80} for c in cards],
         'stats': stats,
     })
@@ -271,6 +273,8 @@ def api_card(card_id):
     card.tier1 = int(data.get('tier1', card.tier1 or 20))
     card.tier2 = int(data.get('tier2', card.tier2 or 50))
     card.tier3 = int(data.get('tier3', card.tier3 or 80))
+    if 'account_balance' in data:
+        card.account_balance = int(data['account_balance'])
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -330,11 +334,36 @@ def api_stats():
         inc = Transaction.query.filter(Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
         monthly.append({'month': mo, 'expense': sum(t.amount for t in e), 'income': sum(t.amount for t in inc)})
 
+    cards = Card.query.all()
+    card_monthly_trend = {}
+    for card in cards:
+        trend = []
+        for mo in six_months:
+            amt = sum(
+                tx.amount for tx in Transaction.query.filter(
+                    Transaction.type == 'expense',
+                    Transaction.date.like(f'{mo}%'),
+                    Transaction.card == card.name,
+                ).all()
+            )
+            trend.append(amt)
+        card_monthly_trend[card.name] = trend
+
+    card_monthly = []
+    for card in cards:
+        spent = sum(tx.amount for tx in expense_txs if tx.card == card.name)
+        if spent > 0:
+            card_monthly.append({'name': card.name, 'spent': spent})
+    card_monthly.sort(key=lambda x: x['spent'], reverse=True)
+
     return jsonify({
         'expense_cats': cat_totals(expense_txs),
         'income_cats': cat_totals(income_txs),
         'monthly': monthly,
         'emoji_map': emoji_map,
+        'card_list': [c.name for c in cards],
+        'card_monthly_trend': card_monthly_trend,
+        'card_monthly': card_monthly,
     })
 
 @app.route('/api/budget', methods=['GET', 'POST'])
@@ -351,14 +380,39 @@ def api_budget():
         db.session.commit()
         return jsonify({'ok': True})
     budget = Budget.query.filter_by(month=current_month).first()
-    expense_total = sum(
-        tx.amount for tx in Transaction.query.filter(
-            Transaction.type == 'expense', Transaction.date.like(f'{current_month}%')
-        ).all()
-    )
+    all_txs = Transaction.query.all()
+    expense_total = sum(tx.amount for tx in all_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+
+    cards = Card.query.all()
+    card_stats = []
+    for card in cards:
+        card_txs = [tx for tx in all_txs if tx.card == card.name]
+        total_income = sum(tx.amount for tx in card_txs if tx.type == 'income')
+        total_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense')
+        initial_balance = card.account_balance or 0
+        balance = initial_balance + total_income - total_expense
+        spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        card_stats.append({
+            'id': card.id,
+            'name': card.name,
+            'initial_balance': initial_balance,
+            'total_income': total_income,
+            'total_expense': total_expense,
+            'balance': balance,
+            'spent': spent,
+            'target': card.monthly_target,
+            'percent': percent,
+            'tier1': card.tier1 or 20,
+            'tier2': card.tier2 or 50,
+            'tier3': card.tier3 or 80,
+        })
+
     return jsonify({
         'budget_amount': budget.amount if budget else 0,
         'expense_total': expense_total,
+        'current_month': current_month,
+        'card_stats': card_stats,
     })
 
 @app.route('/api/categories', methods=['GET', 'POST'])
