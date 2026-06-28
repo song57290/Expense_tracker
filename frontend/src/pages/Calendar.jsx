@@ -66,30 +66,32 @@ export default function Calendar() {
         </div>
       </div>
 
+      {/* 날짜 상세 팝업 */}
       {selected && (
-        <div className="card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-          <div className="card-body">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <h6 className="mb-0 fw-bold">{selected}</h6>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '1.2rem', cursor: 'pointer' }}>&times;</button>
+        <div onClick={e => e.target === e.currentTarget && setSelected(null)}
+          style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 1500, alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+            <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span className="fw-bold" style={{ fontSize: '1rem' }}>{selected}</span>
+              <button onClick={() => setSelected(null)} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
-            {!selDay || selDay.length === 0 ? (
-              <p style={{ color: '#aaa', textAlign: 'center' }}>이 날 내역이 없습니다</p>
-            ) : (
-              selDay.map(tx => (
+            <div style={{ overflowY: 'auto', padding: '8px 20px' }}>
+              {!selDay || selDay.length === 0 ? (
+                <p style={{ color: '#aaa', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
+              ) : selDay.map(tx => (
                 <div key={tx.id} className="d-flex align-items-center py-2" style={{ borderBottom: '1px solid #f5f5f5' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1c1c1e' }}>{tx.description || tx.category}</div>
                     <div style={{ fontSize: '0.75rem', color: '#999' }}>{tx.category}{tx.card ? ' · ' + tx.card : ''}</div>
                   </div>
-                  <div style={{ fontWeight: 700, color: tx.type === 'income' ? '#34c759' : '#ff3b30' }}>
+                  <div style={{ fontWeight: 700, color: tx.type === 'income' ? '#34c759' : '#ff3b30', flexShrink: 0 }}>
                     {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
                   </div>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
             {selDay && selDay.length > 0 && (
-              <div className="d-flex justify-content-between pt-2" style={{ fontSize: '0.85rem', color: '#666' }}>
+              <div style={{ padding: '10px 20px 16px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666', flexShrink: 0 }}>
                 <span>수입 <strong style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0))}원</strong></span>
                 <span>지출 <strong style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}원</strong></span>
               </div>
