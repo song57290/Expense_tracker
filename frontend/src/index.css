@@ -1,0 +1,172 @@
+:root {
+  --grad: linear-gradient(135deg, #b088f9 0%, #7baff0 100%);
+  --purple: #b088f9;
+  --blue: #7baff0;
+}
+
+html, body {
+  background: #f8f9fa;
+  overflow-x: hidden;
+}
+
+#root {
+  background: #f8f9fa;
+  min-height: 100vh;
+}
+
+.grad-bg { background: var(--grad); }
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Navbar */
+.app-navbar {
+  background: var(--grad);
+  border-radius: 20px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 20px rgba(123,107,224,0.3);
+}
+.nav-icon-btn {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.nav-icon-btn:hover { background: rgba(255,255,255,0.25); }
+.nav-icon-btn-sm {
+  width: 34px; height: 34px;
+  font-size: 1.15rem;
+  border-radius: 9px;
+}
+.nav-icon-btn-lg {
+  width: 38px; height: 38px;
+  font-size: 1.4rem;
+}
+
+/* Bottom Nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 16px; left: 16px; right: 16px;
+  background: var(--grad);
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(123,107,224,0.3);
+  z-index: 1000;
+}
+.bottom-nav a {
+  color: white;
+  text-decoration: none;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.bottom-nav a.active {
+  background: rgba(255,255,255,0.2);
+  border-radius: 12px;
+}
+
+/* Sidebar */
+.pc-sidebar {
+  position: fixed;
+  top: 0; left: -280px;
+  width: 260px; height: 100%;
+  background: white;
+  z-index: 1600;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  border-radius: 0 20px 20px 0;
+  transition: left 0.3s cubic-bezier(0.25,0.46,0.45,0.94);
+  overflow: hidden;
+}
+.pc-sidebar.open { left: 0; }
+.pc-sb-link {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 16px; border-radius: 12px;
+  color: #333; text-decoration: none;
+  font-size: 0.93rem; margin-bottom: 2px;
+  transition: background 0.15s;
+}
+.pc-sb-link:hover, .pc-sb-link.active { background: #f0eeff; color: var(--purple); }
+.pc-sb-link i { font-size: 1.15rem; color: var(--purple); width: 22px; text-align: center; flex-shrink: 0; }
+
+/* iOS toggle */
+.ios-toggle { position: relative; width: 51px; height: 31px; cursor: pointer; flex-shrink: 0; }
+.ios-track {
+  width: 51px; height: 31px;
+  background: #e5e5ea; border-radius: 16px;
+  transition: background 0.3s;
+}
+.ios-track.on { background: #34c759; }
+.ios-dot {
+  position: absolute; top: 2px; left: 2px;
+  width: 27px; height: 27px;
+  background: white; border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+  transition: left 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.ios-dot.on { left: 22px; }
+
+/* Cards */
+.summary-card {
+  border-radius: 16px;
+  background: white;
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Swipe to delete */
+.swipe-wrapper { overflow: hidden; position: relative; }
+.swipe-inner {
+  transition: transform 0.2s;
+  background: white;
+}
+.swipe-delete {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 80px;
+  background: #ff3b30;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer;
+}
+
+/* Page fade */
+.page-wrap {
+  animation: fadeIn 0.12s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Top / bottom fades */
+.top-fade {
+  position: fixed; top: 0; left: 0; right: 0; height: 80px;
+  background: linear-gradient(to bottom, #f8f9fa 0%, rgba(248,249,250,0) 100%);
+  z-index: 998; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.bot-fade {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 110px;
+  background: linear-gradient(to top, #f8f9fa 0%, rgba(248,249,250,0) 100%);
+  z-index: 998; pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+/* Misc */
+.pill-btn {
+  border: none; border-radius: 20px;
+  padding: 6px 18px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.pill-active {
+  background: var(--grad); color: white;
+  box-shadow: 0 2px 10px rgba(176,136,249,0.35);
+}
+.pill-inactive { background: #efefef; color: #888; }

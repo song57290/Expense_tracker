@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort
 from models import db, Transaction, Budget
 from datetime import datetime
 from collections import defaultdict
@@ -140,331 +140,284 @@ with app.app_context():
                 db.session.add(Category(name=name, icon=icon, position=max_pos+i+1, cat_type='income'))
         db.session.commit()
 
-# 메인 페이지 - DB에서 전체 내역 조회 후 합계 계산해서 화면에 표시
-@app.route('/') # 이 URL로 접속하면 아래의 함수를 실행
-def index():
-    transactions = Transaction.query.order_by(Transaction.date.desc()).all() # DB에서 전체 내역을 최신순(날짜)으로 가져옴
+# ── JSON API routes ───────────────────────────────────────────────────────────
 
-    income_total = sum(tx.amount for tx in transactions if tx.type == 'income')
-    expense_total = sum(tx.amount for tx in transactions if tx.type == 'expense')
-    balance = income_total - expense_total # 가져온 내역에서 수입/지출 합계와 잔액 계산
-
+@app.route('/api/home')
+def api_home():
     current_month = datetime.now().strftime('%Y-%m')
-    budget = Budget.query.filter_by(month = current_month).first()
-    budget_amount = budget.amount if budget else 0
-    remaining = budget_amount - expense_total
+    transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+    month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
 
-    # 카드 실적 데이터 계산
+    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income')
+    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense')
+
+    budget = Budget.query.filter_by(month=current_month).first()
+    budget_amount = budget.amount if budget else 0
+
     cards = Card.query.all()
     card_stats = []
     for card in cards:
-        spent = sum(tx.amount for tx in transactions
-                    if tx.type == 'expense' and tx.card == card.name)
+        spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
         card_stats.append({
             'name': card.name,
             'target': card.monthly_target,
             'spent': spent,
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
-            'tier1': card.tier1 or 20,
-            'tier2': card.tier2 or 50,
-            'tier3': card.tier3 or 80,
+            'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
         })
 
     expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
-    categories = expense_cats + income_cats
-    emoji_map = {c.name: c.icon for c in categories}
+    emoji_map = {c.name: c.icon for c in expense_cats + income_cats}
 
-    # 이번 달 카테고리별 지출
     category_totals = defaultdict(int)
-    for tx in transactions:
-        if tx.type == 'expense' and tx.date.startswith(current_month):
+    for tx in month_txs:
+        if tx.type == 'expense':
             category_totals[tx.category] += tx.amount
     category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
-    return render_template('index.html',
-                        transactions=transactions,
-                        income_total=income_total,
-                        expense_total=expense_total,
-                        balance=balance,
-                        budget_amount=budget_amount,
-                        remaining=remaining,
-                        card_stats=card_stats,
-                        card_list=cards,
-                        categories=categories,
-                        expense_cats_json=[[c.name, c.icon] for c in expense_cats],
-                        income_cats_json=[[c.name, c.icon] for c in income_cats],
-                        emoji_map=emoji_map,
-                        category_totals=category_totals,
-                        current_month=current_month,
-                        )
+    return jsonify({
+        'transactions': [{'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
+                          'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''} for tx in transactions],
+        'income_total': income_total,
+        'expense_total': expense_total,
+        'balance': income_total - expense_total,
+        'budget_amount': budget_amount,
+        'remaining': budget_amount - expense_total,
+        'card_stats': card_stats,
+        'card_list': [{'id': c.id, 'name': c.name} for c in cards],
+        'expense_cats': [[c.name, c.icon] for c in expense_cats],
+        'income_cats': [[c.name, c.icon] for c in income_cats],
+        'emoji_map': emoji_map,
+        'category_totals': category_totals,
+    })
 
-# 내역 추가 - 폼에서 입력한 데이터를 받아서 DB에 저장
-@app.route('/add', methods=['POST'])
-def add():
+@app.route('/api/transactions', methods=['POST'])
+def api_add_transaction():
+    data = request.json or {}
     tx = Transaction(
-        date=request.form['date'], # 폼에서 입력한 값을 꺼내서
-        type=request.form['type'],
-        category=request.form['category'],
-        description=request.form['description'],
-        amount=int(request.form['amount']),
-        card=request.form.get('card') or None, # 카드 선택 안 하면 None
+        date=data['date'], type=data['type'], category=data['category'],
+        description=data.get('description', ''), amount=int(data['amount']),
+        card=data.get('card') or None,
     )
-    db.session.add(tx) # DB에 추가 예약
-    db.session.commit() # 실제로 DB에 저장
-    next_url = request.form.get('next', url_for('index'))
-    return redirect(next_url)
-
-# 내역 삭제 - URL의 id로 해당 내역을 찾아서 DB에서 삭제
-@app.route('/delete/<int:tx_id>', methods=['POST'])
-def delete(tx_id):
-    tx = Transaction.query.get_or_404(tx_id)
-    db.session.delete(tx)
+    db.session.add(tx)
     db.session.commit()
-    return redirect(url_for('index'))
+    return jsonify({'ok': True, 'id': tx.id})
 
-# 내역 수정 - GET이면 수정 폼 표시, POST면 DB에 저장
-@app.route('/edit/<int:tx_id>', methods=['GET', 'POST'])
-def edit(tx_id):
+@app.route('/api/transactions/<int:tx_id>', methods=['GET', 'PUT', 'DELETE'])
+def api_transaction(tx_id):
     tx = Transaction.query.get_or_404(tx_id)
-    if request.method == 'POST':
-        tx.date = request.form['date']
-        tx.type = request.form['type']
-        tx.category = request.form['category']
-        tx.description = request.form['description']
-        tx.amount = int(request.form['amount'])
-        tx.card = request.form.get('card') or None
+    if request.method == 'DELETE':
+        db.session.delete(tx)
         db.session.commit()
-        return redirect(url_for('index'))
-    card_list = Card.query.all()
+        return jsonify({'ok': True})
+    if request.method == 'PUT':
+        data = request.json or {}
+        tx.date = data.get('date', tx.date)
+        tx.type = data.get('type', tx.type)
+        tx.category = data.get('category', tx.category)
+        tx.description = data.get('description', tx.description)
+        tx.amount = int(data.get('amount', tx.amount))
+        tx.card = data.get('card') or None
+        db.session.commit()
+        return jsonify({'ok': True})
+    # GET
     expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
-    return render_template('edit.html', tx=tx, card_list=card_list,
-                           expense_cats_json=[[c.name, c.icon] for c in expense_cats],
-                           income_cats_json=[[c.name, c.icon] for c in income_cats])
+    return jsonify({
+        'transaction': {'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
+                        'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''},
+        'expense_cats': [[c.name, c.icon] for c in expense_cats],
+        'income_cats': [[c.name, c.icon] for c in income_cats],
+        'card_list': [{'id': c.id, 'name': c.name} for c in Card.query.all()],
+    })
 
-# 예산 설정 - GET이면 설정 페이지, POST면 DB에 저장
-@app.route('/budget', methods=['GET', 'POST'])
-def budget():
-    current_month = datetime.now().strftime('%Y-%m')
+@app.route('/api/cards', methods=['GET', 'POST'])
+def api_cards():
     if request.method == 'POST':
-        existing = Budget.query.filter_by(month=current_month).first()
-        if existing:
-            existing.amount = int(request.form['amount'])
-        else:
-            db.session.add(Budget(month=current_month, amount=int(request.form['amount'])))
+        data = request.json or {}
+        db.session.add(Card(
+            name=data['name'], monthly_target=int(data.get('target', 0)),
+            tier1=int(data.get('tier1', 20)), tier2=int(data.get('tier2', 50)), tier3=int(data.get('tier3', 80)),
+        ))
         db.session.commit()
-        return redirect(url_for('index'))
-    current_budget = Budget.query.filter_by(month=current_month).first()
-    month_tx = Transaction.query.filter(Transaction.date.like(f'{current_month}%')).all()
-    all_tx   = Transaction.query.all()
+        return jsonify({'ok': True})
+    current_month = datetime.now().strftime('%Y-%m')
+    month_txs = Transaction.query.filter(Transaction.date.like(f'{current_month}%')).all()
     cards = Card.query.all()
-    card_stats = []
+    stats = {}
     for card in cards:
-        total_income  = sum(tx.amount for tx in all_tx if tx.card == card.name and tx.type == 'income')
-        total_expense = sum(tx.amount for tx in all_tx if tx.card == card.name and tx.type == 'expense')
-        spent = sum(tx.amount for tx in month_tx if tx.card == card.name and tx.type == 'expense')
-        initial = card.account_balance or 0
-        card_stats.append({
-            'id': card.id,
-            'name': card.name,
-            'initial_balance': initial,
-            'balance': initial + total_income - total_expense,
-            'total_income': total_income,
-            'total_expense': total_expense,
-            'target': card.monthly_target,
+        spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
+        stats[card.id] = {
             'spent': spent,
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
-            'tier1': card.tier1 or 20,
-            'tier2': card.tier2 or 50,
-            'tier3': card.tier3 or 80,
-        })
-    return render_template('budget.html', current_budget=current_budget, current_month=current_month, card_stats=card_stats)
+        }
+    return jsonify({
+        'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target,
+                   'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80} for c in cards],
+        'stats': stats,
+    })
 
-# 카테고리별 통계
-@app.route('/stats')
-def stats():
+@app.route('/api/cards/<int:card_id>', methods=['PUT', 'DELETE'])
+def api_card(card_id):
+    card = Card.query.get_or_404(card_id)
+    if request.method == 'DELETE':
+        db.session.delete(card)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    card.name = data.get('name', card.name)
+    card.monthly_target = int(data.get('target', card.monthly_target))
+    card.tier1 = int(data.get('tier1', card.tier1 or 20))
+    card.tier2 = int(data.get('tier2', card.tier2 or 50))
+    card.tier3 = int(data.get('tier3', card.tier3 or 80))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/calendar')
+def api_calendar():
     now = datetime.now()
     month = request.args.get('month', now.strftime('%Y-%m'))
-    transactions = Transaction.query.filter(
-        Transaction.type == 'expense',
-        Transaction.date.like(f'{month}%')
-    ).all()
-
-    category_totals = defaultdict(int)
-    for tx in transactions:
-        category_totals[tx.category] += tx.amount
-    category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
-
-    # Last 6 months totals for monthly trend chart
-    six_months = []
-    for i in range(5, -1, -1):
-        m = now.month - i
-        y = now.year
-        while m <= 0:
-            m += 12
-            y -= 1
-        six_months.append(f'{y}-{m:02d}')
-
-    monthly_totals = []
-    for mo in six_months:
-        mo_tx = Transaction.query.filter(
-            Transaction.type == 'expense',
-            Transaction.date.like(f'{mo}%')
-        ).all()
-        monthly_totals.append({'month': mo, 'total': sum(t.amount for t in mo_tx)})
-
-    # Per-card breakdown for selected month
-    cards = Card.query.all()
-    card_monthly = [
-        {'name': c.name, 'spent': sum(tx.amount for tx in transactions if tx.card == c.name)}
-        for c in cards
-    ]
-    card_monthly = [c for c in card_monthly if c['spent'] > 0]
-
-    # Card-specific monthly trend (last 6 months per card)
-    card_monthly_trend = {}
-    for card in cards:
-        card_monthly_trend[card.name] = []
-        for mo in six_months:
-            mo_tx = Transaction.query.filter(
-                Transaction.type == 'expense',
-                Transaction.date.like(f'{mo}%'),
-                Transaction.card == card.name
-            ).all()
-            card_monthly_trend[card.name].append(sum(t.amount for t in mo_tx))
-
-    # Prev/next month navigation
-    y, m = int(month[:4]), int(month[5:7])
-    pm, py = m - 1, y
-    if pm <= 0: pm, py = 12, y - 1
-    nm, ny = m + 1, y
-    if nm > 12: nm, ny = 1, y + 1
+    transactions = Transaction.query.filter(Transaction.date.like(f'{month}%')).all()
 
     cats = Category.query.order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
-    return render_template('stats.html',
-        category_totals=category_totals,
-        emoji_map=emoji_map,
-        month=month,
-        prev_month=f'{py}-{pm:02d}',
-        next_month=f'{ny}-{nm:02d}',
-        is_current=(month == now.strftime('%Y-%m')),
-        monthly_totals=monthly_totals,
-        card_monthly=card_monthly,
-        card_monthly_trend=card_monthly_trend,
-        card_list=[c.name for c in cards],
-    )
 
-# 카테고리 관리 - GET이면 목록 표시, POST면 새 카테고리 추가
-@app.route('/categories', methods=['GET', 'POST'])
-def categories():
+    day_totals = defaultdict(lambda: {'expense': 0, 'income': 0})
+    day_transactions = defaultdict(list)
+    for tx in transactions:
+        day_totals[tx.date][tx.type] += tx.amount
+        day_transactions[tx.date].append({
+            'id': tx.id, 'type': tx.type, 'category': tx.category,
+            'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
+        })
+
+    return jsonify({
+        'day_totals': {k: dict(v) for k, v in day_totals.items()},
+        'day_transactions': dict(day_transactions),
+        'income_total': sum(tx.amount for tx in transactions if tx.type == 'income'),
+        'expense_total': sum(tx.amount for tx in transactions if tx.type == 'expense'),
+        'emoji_map': emoji_map,
+    })
+
+@app.route('/api/stats')
+def api_stats():
+    now = datetime.now()
+    month = request.args.get('month', now.strftime('%Y-%m'))
+
+    cats = Category.query.order_by(Category.position, Category.id).all()
+    emoji_map = {c.name: c.icon for c in cats}
+    icon_map = {c.name: c.icon for c in cats}
+
+    expense_txs = Transaction.query.filter(Transaction.type == 'expense', Transaction.date.like(f'{month}%')).all()
+    income_txs = Transaction.query.filter(Transaction.type == 'income', Transaction.date.like(f'{month}%')).all()
+
+    def cat_totals(txs):
+        totals = defaultdict(int)
+        for tx in txs:
+            totals[tx.category] += tx.amount
+        return sorted([{'name': k, 'amount': v, 'icon': icon_map.get(k, '📦')} for k, v in totals.items()], key=lambda x: x['amount'], reverse=True)
+
+    six_months = []
+    for i in range(5, -1, -1):
+        m = now.month - i; y = now.year
+        while m <= 0: m += 12; y -= 1
+        six_months.append(f'{y}-{m:02d}')
+
+    monthly = []
+    for mo in six_months:
+        e = Transaction.query.filter(Transaction.type == 'expense', Transaction.date.like(f'{mo}%')).all()
+        inc = Transaction.query.filter(Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
+        monthly.append({'month': mo, 'expense': sum(t.amount for t in e), 'income': sum(t.amount for t in inc)})
+
+    return jsonify({
+        'expense_cats': cat_totals(expense_txs),
+        'income_cats': cat_totals(income_txs),
+        'monthly': monthly,
+        'emoji_map': emoji_map,
+    })
+
+@app.route('/api/budget', methods=['GET', 'POST'])
+def api_budget():
+    current_month = datetime.now().strftime('%Y-%m')
     if request.method == 'POST':
-        name = request.form['name'].strip()
-        icon = request.form['icon'].strip()
-        cat_type = request.form.get('cat_type', 'expense')
-        if name and icon and not Category.query.filter_by(name=name).first():
+        data = request.json or {}
+        amount = int(data.get('amount', 0))
+        existing = Budget.query.filter_by(month=current_month).first()
+        if existing:
+            existing.amount = amount
+        else:
+            db.session.add(Budget(month=current_month, amount=amount))
+        db.session.commit()
+        return jsonify({'ok': True})
+    budget = Budget.query.filter_by(month=current_month).first()
+    expense_total = sum(
+        tx.amount for tx in Transaction.query.filter(
+            Transaction.type == 'expense', Transaction.date.like(f'{current_month}%')
+        ).all()
+    )
+    return jsonify({
+        'budget_amount': budget.amount if budget else 0,
+        'expense_total': expense_total,
+    })
+
+@app.route('/api/categories', methods=['GET', 'POST'])
+def api_categories():
+    if request.method == 'POST':
+        data = request.json or {}
+        name = data.get('name', '').strip()
+        icon = data.get('icon', '📦').strip()
+        cat_type = data.get('type', 'expense')
+        if name and not Category.query.filter_by(name=name).first():
             max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
             db.session.add(Category(name=name, icon=icon, position=max_pos + 1, cat_type=cat_type))
             db.session.commit()
-    cats = Category.query.order_by(Category.position, Category.id).all()
-    return render_template('categories.html', categories=cats)
+        return jsonify({'ok': True})
+    expense = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
+    income = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    return jsonify({
+        'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in expense],
+        'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in income],
+    })
 
-# 카테고리 수정
-@app.route('/categories/edit/<int:cat_id>', methods=['POST'])
-def edit_category(cat_id):
-    cat = Category.query.get_or_404(cat_id)
-    cat.name = request.form['name'].strip()
-    cat.icon = request.form['icon'].strip()
-    db.session.commit()
-    return redirect(url_for('categories'))
-
-# 카테고리 삭제
-@app.route('/categories/delete/<int:cat_id>', methods=['POST'])
-def delete_category(cat_id):
-    cat = Category.query.get_or_404(cat_id)
-    db.session.delete(cat)
-    db.session.commit()
-    return redirect(url_for('categories'))
-
-# 카테고리 순서 저장
-@app.route('/categories/reorder', methods=['POST'])
-def reorder_categories():
-    ids = request.json.get('ids', [])
+@app.route('/api/categories/reorder', methods=['POST'])
+def api_reorder_categories():
+    ids = (request.json or {}).get('ids', [])
     for i, cat_id in enumerate(ids):
         cat = Category.query.get(cat_id)
         if cat:
             cat.position = i
     db.session.commit()
-    return {'ok': True}
+    return jsonify({'ok': True})
 
-# 카드 관리 - GET이면 목록 표시, POST면 새 카드 추가
-@app.route('/cards', methods=['GET', 'POST'])
-def cards():
-    if request.method == 'POST':
-        db.session.add(Card(
-            name=request.form['name'],
-            monthly_target=int(request.form['monthly_target']),
-            url=request.form.get('url') or None,
-            tier1=int(request.form.get('tier1') or 20),
-            tier2=int(request.form.get('tier2') or 50),
-            tier3=int(request.form.get('tier3') or 80),
-        ))
+@app.route('/api/categories/<int:cat_id>', methods=['PUT', 'DELETE'])
+def api_category(cat_id):
+    cat = Category.query.get_or_404(cat_id)
+    if request.method == 'DELETE':
+        db.session.delete(cat)
         db.session.commit()
-    card_list = Card.query.all()
-    return render_template('cards.html', cards=card_list)
-
-# 카드 수정
-@app.route('/cards/edit/<int:card_id>', methods=['POST'])
-def edit_card(card_id):
-    card = Card.query.get_or_404(card_id)
-    card.name = request.form['name']
-    card.monthly_target = int(request.form['monthly_target'].replace(',', ''))
-    card.url = request.form.get('url') or None
-    card.tier1 = int(request.form.get('tier1') or 20)
-    card.tier2 = int(request.form.get('tier2') or 50)
-    card.tier3 = int(request.form.get('tier3') or 80)
-    raw_bal = request.form.get('account_balance', '').replace(',', '')
-    if raw_bal.lstrip('-').isdigit():
-        card.account_balance = int(raw_bal)
+        return jsonify({'ok': True})
+    data = request.json or {}
+    cat.name = data.get('name', cat.name).strip()
+    cat.icon = data.get('icon', cat.icon).strip()
     db.session.commit()
-    return redirect(request.form.get('next', url_for('cards')))
+    return jsonify({'ok': True})
 
-# 카드 삭제
-@app.route('/cards/delete/<int:card_id>', methods=['POST'])
-def delete_card(card_id):
-    card = Card.query.get_or_404(card_id)
-    db.session.delete(card)
-    db.session.commit()
-    return redirect(request.form.get('next', url_for('cards')))
+# ── SPA entry point ───────────────────────────────────────────────────────────
 
-# 캘린더 - 날짜별 지출/수입 내역 표시
-@app.route('/calendar')
-def calendar():
-    transactions = Transaction.query.all()
-    cats = Category.query.order_by(Category.position, Category.id).all()
-    emoji_map = {c.name: c.icon for c in cats}
-    events = []
-    for tx in transactions:
-        events.append({
-            'title': f"{tx.amount:,}원 ({tx.category})",
-            'start': tx.date,
-            'color': '#36A2EB' if tx.type == 'income' else '#FF6384',
-            'extendedProps': {
-                'type': tx.type,
-                'category': tx.category,
-                'icon': emoji_map.get(tx.category, '📦'),
-                'description': tx.description or '',
-                'amount': tx.amount,
-                'card': tx.card or ''
-            }
-        })
-    card_list = Card.query.all()
-    expense_cats = [c for c in cats if c.cat_type == 'expense']
-    income_cats_list = [c for c in cats if c.cat_type == 'income']
-    return render_template('calendar.html', events=events, card_list=card_list, categories=cats,
-                           expense_cats_json=[[c.name, c.icon] for c in expense_cats],
-                           income_cats_json=[[c.name, c.icon] for c in income_cats_list])
+_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
+_DIST_INDEX = os.path.join(_DIST_DIR, 'index.html')
+
+@app.route('/assets/<path:filename>')
+def serve_dist_assets(filename):
+    return send_from_directory(os.path.join(_DIST_DIR, 'assets'), filename)
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_spa(path):
+    if os.path.exists(_DIST_INDEX):
+        return send_file(_DIST_INDEX)
+    return 'Frontend not built. Run: cd frontend && npm run build', 503
 
 # ── Excel import helpers ──────────────────────────────────────────────────────
 def _parse_date(val):
