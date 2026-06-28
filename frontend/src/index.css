@@ -167,6 +167,9 @@ html, body {
 .fc-col-header-cell.fc-day-sat a,
 .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #007aff !important; }
 
+/* Drum picker scrollbar hide */
+.drum-scroll::-webkit-scrollbar { display: none; }
+
 /* Misc */
 .pill-btn {
   border: none; border-radius: 20px;
