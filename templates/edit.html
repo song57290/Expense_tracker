@@ -20,8 +20,8 @@
                 </button>
                 <a class="navbar-brand fw-bold fs-5 mb-0" href="/" style="color: white; text-shadow: 0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <button onclick="toggleSidebar()" class="d-lg-none" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:34px;height:34px;border-radius:9px;font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-bell"></i></button>
+            <div class="d-flex align-items-center gap-3">
+                <button onclick="openNotifySheet()" class="d-lg-none" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:34px;height:34px;border-radius:9px;font-size:1.15rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-bell"></i></button>
                 <a href="/" class="d-lg-none" style="color: white;">
                     <i class="bi bi-house" style="font-size: 1.6rem; text-shadow: 0 0 12px rgba(255,255,255,0.6);"></i>
                 </a>
@@ -184,7 +184,7 @@
                                 <i class="bi bi-clock" style="font-size:0.78rem;color:#b088f9;"></i>
                             </div>
                             <span style="flex:1;margin-left:10px;font-size:0.88rem;color:#1c1c1e;">알림 시간</span>
-                            <input type="time" id="notifyTime" value="21:00" onchange="handleTimeChange()" style="border:none;background:transparent;color:#b088f9;font-size:0.88rem;font-weight:600;outline:none;cursor:pointer;max-width:80px;">
+                            <input type="time" id="notifyTime" value="21:00" onchange="handleTimeChange()" style="border:none;background:transparent;color:#b088f9;font-size:0.88rem;font-weight:600;outline:none;cursor:pointer;min-width:90px;">
                         </div>
                     </div>
                 </div>
