@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -6,18 +6,73 @@ import api from '../api.js'
 
 function SortableItem({ cat, onEdit, onDelete }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id })
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 999 : 'auto' }
+  const sortStyle = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 999 : 'auto', position: 'relative', overflow: 'hidden' }
+
+  const startX = useRef(null)
+  const startY = useRef(null)
+  const horiz = useRef(false)
+  const offsetRef = useRef(0)
+  const [offsetX, setOffsetX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+
+  function onTouchStart(e) {
+    if (isDragging) return
+    const t = e.touches[0]
+    const wrap = e.currentTarget.closest('.page-wrap')
+    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+    const relX = t.clientX - rect.left
+    if (relX < 80 || relX > rect.width - 80) return
+    startX.current = t.clientX
+    startY.current = t.clientY
+    horiz.current = false
+  }
+
+  function onTouchMove(e) {
+    if (startX.current === null) return
+    const dx = e.touches[0].clientX - startX.current
+    const dy = e.touches[0].clientY - startY.current
+    if (!horiz.current) {
+      if (Math.abs(dx) < 8) { if (Math.abs(dy) > 18) { startX.current = null; return } return }
+      if (Math.abs(dy) > Math.abs(dx) * 1.5) { startX.current = null; return }
+      horiz.current = true
+      setSwiping(true)
+    }
+    const clamped = Math.max(-90, Math.min(90, dx))
+    offsetRef.current = clamped
+    setOffsetX(clamped)
+  }
+
+  function onTouchEnd() {
+    if (startX.current === null) return
+    const cur = offsetRef.current
+    startX.current = null
+    horiz.current = false
+    offsetRef.current = 0
+    setSwiping(false)
+    setOffsetX(0)
+    if (cur < -60) onDelete(cat.id)
+    else if (cur > 60) onEdit(cat)
+  }
 
   return (
-    <div ref={setNodeRef} style={style} className="d-flex align-items-center py-3 px-1" {...attributes}>
-      <div {...listeners} style={{ cursor: 'grab', color: '#ccc', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
-        <i className="bi bi-grip-vertical" />
+    <div ref={setNodeRef} style={sortStyle} {...attributes}>
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 90, background: '#ff3b30', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.15rem' }}>
+        <i className="bi bi-trash" />
       </div>
-      <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
-      <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600 }}>{cat.name}</span>
-      <div className="d-flex gap-2">
-        <button className="btn btn-sm btn-outline-secondary" onClick={() => onEdit(cat)}><i className="bi bi-pencil" /></button>
-        <button className="btn btn-sm btn-outline-danger" onClick={() => onDelete(cat.id)}><i className="bi bi-trash" /></button>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 90, background: '#b088f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.15rem' }}>
+        <i className="bi bi-pencil" />
+      </div>
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{ background: 'white', transform: `translateX(${offsetX}px)`, transition: swiping ? 'none' : 'transform 0.2s', display: 'flex', alignItems: 'center', padding: '12px 4px' }}
+      >
+        <div {...listeners} style={{ cursor: 'grab', color: '#ccc', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
+          <i className="bi bi-grip-vertical" />
+        </div>
+        <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
+        <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600 }}>{cat.name}</span>
       </div>
     </div>
   )
