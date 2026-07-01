@@ -71,7 +71,7 @@ function AddSheet({ open, visible, onClose, onSaved }) {
           <h6 className="mb-0 fw-bold">카드 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div style={{ overflowY: 'auto', flex: 1, paddingBottom: '80px' }}>
           <form onSubmit={handleSubmit}>
             <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
             <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
@@ -125,7 +125,10 @@ function SwipeCard({ card, onEdit, onDelete }) {
 
   const onTouchStart = e => {
     const cx = e.touches[0].clientX
-    if (cx < 50 || cx > window.innerWidth - 50) return
+    const wrap = e.currentTarget.closest('.page-wrap')
+    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+    const relX = cx - rect.left
+    if (relX < 50 || relX > rect.width - 50) return
     startX.current = cx
     startY.current = e.touches[0].clientY
     horiz.current = false

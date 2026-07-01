@@ -6,7 +6,7 @@ from collections import defaultdict
 import openpyxl
 import xlrd
 from io import BytesIO
-import tempfile, json, os, re, base64
+import tempfile, json, os, re, base64, random
 
 app = Flask(__name__)
 _DATA_DIR_ENV = os.environ.get('DATA_DIR', '')
@@ -131,6 +131,13 @@ with app.app_context():
                 conn.commit()
         except Exception:
             pass
+    for col in ['reset_code VARCHAR(6)', 'reset_expires DATETIME', 'nickname VARCHAR(50)']:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE user ADD COLUMN {col}"))
+                conn.commit()
+        except Exception:
+            pass
     # seed categories for user 1 (existing data owner)
     _seed_user_categories(1)
 
@@ -145,25 +152,26 @@ def api_me():
     if not user:
         session.pop('user_id', None)
         return jsonify({'user': None})
-    return jsonify({'user': {'id': user.id, 'email': user.email}})
+    return jsonify({'user': {'id': user.id, 'email': user.email, 'nickname': user.nickname}})
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
     data = request.json or {}
     email = data.get('email', '').strip().lower()
     password = data.get('password', '')
+    nickname = data.get('nickname', '').strip()
     if not email or not password or len(password) < 6:
         return jsonify({'error': '이메일과 비밀번호(6자 이상)를 입력하세요'}), 400
     if User.query.filter_by(email=email).first():
         return jsonify({'error': '이미 사용 중인 이메일입니다'}), 400
-    user = User(email=email)
+    user = User(email=email, nickname=nickname or None)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
     _seed_user_categories(user.id)
     session.permanent = True
     session['user_id'] = user.id
-    return jsonify({'ok': True, 'email': user.email})
+    return jsonify({'ok': True, 'email': user.email, 'nickname': user.nickname})
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -175,7 +183,36 @@ def api_login():
         return jsonify({'error': '이메일 또는 비밀번호가 올바르지 않습니다'}), 401
     session.permanent = True
     session['user_id'] = user.id
-    return jsonify({'ok': True, 'email': user.email})
+    return jsonify({'ok': True, 'email': user.email, 'nickname': user.nickname})
+
+@app.route('/api/reset-request', methods=['POST'])
+def api_reset_request():
+    email = (request.json or {}).get('email', '').strip().lower()
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': '등록된 이메일이 없습니다'}), 404
+    code = '%06d' % random.randint(0, 999999)
+    user.reset_code = code
+    user.reset_expires = datetime.now() + timedelta(minutes=30)
+    db.session.commit()
+    return jsonify({'ok': True, 'code': code})
+
+@app.route('/api/reset-confirm', methods=['POST'])
+def api_reset_confirm():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    code = data.get('code', '')
+    new_pw = data.get('password', '')
+    user = User.query.filter_by(email=email).first()
+    if not user or user.reset_code != code or not user.reset_expires or datetime.now() > user.reset_expires:
+        return jsonify({'error': '코드가 잘못되었거나 만료되었습니다 (30분)'}), 400
+    if len(new_pw) < 6:
+        return jsonify({'error': '비밀번호는 6자 이상이어야 합니다'}), 400
+    user.set_password(new_pw)
+    user.reset_code = None
+    user.reset_expires = None
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/logout', methods=['POST'])
 def api_logout():

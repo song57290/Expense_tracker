@@ -7,6 +7,9 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    nickname = db.Column(db.String(50), nullable=True)
+    reset_code = db.Column(db.String(6), nullable=True)
+    reset_expires = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

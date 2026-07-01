@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
@@ -30,7 +30,7 @@ export default function Categories() {
   const [addOpen, setAddOpen] = useState(false)
   const [form, setForm] = useState({ name: '', icon: '📦', type: 'expense' })
 
-  const sensors = useSensors(useSensor(PointerSensor), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 300, tolerance: 8 } }))
 
   const load = useCallback(() => api.get('/api/categories').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
