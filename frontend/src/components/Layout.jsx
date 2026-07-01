@@ -45,9 +45,10 @@ export default function Layout({ user, onLogout }) {
       const cx = e.touches[0].clientX
       const rect = el.getBoundingClientRect()
       const relX = cx - rect.left
-      const EDGE_ONLY = ['/', '/budget']
+      const EDGE_ONLY = ['/', '/budget', '/categories']
       const isEdge = relX < 80 || relX > rect.width - 80
-      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || !EDGE_ONLY.includes(location.pathname) }
+      const isNavZone = !!(e.target.closest && e.target.closest('.swipe-nav-zone'))
+      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || isNavZone || !EDGE_ONLY.includes(location.pathname) }
     }
     function onTM(e) {
       const s = swipe.current
@@ -112,7 +113,7 @@ export default function Layout({ user, onLogout }) {
           }}
         >
           <Outlet />
-          <div className="d-lg-none" style={{ height: 90 }} />
+          <div className="d-lg-none swipe-nav-zone" style={{ height: 90 }} />
         </div>
       </div>
       <BottomNav />
