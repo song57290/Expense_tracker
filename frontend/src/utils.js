@@ -52,3 +52,15 @@ export function fmt(n) {
 export function today() {
   return new Date().toISOString().slice(0, 10)
 }
+
+export function fmtMonth(ym) {
+  if (!ym) return ''
+  const [y, m] = ym.split('-')
+  return `${y}년 ${m}월`
+}
+
+export function fmtDate(d) {
+  if (!d) return ''
+  const [y, m, day] = d.split('-')
+  return `${y}년 ${parseInt(m)}월 ${parseInt(day)}일`
+}

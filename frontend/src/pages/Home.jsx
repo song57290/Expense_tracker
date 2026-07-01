@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, today, bankColor, bankLogo } from '../utils.js'
@@ -37,7 +38,9 @@ function SwipeItem({ children, onDelete, onEdit }) {
   const horiz = useRef(false)
 
   const onTouchStart = e => {
-    startX.current = e.touches[0].clientX
+    const cx = e.touches[0].clientX
+    if (cx < 50 || cx > window.innerWidth - 50) return
+    startX.current = cx
     startY.current = e.touches[0].clientY
     horiz.current = false
     setOffsetX(0)
@@ -69,7 +72,7 @@ function SwipeItem({ children, onDelete, onEdit }) {
       <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: 80, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2 }}>
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem' }} />수정
       </div>
-      <div style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab' }}
+      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab' }}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         {children}
       </div>
@@ -89,6 +92,7 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState(false)
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
   const [cardSheet, setCardSheet] = useState(null) // card name
+  const [cardSheetVisible, setCardSheetVisible] = useState(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '' })
   const [amountDisplay, setAmountDisplay] = useState('')
   const navigate = useNavigate()
@@ -136,6 +140,15 @@ export default function Home() {
     if (pct > t2) return 'bg-primary'
     if (pct > t1) return 'bg-warning'
     return 'bg-danger'
+  }
+
+  function openCardSheet(name) {
+    setCardSheet(name)
+    requestAnimationFrame(() => requestAnimationFrame(() => setCardSheetVisible(true)))
+  }
+  function closeCardSheet() {
+    setCardSheetVisible(false)
+    setTimeout(() => setCardSheet(null), 350)
   }
 
   const cardSheetTxs = cardSheet ? filtered.filter(tx => tx.card === cardSheet) : []
@@ -186,7 +199,7 @@ export default function Home() {
                     </span>
                     <span className="text-nowrap">{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
                   </div>
-                  <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => setCardSheet(cs.name)}>
+                  <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => openCardSheet(cs.name)}>
                     <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
                     <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: '#333', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(255,255,255,0.9)' }}>{cs.percent}%</span>
                   </div>
@@ -336,12 +349,13 @@ export default function Home() {
       )}
 
       {/* 카드 내역 시트 */}
-      {cardSheet && (
-        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setCardSheet(null)}>
-          <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 32px' }}>
+      {cardSheet && createPortal(
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3000, alignItems: 'flex-end', justifyContent: 'center', opacity: cardSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
+          onClick={e => e.target === e.currentTarget && closeCardSheet()}>
+          <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
-              <button onClick={() => setCardSheet(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+              <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
             </div>
             {cardSheetTxs.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
@@ -361,7 +375,8 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 가져오기 모달 */}
