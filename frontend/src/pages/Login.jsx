@@ -87,7 +87,7 @@ export default function Login({ onLogin }) {
   const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e8e8e8', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', transition: 'border 0.2s' }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#b088f9 0%,#7baff0 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg,#b088f9 0%,#7baff0 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
       <div style={{ background: 'white', borderRadius: 24, width: '100%', maxWidth: 380, padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: '1.6rem' }}>
