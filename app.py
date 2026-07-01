@@ -219,6 +219,32 @@ def api_logout():
     session.pop('user_id', None)
     return jsonify({'ok': True})
 
+@app.route('/api/update-nickname', methods=['POST'])
+@login_required
+def api_update_nickname():
+    nickname = (request.json or {}).get('nickname', '').strip()
+    user = User.query.get(session['user_id'])
+    user.nickname = nickname or None
+    db.session.commit()
+    return jsonify({'ok': True, 'nickname': user.nickname})
+
+@app.route('/api/delete-account', methods=['POST'])
+@login_required
+def api_delete_account():
+    uid = session['user_id']
+    from sqlalchemy import text as _text
+    with db.engine.connect() as conn:
+        conn.execute(_text('DELETE FROM "transaction" WHERE user_id = :uid'), {'uid': uid})
+        conn.commit()
+    Budget.query.filter_by(user_id=uid).delete()
+    Category.query.filter_by(user_id=uid).delete()
+    Card.query.filter_by(user_id=uid).delete()
+    user = User.query.get(uid)
+    db.session.delete(user)
+    db.session.commit()
+    session.pop('user_id', None)
+    return jsonify({'ok': True})
+
 # ── JSON API routes ───────────────────────────────────────────────────────────
 
 @app.route('/api/home')

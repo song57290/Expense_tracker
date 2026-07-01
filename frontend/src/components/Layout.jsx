@@ -55,8 +55,8 @@ export default function Layout({ user, onLogout }) {
       const dx = e.touches[0].clientX - s.x
       const dy = e.touches[0].clientY - s.y
       if (!s.h) {
-        if (Math.abs(dy) > Math.abs(dx) + 3) { s.x = null; return }
-        if (Math.abs(dx) < 12) return
+        if (Math.abs(dx) < 8) { if (Math.abs(dy) > 18) { s.x = null; return } return }
+        if (Math.abs(dy) > Math.abs(dx) * 1.5) { s.x = null; return }
         if (!s.edge && e.target.closest && e.target.closest('[data-item-swipe]')) {
           s.itemSwipe = true
         }
@@ -79,7 +79,7 @@ export default function Layout({ user, onLogout }) {
       const w = window.innerWidth
       const idx = getIdx()
       const dx = dragXRef.current
-      const threshold = s.itemSwipe ? w * 0.45 : w * 0.35
+      const threshold = s.itemSwipe ? w * 0.35 : w * 0.28
       if (dx < -threshold && idx < NAV_PATHS.length - 1) {
         setAnimDir('l'); navigate(NAV_PATHS[idx + 1])
       } else if (dx > threshold && idx > 0) {

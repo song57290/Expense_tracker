@@ -21,6 +21,12 @@ export default function App() {
       .catch(() => setUser(null))
   }, [])
 
+  useEffect(() => {
+    const refresh = () => fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => setUser(d.user)).catch(() => {})
+    window.addEventListener('userUpdated', refresh)
+    return () => window.removeEventListener('userUpdated', refresh)
+  }, [])
+
   if (user === undefined) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#b088f9,#7baff0)' }}>
