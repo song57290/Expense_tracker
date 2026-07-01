@@ -39,7 +39,10 @@ function SwipeItem({ children, onDelete, onEdit }) {
 
   const onTouchStart = e => {
     const cx = e.touches[0].clientX
-    if (cx < 50 || cx > window.innerWidth - 50) return
+    const wrap = e.currentTarget.closest('.page-wrap')
+    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+    const relX = cx - rect.left
+    if (relX < 80 || relX > rect.width - 80) return
     startX.current = cx
     startY.current = e.touches[0].clientY
     horiz.current = false
