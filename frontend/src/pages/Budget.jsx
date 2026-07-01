@@ -128,7 +128,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
     const wrap = e.currentTarget.closest('.page-wrap')
     const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
     const relX = cx - rect.left
-    if (relX < 50 || relX > rect.width - 50) return
+    if (relX < 80 || relX > rect.width - 80) return
     startX.current = cx
     startY.current = e.touches[0].clientY
     horiz.current = false

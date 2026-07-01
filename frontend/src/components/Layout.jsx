@@ -47,7 +47,7 @@ export default function Layout({ user, onLogout }) {
       const relX = cx - rect.left
       const EDGE_ONLY = ['/', '/budget']
       const isEdge = relX < 80 || relX > rect.width - 80
-      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || !EDGE_ONLY.includes(location.pathname), itemSwipe: false }
+      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || !EDGE_ONLY.includes(location.pathname) }
     }
     function onTM(e) {
       const s = swipe.current
@@ -57,21 +57,15 @@ export default function Layout({ user, onLogout }) {
       if (!s.h) {
         if (Math.abs(dx) < 8) { if (Math.abs(dy) > 18) { s.x = null; return } return }
         if (Math.abs(dy) > Math.abs(dx) * 1.5) { s.x = null; return }
-        if (!s.edge && e.target.closest && e.target.closest('[data-item-swipe]')) {
-          s.itemSwipe = true
-        }
+        if (!s.edge) { s.x = null; return }
         s.h = true
       }
       const idx = getIdx()
       if ((dx > 0 && idx <= 0) || (dx < 0 && idx >= NAV_PATHS.length - 1)) return
-      if (!s.itemSwipe) {
-        e.preventDefault()
-        const clamped = Math.max(-window.innerWidth * 0.8, Math.min(window.innerWidth * 0.8, dx))
-        dragXRef.current = clamped
-        setDragX(clamped)
-      } else {
-        dragXRef.current = dx
-      }
+      e.preventDefault()
+      const clamped = Math.max(-window.innerWidth * 0.8, Math.min(window.innerWidth * 0.8, dx))
+      dragXRef.current = clamped
+      setDragX(clamped)
     }
     function onTE() {
       const s = swipe.current
@@ -79,7 +73,7 @@ export default function Layout({ user, onLogout }) {
       const w = window.innerWidth
       const idx = getIdx()
       const dx = dragXRef.current
-      const threshold = s.itemSwipe ? w * 0.35 : w * 0.28
+      const threshold = w * 0.28
       if (dx < -threshold && idx < NAV_PATHS.length - 1) {
         setAnimDir('l'); navigate(NAV_PATHS[idx + 1])
       } else if (dx > threshold && idx > 0) {
