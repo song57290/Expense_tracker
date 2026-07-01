@@ -1,7 +1,121 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import api from '../api.js'
-import { fmt, bankLogo } from '../utils.js'
+import { fmt, bankLogo, fmtMonth } from '../utils.js'
+
+const BANKS = [
+  ['신한은행', '/static/cards/sinhanbank.png', '신한은행'],
+  ['KB국민은행', '/static/cards/kbbank.png', 'KB국민'],
+  ['농협은행', '/static/cards/nhbank.png', '농협은행'],
+  ['하나은행', '/static/cards/hanabank.png', '하나은행'],
+  ['우리은행', '/static/cards/wooribank.png', '우리은행'],
+  ['IBK기업은행', '/static/cards/ibkbank.png', 'IBK기업'],
+  ['카카오뱅크', '/static/cards/kakaobank.png', '카카오뱅크'],
+  ['토스뱅크', '/static/cards/tossbank.png', '토스뱅크'],
+  ['케이뱅크', '/static/cards/kbank.png', '케이뱅크'],
+  ['SC제일은행', '/static/cards/scbank.png', 'SC제일'],
+  ['씨티은행', '/static/cards/citibank.png', '씨티은행'],
+  ['iM뱅크', '/static/cards/imbank.png', 'iM뱅크'],
+  ['수협은행', '/static/cards/suhyupbank.png', '수협은행'],
+  ['KDB산업은행', '/static/cards/kdbbank.png', 'KDB산업'],
+  ['BNK부산은행', '/static/cards/bnkbank.png', 'BNK부산'],
+  ['우체국은행', '/static/cards/epostbank.png', '우체국'],
+  ['SBI저축은행', '/static/cards/sbibank.png', 'SBI저축'],
+  ['신협', '/static/cards/cubank.png', '신협'],
+]
+const CARD_COMPANIES = [
+  ['BC카드', '/static/banks/bccard.png', 'BC카드'],
+  ['현대카드', '/static/banks/hyundaicard.png', '현대카드'],
+  ['롯데카드', '/static/banks/lottecard.png', '롯데카드'],
+  ['삼성카드', '/static/banks/samsungcard.png', '삼성카드'],
+]
+
+function BankBtn({ bankName, logo, label, selected, onPick }) {
+  const isSel = selected === bankName
+  return (
+    <button type="button" onClick={() => onPick(bankName)}
+      className="d-flex flex-column align-items-center rounded-3 p-2 flex-shrink-0"
+      style={{ border: `1.5px solid ${isSel ? '#b088f9' : '#e8d5ff'}`, background: isSel ? 'rgba(176,136,249,0.12)' : 'white', width: 72, cursor: 'pointer' }}>
+      <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+      <span style={{ fontSize: 10, color: '#555', marginTop: 3, textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
+    </button>
+  )
+}
+
+function AddSheet({ open, visible, onClose, onSaved }) {
+  const [selected, setSelected] = useState('')
+  const [name, setName] = useState('')
+  const [target, setTarget] = useState('')
+  const [url, setUrl] = useState('')
+  const [tier1, setTier1] = useState(20)
+  const [tier2, setTier2] = useState(50)
+  const [tier3, setTier3] = useState(80)
+  const [tierOpen, setTierOpen] = useState(false)
+
+  function pick(cardName) { setSelected(cardName); setName(cardName) }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const t = parseInt(target.replace(/,/g, '')) || 0
+    await api.post('/api/cards', { name, target: t, url, tier1, tier2, tier3 })
+    setSelected(''); setName(''); setTarget(''); setUrl('')
+    setTier1(20); setTier2(50); setTier3(80); setTierOpen(false)
+    onSaved(); onClose()
+  }
+
+  if (!open) return null
+  return (
+    <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="mb-0 fw-bold">카드 추가</h6>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          <form onSubmit={handleSubmit}>
+            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
+            <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
+              {BANKS.map(([bname, logo, label]) => (
+                <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+              ))}
+            </div>
+            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>카드사</p>
+            <div className="d-flex gap-2 pb-2 mb-3">
+              {CARD_COMPANIES.map(([bname, logo, label]) => (
+                <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+              ))}
+            </div>
+            <input type="text" className="form-control mb-2" placeholder="카드/은행 이름 (위 선택 시 자동 입력, 직접 수정 가능)"
+              value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
+            <input type="text" className="form-control mb-2" placeholder="월 목표 금액" inputMode="numeric"
+              value={target} onChange={e => {
+                const raw = e.target.value.replace(/[^0-9]/g, '')
+                setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+              }} required style={{ borderRadius: 10 }} />
+            <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
+              value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
+            <button type="button" style={{ fontSize: '0.8rem', color: '#b088f9', background: 'none', border: 'none', padding: 0 }}
+              onClick={() => setTierOpen(o => !o)}>
+              실적 구간 설정 {tierOpen ? '▴' : '▾'}
+            </button>
+            {tierOpen && (
+              <div className="d-flex align-items-center gap-2 flex-wrap mt-2 mb-2">
+                <span className="badge" style={{ background: '#dc3545' }}>빨강 ≤</span>
+                <input type="number" className="form-control form-control-sm" style={{ width: 60 }} value={tier1} min={0} max={100} onChange={e => setTier1(+e.target.value)} />
+                <span className="badge" style={{ background: '#ffc107', color: '#333' }}>노랑 ≤</span>
+                <input type="number" className="form-control form-control-sm" style={{ width: 60 }} value={tier2} min={0} max={100} onChange={e => setTier2(+e.target.value)} />
+                <span className="badge" style={{ background: '#0d6efd' }}>파랑 ≤</span>
+                <input type="number" className="form-control form-control-sm" style={{ width: 60 }} value={tier3} min={0} max={100} onChange={e => setTier3(+e.target.value)} />
+                <span className="badge" style={{ background: '#198754' }}>초록</span>
+              </div>
+            )}
+            <button type="submit" className="btn w-100 mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>추가하기</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function SwipeCard({ card, onEdit, onDelete }) {
   const startX = useRef(null)
@@ -10,7 +124,9 @@ function SwipeCard({ card, onEdit, onDelete }) {
   const horiz = useRef(false)
 
   const onTouchStart = e => {
-    startX.current = e.touches[0].clientX
+    const cx = e.touches[0].clientX
+    if (cx < 50 || cx > window.innerWidth - 50) return
+    startX.current = cx
     startY.current = e.touches[0].clientY
     horiz.current = false
   }
@@ -51,9 +167,8 @@ function SwipeCard({ card, onEdit, onDelete }) {
       <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: 80, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2 }}>
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem' }} />수정
       </div>
-      <div style={{ position: 'relative', zIndex: 1, background: 'white', borderRadius: 16, padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
+      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', borderRadius: 16, padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-        {/* 카드명 + 잔고 */}
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
@@ -66,7 +181,6 @@ function SwipeCard({ card, onEdit, onDelete }) {
             <div className="text-muted" style={{ fontSize: '0.7rem' }}>잔고</div>
           </div>
         </div>
-        {/* 수입/지출/초기잔고 소계 */}
         <div className="d-flex mb-3" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div className="text-muted" style={{ fontSize: '0.62rem' }}>초기</div>
@@ -81,7 +195,6 @@ function SwipeCard({ card, onEdit, onDelete }) {
             <div className="text-danger" style={{ fontSize: '0.72rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
           </div>
         </div>
-        {/* 이달 실적 */}
         <div className="border-top pt-2">
           <div className="d-flex justify-content-between align-items-center mb-1">
             <span className="text-muted" style={{ fontSize: '0.78rem' }}>이달 실적</span>
@@ -106,9 +219,20 @@ export default function Budget() {
   const [editTarget, setEditTarget] = useState('')
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editSheetVisible, setEditSheetVisible] = useState(false)
+  const [addSheetOpen, setAddSheetOpen] = useState(false)
+  const [addSheetVisible, setAddSheetVisible] = useState(false)
 
   const load = useCallback(() => api.get('/api/budget').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
+
+  function openAdd() {
+    setAddSheetOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setAddSheetVisible(true)))
+  }
+  function closeAdd() {
+    setAddSheetVisible(false)
+    setTimeout(() => setAddSheetOpen(false), 350)
+  }
 
   function openEdit(card) {
     setEditCard(card)
@@ -127,20 +251,17 @@ export default function Budget() {
     const initial = parseInt(editInitial.replace(/,/g, '')) || 0
     const target = parseInt(editTarget.replace(/,/g, '')) || 0
     await api.put(`/api/cards/${editCard.id}`, {
-      name: editCard.name,
-      target,
+      name: editCard.name, target,
       tier1: editCard.tier1, tier2: editCard.tier2, tier3: editCard.tier3,
       account_balance: initial,
     })
-    closeEdit()
-    load()
+    closeEdit(); load()
   }
 
   async function handleDelete() {
     if (!confirmCard) return
     await api.delete(`/api/cards/${confirmCard.id}`)
-    setConfirmCard(null)
-    load()
+    setConfirmCard(null); load()
   }
 
   function fmtInput(val, setter) {
@@ -153,7 +274,10 @@ export default function Budget() {
   return (
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3 px-1">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>{data.current_month} 카드별 잔고</span>
+        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>{fmtMonth(data.current_month)} 카드별 잔고</span>
+        <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+          <i className="bi bi-plus-lg me-1" />카드 추가
+        </button>
       </div>
 
       {data.card_stats.length === 0 ? (
@@ -161,7 +285,7 @@ export default function Budget() {
           <div className="card-body py-5 text-muted">
             <i className="bi bi-credit-card" style={{ fontSize: '2rem' }} />
             <p className="mt-2 mb-0">등록된 카드가 없습니다</p>
-            <Link to="/cards" className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>카드 추가 →</Link>
+            <button onClick={openAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>카드 추가 →</button>
           </div>
         </div>
       ) : (
@@ -172,7 +296,8 @@ export default function Budget() {
 
       <div className="d-lg-none" style={{ height: 90 }} />
 
-      {/* 삭제 확인 */}
+      <AddSheet open={addSheetOpen} visible={addSheetVisible} onClose={closeAdd} onSaved={load} />
+
       {confirmCard && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
@@ -185,7 +310,6 @@ export default function Budget() {
         </div>
       )}
 
-      {/* 수정 시트 */}
       {editSheetOpen && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: editSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeEdit()}>

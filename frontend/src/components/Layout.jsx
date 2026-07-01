@@ -1,15 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Navbar from './Navbar.jsx'
 import BottomNav from './BottomNav.jsx'
 import Sidebar from './Sidebar.jsx'
 import NotifySheet from './NotifySheet.jsx'
 
-export default function Layout() {
+const NAV_PATHS = ['/', '/budget', '/calendar', '/stats', '/categories', '/settings']
+
+export default function Layout({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [topFade, setTopFade] = useState(false)
   const [botFade, setBotFade] = useState(true)
+  const [dragX, setDragX] = useState(0)
+  const [animDir, setAnimDir] = useState(null)
   const location = useLocation()
+  const navigate = useNavigate()
+  const pageRef = useRef(null)
+  const dragXRef = useRef(0)
+  const swipe = useRef({ x: null, y: null, h: false })
 
   useEffect(() => {
     const onScroll = () => {
@@ -26,14 +34,78 @@ export default function Layout() {
 
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
+  useEffect(() => { dragXRef.current = 0; setDragX(0) }, [location.pathname])
+
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+    const getIdx = () => { const i = NAV_PATHS.indexOf(location.pathname); return i >= 0 ? i : 0 }
+
+    function onTS(e) {
+      const cx = e.touches[0].clientX
+      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: cx < 50 || cx > window.innerWidth - 50 }
+    }
+    function onTM(e) {
+      const s = swipe.current
+      if (s.x === null) return
+      const dx = e.touches[0].clientX - s.x
+      const dy = e.touches[0].clientY - s.y
+      if (!s.h) {
+        if (Math.abs(dy) > Math.abs(dx) + 3) { s.x = null; return }
+        if (Math.abs(dx) < 12) return
+        if (!s.edge && e.target.closest && e.target.closest('[data-item-swipe]')) { s.x = null; return }
+        s.h = true
+      }
+      const idx = getIdx()
+      if ((dx > 0 && idx <= 0) || (dx < 0 && idx >= NAV_PATHS.length - 1)) return
+      e.preventDefault()
+      const clamped = Math.max(-window.innerWidth * 0.8, Math.min(window.innerWidth * 0.8, dx))
+      dragXRef.current = clamped
+      setDragX(clamped)
+    }
+    function onTE() {
+      const s = swipe.current
+      if (!s.h) { s.x = null; dragXRef.current = 0; setDragX(0); return }
+      const w = window.innerWidth
+      const idx = getIdx()
+      const dx = dragXRef.current
+      if (dx < -w * 0.35 && idx < NAV_PATHS.length - 1) {
+        setAnimDir('l'); navigate(NAV_PATHS[idx + 1])
+      } else if (dx > w * 0.35 && idx > 0) {
+        setAnimDir('r'); navigate(NAV_PATHS[idx - 1])
+      }
+      dragXRef.current = 0; setDragX(0)
+      s.x = null; s.h = false
+    }
+    el.addEventListener('touchstart', onTS, { passive: true })
+    el.addEventListener('touchmove', onTM, { passive: false })
+    el.addEventListener('touchend', onTE, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTS)
+      el.removeEventListener('touchmove', onTM)
+      el.removeEventListener('touchend', onTE)
+    }
+  }, [location.pathname, navigate])
+
   return (
     <>
       <div className="top-fade d-lg-none" style={{ opacity: topFade ? 1 : 0 }} />
       <div className="bot-fade d-lg-none" style={{ opacity: botFade ? 1 : 0 }} />
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="page-wrap">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={onLogout} />
+      <div ref={pageRef} className="page-wrap">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
-        <div className="container-fluid px-3 px-lg-4">
+        {dragX !== 0 && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', opacity: Math.min(Math.abs(dragX) / window.innerWidth * 0.28, 0.2) }} />
+        )}
+        <div
+          key={location.pathname}
+          className={`container-fluid px-3 px-lg-4 ${animDir ? `route-slide-${animDir}` : 'route-anim'}`}
+          onAnimationEnd={() => setAnimDir(null)}
+          style={{
+            transform: dragX ? `translateX(${dragX}px)` : undefined,
+            transition: dragX ? 'none' : 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)',
+          }}
+        >
           <Outlet />
           <div className="d-lg-none" style={{ height: 90 }} />
         </div>

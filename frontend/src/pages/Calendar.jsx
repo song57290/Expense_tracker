@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
-import { fmt } from '../utils.js'
+import { fmt, fmtMonth, fmtDate } from '../utils.js'
 
 export default function Calendar() {
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [selectedVisible, setSelectedVisible] = useState(false)
   const [yearMonth, setYearMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -21,12 +23,6 @@ export default function Calendar() {
 
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
-  const events = Object.entries(data.day_totals).flatMap(([date, totals]) => {
-    const result = []
-    if (totals.expense) result.push({ title: `-${fmt(totals.expense)}`, date, color: '#ff3b30', textColor: 'white' })
-    if (totals.income) result.push({ title: `+${fmt(totals.income)}`, date, color: '#34c759', textColor: 'white' })
-    return result
-  })
 
   const selDay = selected ? data.day_transactions[selected] : null
 
@@ -40,7 +36,7 @@ export default function Calendar() {
             const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
             setYearMonth(prev)
           }}><i className="bi bi-chevron-left" /></button>
-          <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{yearMonth}</span>
+          <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{fmtMonth(yearMonth)}</span>
           <button className="btn btn-sm btn-outline-secondary" onClick={() => {
             const [y, m] = yearMonth.split('-').map(Number)
             const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
@@ -56,10 +52,28 @@ export default function Calendar() {
             initialView="dayGridMonth"
             initialDate={yearMonth + '-01'}
             key={yearMonth}
-            events={events}
-            dateClick={info => setSelected(info.dateStr === selected ? null : info.dateStr)}
+            events={[]}
+            dayCellContent={(arg) => {
+              const d = arg.date
+              const dow = d.getDay()
+              const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+              const t = data.day_totals[ds] || {}
+              const numCol = dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : undefined
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                  <span style={numCol ? { color: numCol } : {}}>{d.getDate()}</span>
+                  <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginTop: 3, minHeight: 8 }}>
+                    {t.expense ? <span style={{ display: 'block', width: 6, height: 6, borderRadius: '50%', background: '#ff3b30', flexShrink: 0 }} /> : null}
+                    {t.income ? <span style={{ display: 'block', width: 6, height: 6, borderRadius: '50%', background: '#34c759', flexShrink: 0 }} /> : null}
+                  </div>
+                </div>
+              )
+            }}
+            dateClick={info => {
+              if (info.dateStr === selected) { setSelectedVisible(false); setTimeout(() => setSelected(null), 350) }
+              else { setSelected(info.dateStr); requestAnimationFrame(() => requestAnimationFrame(() => setSelectedVisible(true))) }
+            }}
             headerToolbar={false}
-            dayMaxEventRows={2}
             height="auto"
             locale="ko"
           />
@@ -67,15 +81,15 @@ export default function Calendar() {
       </div>
 
       {/* 날짜 상세 팝업 */}
-      {selected && (
-        <div onClick={e => e.target === e.currentTarget && setSelected(null)}
-          style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 1500, alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
-          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+      {selected && createPortal(
+        <div onClick={e => e.target === e.currentTarget && (setSelectedVisible(false), setTimeout(() => setSelected(null), 300))}
+          style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: selectedVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span className="fw-bold" style={{ fontSize: '1rem' }}>{selected}</span>
-              <button onClick={() => setSelected(null)} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+              <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
+              <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
-            <div style={{ overflowY: 'auto', padding: '8px 20px' }}>
+            <div style={{ overflowY: 'auto', padding: '8px 20px 40px' }}>
               {!selDay || selDay.length === 0 ? (
                 <p style={{ color: '#aaa', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
               ) : selDay.map(tx => (
@@ -97,7 +111,8 @@ export default function Calendar() {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="card mt-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>

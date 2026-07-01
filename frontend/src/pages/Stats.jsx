@@ -6,7 +6,7 @@ import {
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Doughnut, Bar } from 'react-chartjs-2'
 import api from '../api.js'
-import { fmt, bankLogo } from '../utils.js'
+import { fmt, bankLogo, fmtMonth } from '../utils.js'
 
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, ChartDataLabels)
 
@@ -84,7 +84,7 @@ export default function Stats() {
         <button onClick={() => setMonth(m => shiftMonth(m, -1))} className="btn btn-sm"
           style={{ background: 'rgba(176,136,249,0.15)', color: '#b088f9', border: '1.5px solid #b088f9', borderRadius: 20, padding: '4px 18px', fontSize: '1.6rem', lineHeight: 1 }}>‹</button>
         <div className="text-center" style={{ position: 'relative' }}>
-          <div className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>{month.slice(0, 4)}년 {parseInt(month.slice(5))}월</div>
+          <div className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>{fmtMonth(month)}</div>
           {!isCurrent && (
             <button onClick={() => setMonth(nowYM())}
               style={{ fontSize: '0.75rem', color: '#aaa', background: 'none', border: 'none', padding: 0, position: 'absolute', left: '50%', top: '100%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', marginTop: 2 }}>현재로</button>
@@ -97,7 +97,7 @@ export default function Stats() {
 
       {/* 카테고리별 지출 헤더 */}
       <div className="d-flex justify-content-between align-items-center mb-3 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
-        <span className="fw-bold" style={{ fontSize: '1rem', color: '#333' }}>{month.slice(0, 4)}년 {parseInt(month.slice(5))}월 카테고리별 지출</span>
+        <span className="fw-bold" style={{ fontSize: '1rem', color: '#333' }}>{fmtMonth(month)} 카테고리별 지출</span>
         <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
       </div>
       {catOpen && (
@@ -125,11 +125,11 @@ export default function Stats() {
                         },
                       }}
                     />
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(100px,1fr))', gap: '7px 10px', marginTop: 16, width: '100%' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '7px 16px', marginTop: 16, width: '100%' }}>
                       {expLabels.map((cat, i) => (
-                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: '#555', overflow: 'hidden' }}>
+                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: '#555' }}>
                           <div style={{ width: 11, height: 11, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
+                          <span>{data.emoji_map[cat] || '📦'} {cat}</span>
                         </div>
                       ))}
                     </div>

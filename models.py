@@ -1,31 +1,43 @@
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
-class Transaction(db.Model):        # 하나의 클래스 = 하나의 DB 테이블
+class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(10), nullable=False)   # 예: "2026-06-12"
-    type = db.Column(db.String(10), nullable=False)   # "income" 또는 "expense"
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(10), nullable=False)
+    type = db.Column(db.String(10), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Integer, nullable=False)
-    card = db.Column(db.String(50), nullable=True)  # 어떤 카드로 결제했는지 (없을 수도 있음)
+    card = db.Column(db.String(50), nullable=True)
+    user_id = db.Column(db.Integer, nullable=True)
 
-# 예산 설정
 class Budget(db.Model):
-    id = db.Column(db.Integer, primary_key = True)
-    month = db.Column(db.String(7), nullable = False) # 예: "2026-06"
-    amount = db.Column(db.Integer, nullable = False)
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.String(7), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, nullable=True)
 
-# 동적으로 카테고리 추가
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
-    icon = db.Column(db.String(10), nullable=False)  # 이모지
+    icon = db.Column(db.String(10), nullable=False)
     position = db.Column(db.Integer, nullable=False, default=0)
-    cat_type = db.Column(db.String(10), nullable=False, default='expense')  # 'expense' or 'income'
+    cat_type = db.Column(db.String(10), nullable=False, default='expense')
+    user_id = db.Column(db.Integer, nullable=True)
 
-# 카드별 실적 관리
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -35,3 +47,4 @@ class Card(db.Model):
     tier2 = db.Column(db.Integer, nullable=True, server_default='50')
     tier3 = db.Column(db.Integer, nullable=True, server_default='80')
     account_balance = db.Column(db.Integer, nullable=False, default=0)
+    user_id = db.Column(db.Integer, nullable=True)
