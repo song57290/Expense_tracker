@@ -4,11 +4,11 @@ import api from '../api.js'
 
 const NAV = [
   { path: '/', icon: 'bi-house', label: '홈' },
-  { path: '/cards', icon: 'bi-credit-card', label: '카드 관리' },
+  { path: '/budget', icon: 'bi-wallet2', label: '예산' },
   { path: '/calendar', icon: 'bi-calendar3', label: '캘린더' },
   { path: '/stats', icon: 'bi-pie-chart', label: '통계' },
-  { path: '/budget', icon: 'bi-wallet2', label: '예산 설정' },
-  { path: '/categories', icon: 'bi-grid', label: '카테고리' },
+  { path: '/categories', icon: 'bi-grid', label: '목록' },
+  { path: '/settings', icon: 'bi-gear', label: '설정' },
 ]
 
 function urlB64ToUint8Array(b64) {
@@ -18,7 +18,7 @@ function urlB64ToUint8Array(b64) {
   return new Uint8Array([...raw].map(c => c.charCodeAt(0)))
 }
 
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, onClose, user, onLogout }) {
   const [active, setActive] = useState(localStorage.getItem('notifyActive') === '1')
   const [time, setTime] = useState(localStorage.getItem('notifyTime') || '21:00')
 
@@ -92,6 +92,15 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
         <div style={{ padding: '12px 8px' }}>
+          {user && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px 10px', marginBottom: 4 }}>
+              <span style={{ fontSize: '0.78rem', color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{user.email}</span>
+              <button onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); onLogout() }}
+                style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                로그아웃
+              </button>
+            </div>
+          )}
           {NAV.map(({ path, icon, label }) => (
             <NavLink key={path} to={path} className={({ isActive }) => `pc-sb-link${isActive ? ' active' : ''}`} onClick={onClose} end={path === '/'}>
               <i className={`bi ${icon}`} /><span>{label}</span>

@@ -1,8 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort
-from models import db, Transaction, Budget
-from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
+from functools import wraps
+from models import db, Transaction, Budget, Category, Card, User
+from datetime import datetime, timedelta
 from collections import defaultdict
-from models import db, Transaction, Budget, Category, Card
 import openpyxl
 import xlrd
 from io import BytesIO
@@ -14,43 +14,50 @@ if _DATA_DIR_ENV:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(_DATA_DIR_ENV, 'expense.db')
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expense.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-me-in-prod-2026x')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 db.init_app(app)
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+def _seed_user_categories(uid):
+    if Category.query.filter_by(user_id=uid).first():
+        return
+    defaults_expense = [('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]
+    defaults_income = [('급여','💰'),('부업','💼'),('용돈','🎁'),('이자','🏦'),('기타수입','📥')]
+    for i, (name, icon) in enumerate(defaults_expense):
+        db.session.add(Category(name=name, icon=icon, position=i, cat_type='expense', user_id=uid))
+    for i, (name, icon) in enumerate(defaults_income):
+        db.session.add(Category(name=name, icon=icon, position=len(defaults_expense)+i, cat_type='income', user_id=uid))
+    db.session.commit()
+
+# ── Template filters ──────────────────────────────────────────────────────────
 
 @app.template_filter('bank_color')
 def bank_color_filter(card_name):
     if not card_name:
         return 'background:#6c757d;color:white;'
     mappings = [
-        ('신한', '#0046A0', 'white'),
-        ('KB', '#FFB800', '#333'),
-        ('국민', '#FFB800', '#333'),
-        ('농협', '#009900', 'white'),
-        ('NH', '#009900', 'white'),
-        ('하나', '#009A8C', 'white'),
-        ('우리', '#0069C8', 'white'),
-        ('기업', '#005BB5', 'white'),
-        ('IBK', '#005BB5', 'white'),
-        ('카카오', '#FAE100', '#333'),
-        ('토스', '#0064FF', 'white'),
-        ('케이뱅크', '#00B4B4', 'white'),
-        ('K뱅크', '#00B4B4', 'white'),
-        ('SC', '#1B5DA0', 'white'),
-        ('제일', '#1B5DA0', 'white'),
-        ('씨티', '#003087', 'white'),
-        ('iM', '#E8182C', 'white'),
-        ('IM', '#E8182C', 'white'),
-        ('수협', '#009ABF', 'white'),
-        ('KDB', '#003087', 'white'),
-        ('산업', '#003087', 'white'),
-        ('BNK', '#0057A8', 'white'),
-        ('부산', '#0057A8', 'white'),
-        ('우체국', '#D40511', 'white'),
-        ('SBI', '#E8391D', 'white'),
-        ('신협', '#005BAB', 'white'),
-        ('BC', '#D60B2F', 'white'),
-        ('현대', '#1A1A1A', 'white'),
-        ('롯데', '#CC0000', 'white'),
-        ('삼성', '#005BAB', 'white'),
+        ('신한', '#0046A0', 'white'), ('KB', '#FFB800', '#333'), ('국민', '#FFB800', '#333'),
+        ('농협', '#009900', 'white'), ('NH', '#009900', 'white'), ('하나', '#009A8C', 'white'),
+        ('우리', '#0069C8', 'white'), ('기업', '#005BB5', 'white'), ('IBK', '#005BB5', 'white'),
+        ('카카오', '#FAE100', '#333'), ('토스', '#0064FF', 'white'), ('케이뱅크', '#00B4B4', 'white'),
+        ('K뱅크', '#00B4B4', 'white'), ('SC', '#1B5DA0', 'white'), ('제일', '#1B5DA0', 'white'),
+        ('씨티', '#003087', 'white'), ('iM', '#E8182C', 'white'), ('IM', '#E8182C', 'white'),
+        ('수협', '#009ABF', 'white'), ('KDB', '#003087', 'white'), ('산업', '#003087', 'white'),
+        ('BNK', '#0057A8', 'white'), ('부산', '#0057A8', 'white'), ('우체국', '#D40511', 'white'),
+        ('SBI', '#E8391D', 'white'), ('신협', '#005BAB', 'white'), ('BC', '#D60B2F', 'white'),
+        ('현대', '#1A1A1A', 'white'), ('롯데', '#CC0000', 'white'), ('삼성', '#005BAB', 'white'),
     ]
     for keyword, bg, fg in mappings:
         if keyword in card_name:
@@ -60,42 +67,29 @@ def bank_color_filter(card_name):
 @app.template_filter('bank_logo')
 def bank_logo_filter(card_name):
     mappings = [
-        ('신한', '/static/cards/sinhanbank.png'),
-        ('KB', '/static/cards/kbbank.png'),
-        ('국민', '/static/cards/kbbank.png'),
-        ('농협', '/static/cards/nhbank.png'),
-        ('NH', '/static/cards/nhbank.png'),
-        ('하나', '/static/cards/hanabank.png'),
-        ('우리', '/static/cards/wooribank.png'),
-        ('기업', '/static/cards/ibkbank.png'),
-        ('IBK', '/static/cards/ibkbank.png'),
-        ('카카오', '/static/cards/kakaobank.png'),
-        ('토스', '/static/cards/tossbank.png'),
-        ('케이뱅크', '/static/cards/kbank.png'),
-        ('K뱅크', '/static/cards/kbank.png'),
-        ('SC', '/static/cards/scbank.png'),
-        ('제일', '/static/cards/scbank.png'),
-        ('씨티', '/static/cards/citibank.png'),
-        ('citi', '/static/cards/citibank.png'),
-        ('IM', '/static/cards/imbank.png'),
-        ('iM', '/static/cards/imbank.png'),
-        ('수협', '/static/cards/suhyupbank.png'),
-        ('KDB', '/static/cards/kdbbank.png'),
-        ('산업', '/static/cards/kdbbank.png'),
-        ('BNK', '/static/cards/bnkbank.png'),
-        ('부산', '/static/cards/bnkbank.png'),
-        ('우체국', '/static/cards/epostbank.png'),
-        ('SBI', '/static/cards/sbibank.png'),
-        ('신협', '/static/cards/cubank.png'),
-        ('BC', '/static/banks/bccard.png'),
-        ('현대', '/static/banks/hyundaicard.png'),
-        ('롯데', '/static/banks/lottecard.png'),
+        ('신한', '/static/cards/sinhanbank.png'), ('KB', '/static/cards/kbbank.png'),
+        ('국민', '/static/cards/kbbank.png'), ('농협', '/static/cards/nhbank.png'),
+        ('NH', '/static/cards/nhbank.png'), ('하나', '/static/cards/hanabank.png'),
+        ('우리', '/static/cards/wooribank.png'), ('기업', '/static/cards/ibkbank.png'),
+        ('IBK', '/static/cards/ibkbank.png'), ('카카오', '/static/cards/kakaobank.png'),
+        ('토스', '/static/cards/tossbank.png'), ('케이뱅크', '/static/cards/kbank.png'),
+        ('K뱅크', '/static/cards/kbank.png'), ('SC', '/static/cards/scbank.png'),
+        ('제일', '/static/cards/scbank.png'), ('씨티', '/static/cards/citibank.png'),
+        ('citi', '/static/cards/citibank.png'), ('IM', '/static/cards/imbank.png'),
+        ('iM', '/static/cards/imbank.png'), ('수협', '/static/cards/suhyupbank.png'),
+        ('KDB', '/static/cards/kdbbank.png'), ('산업', '/static/cards/kdbbank.png'),
+        ('BNK', '/static/cards/bnkbank.png'), ('부산', '/static/cards/bnkbank.png'),
+        ('우체국', '/static/cards/epostbank.png'), ('SBI', '/static/cards/sbibank.png'),
+        ('신협', '/static/cards/cubank.png'), ('BC', '/static/banks/bccard.png'),
+        ('현대', '/static/banks/hyundaicard.png'), ('롯데', '/static/banks/lottecard.png'),
         ('삼성', '/static/banks/samsungcard.png'),
     ]
     for keyword, path in mappings:
         if keyword in card_name:
             return path
     return None
+
+# ── DB init ───────────────────────────────────────────────────────────────────
 
 with app.app_context():
     db.create_all()
@@ -129,32 +123,82 @@ with app.app_context():
             conn.commit()
     except Exception:
         pass
-    if not Category.query.first():
-        for i, (name, icon) in enumerate([('식사','🍚'),('간식','🍪'),('쇼핑','🛍️'),('자동차','🚗'),('교통','🚌'),('의료','💊'),('기타','📦')]):
-            db.session.add(Category(name=name, icon=icon, position=i, cat_type='expense'))
-        db.session.commit()
-    if not Category.query.filter_by(cat_type='income').first():
-        max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
-        for i, (name, icon) in enumerate([('급여','💰'),('부업','💼'),('용돈','🎁'),('이자','🏦'),('기타수입','📥')]):
-            if not Category.query.filter_by(name=name).first():
-                db.session.add(Category(name=name, icon=icon, position=max_pos+i+1, cat_type='income'))
-        db.session.commit()
+    # user_id column migration ("transaction" must be quoted — SQLite reserved word)
+    for table_name in ['"transaction"', 'card', 'category', 'budget']:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN user_id INTEGER DEFAULT 1"))
+                conn.commit()
+        except Exception:
+            pass
+    # seed categories for user 1 (existing data owner)
+    _seed_user_categories(1)
+
+# ── Auth routes ───────────────────────────────────────────────────────────────
+
+@app.route('/api/me')
+def api_me():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'user': None})
+    user = User.query.get(uid)
+    if not user:
+        session.pop('user_id', None)
+        return jsonify({'user': None})
+    return jsonify({'user': {'id': user.id, 'email': user.email}})
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    if not email or not password or len(password) < 6:
+        return jsonify({'error': '이메일과 비밀번호(6자 이상)를 입력하세요'}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': '이미 사용 중인 이메일입니다'}), 400
+    user = User(email=email)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    _seed_user_categories(user.id)
+    session.permanent = True
+    session['user_id'] = user.id
+    return jsonify({'ok': True, 'email': user.email})
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({'error': '이메일 또는 비밀번호가 올바르지 않습니다'}), 401
+    session.permanent = True
+    session['user_id'] = user.id
+    return jsonify({'ok': True, 'email': user.email})
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    session.pop('user_id', None)
+    return jsonify({'ok': True})
 
 # ── JSON API routes ───────────────────────────────────────────────────────────
 
 @app.route('/api/home')
+@login_required
 def api_home():
+    uid = session['user_id']
     current_month = datetime.now().strftime('%Y-%m')
-    transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+    transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
 
     income_total = sum(tx.amount for tx in month_txs if tx.type == 'income')
     expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense')
 
-    budget = Budget.query.filter_by(month=current_month).first()
+    budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     budget_amount = budget.amount if budget else 0
 
-    cards = Card.query.all()
+    cards = Card.query.filter_by(user_id=uid).all()
     card_stats = []
     for card in cards:
         spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
@@ -166,8 +210,8 @@ def api_home():
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
         })
 
-    expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
-    income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
+    income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in expense_cats + income_cats}
 
     category_totals = defaultdict(int)
@@ -193,20 +237,25 @@ def api_home():
     })
 
 @app.route('/api/transactions', methods=['POST'])
+@login_required
 def api_add_transaction():
+    uid = session['user_id']
     data = request.json or {}
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
         description=data.get('description', ''), amount=int(data['amount']),
         card=data.get('card') or None,
+        user_id=uid,
     )
     db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True, 'id': tx.id})
 
 @app.route('/api/transactions/<int:tx_id>', methods=['GET', 'PUT', 'DELETE'])
+@login_required
 def api_transaction(tx_id):
-    tx = Transaction.query.get_or_404(tx_id)
+    uid = session['user_id']
+    tx = Transaction.query.filter_by(id=tx_id, user_id=uid).first_or_404()
     if request.method == 'DELETE':
         db.session.delete(tx)
         db.session.commit()
@@ -221,19 +270,20 @@ def api_transaction(tx_id):
         tx.card = data.get('card') or None
         db.session.commit()
         return jsonify({'ok': True})
-    # GET
-    expense_cats = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
-    income_cats = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
+    income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     return jsonify({
         'transaction': {'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
-        'card_list': [{'id': c.id, 'name': c.name} for c in Card.query.all()],
+        'card_list': [{'id': c.id, 'name': c.name} for c in Card.query.filter_by(user_id=uid).all()],
     })
 
 @app.route('/api/cards', methods=['GET', 'POST'])
+@login_required
 def api_cards():
+    uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
         db.session.add(Card(
@@ -241,12 +291,13 @@ def api_cards():
             tier1=int(data.get('tier1', 20)), tier2=int(data.get('tier2', 50)), tier3=int(data.get('tier3', 80)),
             account_balance=int(data.get('account_balance', 0)),
             url=data.get('url') or None,
+            user_id=uid,
         ))
         db.session.commit()
         return jsonify({'ok': True})
     current_month = datetime.now().strftime('%Y-%m')
-    month_txs = Transaction.query.filter(Transaction.date.like(f'{current_month}%')).all()
-    cards = Card.query.all()
+    month_txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
+    cards = Card.query.filter_by(user_id=uid).all()
     stats = {}
     for card in cards:
         spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
@@ -261,8 +312,10 @@ def api_cards():
     })
 
 @app.route('/api/cards/<int:card_id>', methods=['PUT', 'DELETE'])
+@login_required
 def api_card(card_id):
-    card = Card.query.get_or_404(card_id)
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
     if request.method == 'DELETE':
         db.session.delete(card)
         db.session.commit()
@@ -279,12 +332,14 @@ def api_card(card_id):
     return jsonify({'ok': True})
 
 @app.route('/api/calendar')
+@login_required
 def api_calendar():
+    uid = session['user_id']
     now = datetime.now()
     month = request.args.get('month', now.strftime('%Y-%m'))
-    transactions = Transaction.query.filter(Transaction.date.like(f'{month}%')).all()
+    transactions = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{month}%')).all()
 
-    cats = Category.query.order_by(Category.position, Category.id).all()
+    cats = Category.query.filter_by(user_id=uid).order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
 
     day_totals = defaultdict(lambda: {'expense': 0, 'income': 0})
@@ -305,16 +360,20 @@ def api_calendar():
     })
 
 @app.route('/api/stats')
+@login_required
 def api_stats():
+    uid = session['user_id']
     now = datetime.now()
     month = request.args.get('month', now.strftime('%Y-%m'))
 
-    cats = Category.query.order_by(Category.position, Category.id).all()
+    cats = Category.query.filter_by(user_id=uid).order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
     icon_map = {c.name: c.icon for c in cats}
 
-    expense_txs = Transaction.query.filter(Transaction.type == 'expense', Transaction.date.like(f'{month}%')).all()
-    income_txs = Transaction.query.filter(Transaction.type == 'income', Transaction.date.like(f'{month}%')).all()
+    expense_txs = Transaction.query.filter_by(user_id=uid).filter(
+        Transaction.type == 'expense', Transaction.date.like(f'{month}%')).all()
+    income_txs = Transaction.query.filter_by(user_id=uid).filter(
+        Transaction.type == 'income', Transaction.date.like(f'{month}%')).all()
 
     def cat_totals(txs):
         totals = defaultdict(int)
@@ -330,17 +389,19 @@ def api_stats():
 
     monthly = []
     for mo in six_months:
-        e = Transaction.query.filter(Transaction.type == 'expense', Transaction.date.like(f'{mo}%')).all()
-        inc = Transaction.query.filter(Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
+        e = Transaction.query.filter_by(user_id=uid).filter(
+            Transaction.type == 'expense', Transaction.date.like(f'{mo}%')).all()
+        inc = Transaction.query.filter_by(user_id=uid).filter(
+            Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
         monthly.append({'month': mo, 'expense': sum(t.amount for t in e), 'income': sum(t.amount for t in inc)})
 
-    cards = Card.query.all()
+    cards = Card.query.filter_by(user_id=uid).all()
     card_monthly_trend = {}
     for card in cards:
         trend = []
         for mo in six_months:
             amt = sum(
-                tx.amount for tx in Transaction.query.filter(
+                tx.amount for tx in Transaction.query.filter_by(user_id=uid).filter(
                     Transaction.type == 'expense',
                     Transaction.date.like(f'{mo}%'),
                     Transaction.card == card.name,
@@ -367,23 +428,25 @@ def api_stats():
     })
 
 @app.route('/api/budget', methods=['GET', 'POST'])
+@login_required
 def api_budget():
+    uid = session['user_id']
     current_month = datetime.now().strftime('%Y-%m')
     if request.method == 'POST':
         data = request.json or {}
         amount = int(data.get('amount', 0))
-        existing = Budget.query.filter_by(month=current_month).first()
+        existing = Budget.query.filter_by(month=current_month, user_id=uid).first()
         if existing:
             existing.amount = amount
         else:
-            db.session.add(Budget(month=current_month, amount=amount))
+            db.session.add(Budget(month=current_month, amount=amount, user_id=uid))
         db.session.commit()
         return jsonify({'ok': True})
-    budget = Budget.query.filter_by(month=current_month).first()
-    all_txs = Transaction.query.all()
+    budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
+    all_txs = Transaction.query.filter_by(user_id=uid).all()
     expense_total = sum(tx.amount for tx in all_txs if tx.type == 'expense' and tx.date.startswith(current_month))
 
-    cards = Card.query.all()
+    cards = Card.query.filter_by(user_id=uid).all()
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
@@ -394,18 +457,11 @@ def api_budget():
         spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({
-            'id': card.id,
-            'name': card.name,
-            'initial_balance': initial_balance,
-            'total_income': total_income,
-            'total_expense': total_expense,
-            'balance': balance,
-            'spent': spent,
-            'target': card.monthly_target,
-            'percent': percent,
-            'tier1': card.tier1 or 20,
-            'tier2': card.tier2 or 50,
-            'tier3': card.tier3 or 80,
+            'id': card.id, 'name': card.name,
+            'initial_balance': initial_balance, 'total_income': total_income,
+            'total_expense': total_expense, 'balance': balance,
+            'spent': spent, 'target': card.monthly_target, 'percent': percent,
+            'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
         })
 
     return jsonify({
@@ -416,37 +472,43 @@ def api_budget():
     })
 
 @app.route('/api/categories', methods=['GET', 'POST'])
+@login_required
 def api_categories():
+    uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
         name = data.get('name', '').strip()
         icon = data.get('icon', '📦').strip()
         cat_type = data.get('type', 'expense')
-        if name and not Category.query.filter_by(name=name).first():
-            max_pos = db.session.query(db.func.max(Category.position)).scalar() or 0
-            db.session.add(Category(name=name, icon=icon, position=max_pos + 1, cat_type=cat_type))
+        if name and not Category.query.filter_by(name=name, user_id=uid).first():
+            max_pos = db.session.query(db.func.max(Category.position)).filter(Category.user_id == uid).scalar() or 0
+            db.session.add(Category(name=name, icon=icon, position=max_pos + 1, cat_type=cat_type, user_id=uid))
             db.session.commit()
         return jsonify({'ok': True})
-    expense = Category.query.filter_by(cat_type='expense').order_by(Category.position, Category.id).all()
-    income = Category.query.filter_by(cat_type='income').order_by(Category.position, Category.id).all()
+    expense = Category.query.filter_by(cat_type='expense', user_id=uid).order_by(Category.position, Category.id).all()
+    income = Category.query.filter_by(cat_type='income', user_id=uid).order_by(Category.position, Category.id).all()
     return jsonify({
         'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in expense],
         'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in income],
     })
 
 @app.route('/api/categories/reorder', methods=['POST'])
+@login_required
 def api_reorder_categories():
+    uid = session['user_id']
     ids = (request.json or {}).get('ids', [])
     for i, cat_id in enumerate(ids):
-        cat = Category.query.get(cat_id)
+        cat = Category.query.filter_by(id=cat_id, user_id=uid).first()
         if cat:
             cat.position = i
     db.session.commit()
     return jsonify({'ok': True})
 
 @app.route('/api/categories/<int:cat_id>', methods=['PUT', 'DELETE'])
+@login_required
 def api_category(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    uid = session['user_id']
+    cat = Category.query.filter_by(id=cat_id, user_id=uid).first_or_404()
     if request.method == 'DELETE':
         db.session.delete(cat)
         db.session.commit()
@@ -524,7 +586,6 @@ def _detect_cols(header):
         elif h in _CAT_H: cols.setdefault('category', i)
         elif h in _CARD_H: cols.setdefault('card', i)
     return cols
-# ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/import/template')
 def import_template():
@@ -542,10 +603,13 @@ def import_template():
 
 @app.route('/import', methods=['POST'])
 def import_excel():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     file = request.files.get('file')
     fname = (file.filename or '').lower()
     if not file or not (fname.endswith('.xlsx') or fname.endswith('.xls')):
-        return redirect(url_for('index') + '?import_error=파일 형식 오류 (.xlsx 또는 .xls)')
+        return redirect('/?import_error=파일 형식 오류 (.xlsx 또는 .xls)')
 
     all_rows = []
     try:
@@ -570,12 +634,11 @@ def import_excel():
     except Exception as e:
         app.logger.exception('Excel open error')
         from urllib.parse import quote
-        return redirect(url_for('index') + '?import_error=' + quote(str(e)[:120]))
+        return redirect('/?import_error=' + quote(str(e)[:120]))
 
     if not all_rows:
-        return redirect(url_for('index') + '?import_error=빈 파일입니다')
+        return redirect('/?import_error=빈 파일입니다')
 
-    # 모든 값을 JSON 직렬화 가능한 형태로 변환
     def serialize(v):
         if v is None: return None
         if hasattr(v, 'strftime'): return v.strftime('%Y-%m-%d')
@@ -586,7 +649,6 @@ def import_excel():
     with os.fdopen(fd, 'w', encoding='utf-8') as f:
         json.dump(all_rows, f)
 
-    # 첫 15행 중에서 실제 헤더 행 찾기
     header_row = 0
     auto_cols = {}
     for ri, row in enumerate(all_rows[:15]):
@@ -603,12 +665,15 @@ def import_excel():
 
 @app.route('/import/map')
 def import_map():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     tmp = request.args.get('tmp', '')
     if not tmp.startswith('impx_'):
-        return redirect(url_for('index'))
+        return redirect('/')
     path = os.path.join(tempfile.gettempdir(), tmp)
     if not os.path.exists(path):
-        return redirect(url_for('index'))
+        return redirect('/')
     with open(path, encoding='utf-8') as f:
         all_rows = json.load(f)
     header_row = int(request.args.get('hr', 0))
@@ -631,12 +696,15 @@ def import_map():
 
 @app.route('/import/confirm', methods=['POST'])
 def import_confirm():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     tmp = request.form.get('tmp', '')
     if not tmp.startswith('impx_'):
-        return redirect(url_for('index'))
+        return redirect('/')
     path = os.path.join(tempfile.gettempdir(), tmp)
     if not os.path.exists(path):
-        return redirect(url_for('index') + '?import_error=세션이 만료되었습니다. 다시 업로드해주세요.')
+        return redirect('/?import_error=세션이 만료되었습니다. 다시 업로드해주세요.')
     with open(path, encoding='utf-8') as f:
         all_rows = json.load(f)
     os.remove(path)
@@ -688,7 +756,7 @@ def import_confirm():
 
             db.session.add(Transaction(
                 date=date_val, type=tx_type, category=cat_val,
-                description=desc_val, amount=amount, card=None,
+                description=desc_val, amount=amount, card=None, user_id=uid,
             ))
             imported += 1
         except Exception:
@@ -708,7 +776,6 @@ def _parse_sms_line(line):
     if amount <= 0:
         return None
 
-    # 날짜 추출
     d = re.search(r'(\d{4})[-./](\d{1,2})[-./](\d{1,2})', line)
     if d:
         date_val = f"{d.group(1)}-{int(d.group(2)):02d}-{int(d.group(3)):02d}"
@@ -717,10 +784,8 @@ def _parse_sms_line(line):
         year = datetime.now().year
         date_val = f"{year}-{int(d.group(1)):02d}-{int(d.group(2)):02d}" if d else datetime.now().strftime('%Y-%m-%d')
 
-    # 유형
     tx_type = 'income' if re.search(r'입금|환급|취소|환불', line) else 'expense'
 
-    # 카드명 — 대괄호 안 내용 우선 추출 (예: [신한체크승인] → 신한체크승인)
     bracket_m = re.search(r'\[([^\]]+)\]', line)
     if bracket_m:
         card_val = bracket_m.group(1)
@@ -728,9 +793,8 @@ def _parse_sms_line(line):
         card_m = re.search(r'[가-힣a-zA-Z]+(?:카드|은행|뱅크|bank)', line, re.IGNORECASE)
         card_val = card_m.group(0) if card_m else None
 
-    # 설명 — 금액/날짜/카드명/불필요 키워드 제거 후 남은 텍스트
     desc = line
-    desc = re.sub(r'\[[^\]]+\]', '', desc)              # [대괄호 내용] 전체 제거
+    desc = re.sub(r'\[[^\]]+\]', '', desc)
     desc = re.sub(r'[\d,]+원', '', desc)
     desc = re.sub(r'\(금액\)', '', desc)
     desc = re.sub(r'\d{4}[-./]\d{1,2}[-./]\d{1,2}', '', desc)
@@ -738,9 +802,9 @@ def _parse_sms_line(line):
     desc = re.sub(r'\d{2}:\d{2}', '', desc)
     desc = re.sub(r'[가-힣]+(?:카드|은행|뱅크)', '', desc)
     desc = re.sub(r'일시불|할부\d*|승인|취소|번호|이체|출금|입금|납부|결제|사용|신용|체크', '', desc)
-    desc = re.sub(r'\([^)]*\)', '', desc)               # (괄호 내용) 전체 제거
+    desc = re.sub(r'\([^)]*\)', '', desc)
     desc = re.sub(r'[\[\]（）]', '', desc)
-    desc = re.sub(r'[가-힣][*]+[가-힣]+', '', desc)          # 마스킹된 이름 제거 (홍*동 등)
+    desc = re.sub(r'[가-힣][*]+[가-힣]+', '', desc)
     desc = re.sub(r'\s+', ' ', desc).strip(' -_|,.')
 
     return {'date': date_val, 'type': tx_type, 'amount': amount,
@@ -748,9 +812,12 @@ def _parse_sms_line(line):
 
 @app.route('/import/text', methods=['POST'])
 def import_text():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     raw = request.form.get('text', '').strip()
     if not raw:
-        return redirect(url_for('index') + '?import_error=내용을 입력해주세요')
+        return redirect('/?import_error=내용을 입력해주세요')
 
     parsed = []
     for line in raw.splitlines():
@@ -762,7 +829,7 @@ def import_text():
             parsed.append(tx)
 
     if not parsed:
-        return redirect(url_for('index') + '?import_error=인식된 거래 내역이 없습니다')
+        return redirect('/?import_error=인식된 거래 내역이 없습니다')
 
     fd, path = tempfile.mkstemp(suffix='.json', prefix='impt_')
     with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -772,18 +839,20 @@ def import_text():
 
 @app.route('/import/text/preview')
 def import_text_preview():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     tmp = request.args.get('tmp', '')
     if not tmp.startswith('impt_'):
-        return redirect(url_for('index'))
+        return redirect('/')
     path = os.path.join(tempfile.gettempdir(), tmp)
     if not os.path.exists(path):
-        return redirect(url_for('index'))
+        return redirect('/')
     with open(path, encoding='utf-8') as f:
         parsed = json.load(f)
-    categories = Category.query.order_by(Category.id).all()
-    cards = Card.query.all()
+    categories = Category.query.filter_by(user_id=uid).order_by(Category.id).all()
+    cards = Card.query.filter_by(user_id=uid).all()
 
-    # SMS에서 추출한 카드명을 DB 카드명과 매칭
     _generic = {'카드', '은행', '뱅크', '체크', '신용', '승인', '출금', '입금', '이체', '결제', '납부'}
 
     def match_card(sms_card):
@@ -792,8 +861,6 @@ def import_text_preview():
         for card in cards:
             if card.name in sms_card or sms_card in card.name:
                 return card.name
-        # 카드명을 2~3자 슬라이딩 윈도우로 잘라 SMS 문자열 안에서 검색
-        # 예: "신한카드" → ["신한","한카","카드"] → "신한" ∈ "신한체크승인" → 매칭
         for card in cards:
             name = card.name
             for length in (2, 3):
@@ -818,9 +885,12 @@ def import_text_preview():
 
 @app.route('/import/text/confirm', methods=['POST'])
 def import_text_confirm():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
     tmp = request.form.get('tmp', '')
     if not tmp.startswith('impt_'):
-        return redirect(url_for('index'))
+        return redirect('/')
     path = os.path.join(tempfile.gettempdir(), tmp)
     if os.path.exists(path):
         os.remove(path)
@@ -843,6 +913,7 @@ def import_text_confirm():
                 date=dates[i], type=types[i], category=cats[i],
                 description=descs[i], amount=amount,
                 card=cardss[i] if cardss[i] else None,
+                user_id=uid,
             ))
             imported += 1
         except Exception:
@@ -858,23 +929,35 @@ def service_worker():
 # ── Push Notification ─────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _FILE_DIR = os.environ.get('DATA_DIR', _BASE_DIR)
-VAPID_KEYS_FILE = os.path.join(_FILE_DIR, 'vapid_keys.json')
+VAPID_PRIVATE_FILE = os.path.join(_FILE_DIR, 'vapid_private_v2.pem')
+VAPID_PUBLIC_FILE = os.path.join(_FILE_DIR, 'vapid_public_v2.txt')
 SUBSCRIPTIONS_FILE = os.path.join(_FILE_DIR, 'subscriptions.json')
 
 def _get_vapid_keys():
-    if os.path.exists(VAPID_KEYS_FILE):
-        with open(VAPID_KEYS_FILE) as f:
-            return json.load(f)
+    if os.path.exists(VAPID_PRIVATE_FILE) and os.path.exists(VAPID_PUBLIC_FILE):
+        try:
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key
+            with open(VAPID_PRIVATE_FILE, 'rb') as f:
+                load_pem_private_key(f.read(), password=None)
+            with open(VAPID_PUBLIC_FILE) as f:
+                pub = f.read().strip()
+            return {'private': VAPID_PRIVATE_FILE, 'public': pub}
+        except Exception:
+            for p in [VAPID_PRIVATE_FILE, VAPID_PUBLIC_FILE]:
+                if os.path.exists(p): os.remove(p)
     try:
         from cryptography.hazmat.primitives.asymmetric import ec
         from cryptography.hazmat.primitives import serialization
         pk = ec.generate_private_key(ec.SECP256R1())
-        priv_pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()).decode()
-        pub_b64 = base64.urlsafe_b64encode(pk.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)).rstrip(b'=').decode()
-        keys = {'private': priv_pem, 'public': pub_b64}
-        with open(VAPID_KEYS_FILE, 'w') as f:
-            json.dump(keys, f)
-        return keys
+        pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+        with open(VAPID_PRIVATE_FILE, 'wb') as f:
+            f.write(pem)
+        pub_b64 = base64.urlsafe_b64encode(
+            pk.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+        ).rstrip(b'=').decode()
+        with open(VAPID_PUBLIC_FILE, 'w') as f:
+            f.write(pub_b64)
+        return {'private': VAPID_PRIVATE_FILE, 'public': pub_b64}
     except Exception:
         return {'private': '', 'public': ''}
 
@@ -911,14 +994,19 @@ def push_unsubscribe():
 def _send_push_notifications():
     try:
         from pywebpush import webpush
-        now = datetime.now()
+        from datetime import timezone, timedelta
+        KST = timezone(timedelta(hours=9))
+        now = datetime.now(KST)
+        priv = vapid_keys.get('private', '')
+        if not priv or not os.path.exists(priv):
+            return
         for sub in _load_subs():
             if now.hour == sub.get('notify_hour', 21) and now.minute == sub.get('notify_minute', 0):
                 try:
                     webpush(
                         subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
                         data=json.dumps({'title': '나의 가계부', 'body': '오늘 지출을 기록했나요? 📝', 'url': '/'}),
-                        vapid_private_key=vapid_keys['private'],
+                        vapid_private_key=priv,
                         vapid_claims={'sub': 'mailto:song57290@gmail.com'}
                     )
                 except Exception as e:
@@ -938,4 +1026,4 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         pass
 
 if __name__ == '__main__':
-    app.run(debug=True) # 서버 실행 / debug=True면 코드 수정 시 자동 재시작
+    app.run(debug=True)

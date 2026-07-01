@@ -2,11 +2,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { useRef, useEffect } from 'react'
 
 const ITEMS = [
-  { path: '/cards', icon: 'bi-credit-card', label: '카드' },
+  { path: '/budget', icon: 'bi-wallet2', label: '예산' },
   { path: '/calendar', icon: 'bi-calendar3', label: '캘린더' },
   { path: '/stats', icon: 'bi-pie-chart', label: '통계' },
-  { path: '/budget', icon: 'bi-wallet2', label: '예산' },
   { path: '/categories', icon: 'bi-grid', label: '목록' },
+  { path: '/settings', icon: 'bi-gear', label: '설정' },
 ]
 
 export default function BottomNav() {
