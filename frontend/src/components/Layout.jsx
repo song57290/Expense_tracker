@@ -43,7 +43,11 @@ export default function Layout({ user, onLogout }) {
 
     function onTS(e) {
       const cx = e.touches[0].clientX
-      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: cx < 50 || cx > window.innerWidth - 50 }
+      const rect = el.getBoundingClientRect()
+      const relX = cx - rect.left
+      const EDGE_ONLY = ['/', '/budget']
+      const isEdge = relX < 80 || relX > rect.width - 80
+      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || !EDGE_ONLY.includes(location.pathname), itemSwipe: false }
     }
     function onTM(e) {
       const s = swipe.current
@@ -53,15 +57,21 @@ export default function Layout({ user, onLogout }) {
       if (!s.h) {
         if (Math.abs(dy) > Math.abs(dx) + 3) { s.x = null; return }
         if (Math.abs(dx) < 12) return
-        if (!s.edge && e.target.closest && e.target.closest('[data-item-swipe]')) { s.x = null; return }
+        if (!s.edge && e.target.closest && e.target.closest('[data-item-swipe]')) {
+          s.itemSwipe = true
+        }
         s.h = true
       }
       const idx = getIdx()
       if ((dx > 0 && idx <= 0) || (dx < 0 && idx >= NAV_PATHS.length - 1)) return
-      e.preventDefault()
-      const clamped = Math.max(-window.innerWidth * 0.8, Math.min(window.innerWidth * 0.8, dx))
-      dragXRef.current = clamped
-      setDragX(clamped)
+      if (!s.itemSwipe) {
+        e.preventDefault()
+        const clamped = Math.max(-window.innerWidth * 0.8, Math.min(window.innerWidth * 0.8, dx))
+        dragXRef.current = clamped
+        setDragX(clamped)
+      } else {
+        dragXRef.current = dx
+      }
     }
     function onTE() {
       const s = swipe.current
@@ -69,9 +79,10 @@ export default function Layout({ user, onLogout }) {
       const w = window.innerWidth
       const idx = getIdx()
       const dx = dragXRef.current
-      if (dx < -w * 0.35 && idx < NAV_PATHS.length - 1) {
+      const threshold = s.itemSwipe ? w * 0.45 : w * 0.35
+      if (dx < -threshold && idx < NAV_PATHS.length - 1) {
         setAnimDir('l'); navigate(NAV_PATHS[idx + 1])
-      } else if (dx > w * 0.35 && idx > 0) {
+      } else if (dx > threshold && idx > 0) {
         setAnimDir('r'); navigate(NAV_PATHS[idx - 1])
       }
       dragXRef.current = 0; setDragX(0)
@@ -93,7 +104,7 @@ export default function Layout({ user, onLogout }) {
       <div className="bot-fade d-lg-none" style={{ opacity: botFade ? 1 : 0 }} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={onLogout} />
       <div ref={pageRef} className="page-wrap">
-        <Navbar onMenuClick={() => setSidebarOpen(true)} />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} nickname={user?.nickname} />
         {dragX !== 0 && (
           <div style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', opacity: Math.min(Math.abs(dragX) / window.innerWidth * 0.28, 0.2) }} />
         )}

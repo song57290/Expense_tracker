@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 
-export default function Navbar({ onMenuClick }) {
+export default function Navbar({ onMenuClick, nickname }) {
   const navigate = useNavigate()
   return (
     <div className="px-3 pt-3">
@@ -10,7 +10,7 @@ export default function Navbar({ onMenuClick }) {
             <i className="bi bi-list" />
           </button>
           <span className="fw-bold fs-5" style={{ color: 'white', textShadow: '0 0 16px rgba(255,255,255,0.7)', cursor: 'pointer' }} onClick={() => navigate('/')}>
-            나의 가계부
+            {nickname || '나'}의 가계부
           </span>
         </div>
         <div className="d-flex align-items-center gap-3">

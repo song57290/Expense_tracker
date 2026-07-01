@@ -86,7 +86,7 @@ export default function Sidebar({ open, onClose, user, onLogout }) {
       {open && <div onClick={onClose} style={{ display: 'block', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1500 }} />}
       <div className={`pc-sidebar ${open ? 'open' : ''}`}>
         <div style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ color: 'white', fontWeight: 700, fontSize: '1.05rem' }}>나의 가계부</span>
+          <span style={{ color: 'white', fontWeight: 700, fontSize: '1.05rem' }}>{user?.nickname || '나'}의 가계부</span>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <i className="bi bi-x-lg" />
           </button>
