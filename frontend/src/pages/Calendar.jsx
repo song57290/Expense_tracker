@@ -14,6 +14,10 @@ export default function Calendar() {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
+  const [pickerMode, setPickerMode] = useState('month')
+  const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
 
   const load = useCallback((ym) => {
     api.get(`/api/calendar?month=${ym}`).then(setData).catch(console.error)
@@ -21,27 +25,41 @@ export default function Calendar() {
 
   useEffect(() => { load(yearMonth) }, [yearMonth, load])
 
+  function goPrev() {
+    const [y, m] = yearMonth.split('-').map(Number)
+    setData(null)
+    setYearMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`)
+  }
+  function goNext() {
+    const [y, m] = yearMonth.split('-').map(Number)
+    setData(null)
+    setYearMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`)
+  }
+  function openPicker() {
+    setPickerYear(parseInt(yearMonth.split('-')[0]))
+    setPickerMode('month')
+    setPickerOpen(true)
+  }
+
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
-
   const selDay = selected ? data.day_transactions[selected] : null
+  const [curY, curM] = yearMonth.split('-').map(Number)
 
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h5 className="mb-0 fw-bold">캘린더</h5>
-        <div className="d-flex align-items-center gap-2">
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => {
-            const [y, m] = yearMonth.split('-').map(Number)
-            const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
-            setYearMonth(prev)
-          }}><i className="bi bi-chevron-left" /></button>
-          <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{fmtMonth(yearMonth)}</span>
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => {
-            const [y, m] = yearMonth.split('-').map(Number)
-            const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
-            setYearMonth(next)
-          }}><i className="bi bi-chevron-right" /></button>
+        <div className="d-flex align-items-center gap-1">
+          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
+            <i className="bi bi-chevron-left" />
+          </button>
+          <span onClick={openPicker} style={{ fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', userSelect: 'none', padding: '4px 6px' }}>
+            {fmtMonth(yearMonth)}
+          </span>
+          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goNext}>
+            <i className="bi bi-chevron-right" />
+          </button>
         </div>
       </div>
 
@@ -57,16 +75,30 @@ export default function Calendar() {
               const d = arg.date
               const dow = d.getDay()
               const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-              const t = data.day_totals[ds] || {}
-              const numCol = dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : undefined
+              const dayTxs = data.day_transactions[ds] || []
+              const incomeCount = dayTxs.filter(t => t.type === 'income').length
+              const expenseCount = dayTxs.filter(t => t.type === 'expense').length
+              const totalCount = incomeCount + expenseCount
+              let incDots = incomeCount, expDots = expenseCount, showPlus = false
+              if (totalCount > 3) {
+                showPlus = true
+                if (incomeCount === 0) { incDots = 0; expDots = 2 }
+                else if (expenseCount === 0) { incDots = 2; expDots = 0 }
+                else if (incomeCount >= expenseCount) { incDots = 2; expDots = 1 }
+                else { incDots = 1; expDots = 2 }
+              }
+              const numCol = dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : '#1c1c1e'
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                  <span style={numCol ? { color: numCol } : {}}>{d.getDate()}</span>
-                  <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginTop: 3, minHeight: 8 }}>
-                    {t.expense ? <span style={{ display: 'block', width: 6, height: 6, borderRadius: '50%', background: '#ff3b30', flexShrink: 0 }} /> : null}
-                    {t.income ? <span style={{ display: 'block', width: 6, height: 6, borderRadius: '50%', background: '#34c759', flexShrink: 0 }} /> : null}
-                  </div>
-                </div>
+                <>
+                  <span style={{ color: numCol }}>{d.getDate()}</span>
+                  {totalCount > 0 && (
+                    <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', gap: '2px', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }}>
+                      {Array.from({ length: incDots }, (_, i) => <span key={`i${i}`} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#34c759', flexShrink: 0 }} />)}
+                      {Array.from({ length: expDots }, (_, i) => <span key={`e${i}`} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#ff3b30', flexShrink: 0 }} />)}
+                      {showPlus && <span style={{ fontSize: 7, color: '#aaa', lineHeight: 1 }}>+</span>}
+                    </div>
+                  )}
+                </>
               )
             }}
             dateClick={info => {
@@ -79,6 +111,77 @@ export default function Calendar() {
           />
         </div>
       </div>
+
+      {/* 년/월 피커 */}
+      {pickerOpen && createPortal(
+        <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+            {pickerMode === 'month' ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                  <i className="bi bi-chevron-left" />
+                </button>
+                <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }} style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: '#f0eeff', color: '#b088f9' }}>{pickerYear}년 ▾</span>
+                <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                  <i className="bi bi-chevron-right" />
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                  const isSel = pickerYear === curY && m === curM
+                  return (
+                    <button key={m} onClick={() => { setData(null); setYearMonth(`${pickerYear}-${String(m).padStart(2,'0')}`); setPickerOpen(false) }}
+                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                      {m}월
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : pickerMode === 'decade' ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>연도 선택</span>
+                <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {[2001, 2011, 2021, 2031].map(start => {
+                  const end = start + 9
+                  const isCur = pickerYear >= start && pickerYear <= end
+                  return (
+                    <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
+                      style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isCur ? 'white' : '#333' }}>
+                      {start} ~ {end}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
+                <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
+                  const isSel = y === pickerYear
+                  return (
+                    <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
+                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                      {y}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* 날짜 상세 팝업 */}
       {selected && createPortal(
@@ -95,8 +198,10 @@ export default function Calendar() {
               ) : selDay.map(tx => (
                 <div key={tx.id} className="d-flex align-items-center py-2" style={{ borderBottom: '1px solid #f5f5f5' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1c1c1e' }}>{tx.description || tx.category}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#999' }}>{tx.category}{tx.card ? ' · ' + tx.card : ''}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1c1c1e' }}>{tx.category}</div>
+                    {(tx.description || tx.card) && (
+                      <div style={{ fontSize: '0.75rem', color: '#999' }}>{[tx.description, tx.card].filter(Boolean).join(' · ')}</div>
+                    )}
                   </div>
                   <div style={{ fontWeight: 700, color: tx.type === 'income' ? '#34c759' : '#ff3b30', flexShrink: 0 }}>
                     {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원

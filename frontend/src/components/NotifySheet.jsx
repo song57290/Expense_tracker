@@ -11,55 +11,146 @@ function urlB64ToUint8Array(b64) {
 function fmt12(t) {
   const [h, m] = t.split(':').map(Number)
   const ampm = h >= 12 ? '오후' : '오전'
-  return `${ampm} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
+  const hDisplay = h < 12 ? h : (h === 12 ? 12 : h - 12)
+  return `${ampm} ${hDisplay}:${String(m).padStart(2, '0')}`
 }
 
-// iOS 드럼롤 피커 컬럼
-function DrumPicker({ items, value, onChange }) {
-  const ITEM_H = 44
-  const SHOW = 5
-  const PAD = Math.floor(SHOW / 2)
-  const ref = useRef(null)
-  const timer = useRef(null)
-  const busy = useRef(false)
+const HOUR_ITEMS = Array.from({ length: 24 }, (_, i) => String(i))
+const MIN_ITEMS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
 
-  // 초기 스크롤 위치 설정
+function AmPmDrum({ value, onChange }) {
+  const ITEM_H = 44, PAD = 2, totalH = ITEM_H * 5
+  const isPm = value === '오후'
+  const selectedIdx = isPm ? 1 : 0
+  // 선택된 아이템이 하이라이트 바(PAD*ITEM_H) 위치에 오도록 컨테이너 이동
+  const containerTop = PAD * ITEM_H - selectedIdx * ITEM_H
+  const touchStartY = useRef(null)
+  const toggle = () => onChange(value === '오전' ? '오후' : '오전')
+
+  return (
+    <div
+      style={{ position: 'relative', height: totalH, flex: 1, overflow: 'hidden', userSelect: 'none', cursor: 'pointer' }}
+      onTouchStart={e => { touchStartY.current = e.touches[0].clientY }}
+      onTouchEnd={e => { if (touchStartY.current === null) return; e.preventDefault(); toggle(); touchStartY.current = null }}
+      onClick={toggle}
+    >
+      {/* 하이라이트 바 — 가운데 고정 */}
+      <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 4, right: 4, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to top, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      {/* 글씨가 위아래로 움직임 */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0,
+        top: containerTop,
+        transition: 'top 0.25s cubic-bezier(0.25,0.46,0.45,0.94)',
+      }}>
+        {['오전', '오후'].map(item => (
+          <div key={item} style={{
+            height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.45rem',
+            fontWeight: item === value ? 700 : 400,
+            color: item === value ? '#1c1c1e' : '#bbb',
+          }}>{item}</div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// h24 값 → 12시간 표시 (0→0, 12→12, 13→1, 23→11)
+function displayHour(h) {
+  const n = parseInt(h)
+  return n === 12 ? '12' : String(n % 12)
+}
+
+function InfiniteDrum({ items, value, onChange, onWrap, renderItem, fontSize = '1.45rem' }) {
+  const ITEM_H = 44, PAD = 2, N = items.length, COPIES = 9, MID = Math.floor(COPIES / 2)
+  const ref = useRef(null), timerRef = useRef(null), busy = useRef(false), lastRawRef = useRef(null)
+  const valIdx = Math.max(0, items.indexOf(value))
+
   useEffect(() => {
-    if (!ref.current || busy.current) return
-    const idx = items.indexOf(value)
-    if (idx >= 0) ref.current.scrollTop = idx * ITEM_H
+    if (!ref.current) return
+    const targetPos = (MID * N + valIdx) * ITEM_H
+    const currentPos = ref.current.scrollTop
+    const diff = Math.abs(targetPos - currentPos)
+    lastRawRef.current = MID * N + valIdx
+    if (diff === 0) return
+    if (diff <= ITEM_H * 3) {
+      // 가까운 이동(1~3칸): 부드러운 스크롤 — AM/PM 전환 애니메이션
+      busy.current = true
+      ref.current.scrollTo({ top: targetPos, behavior: 'smooth' })
+      setTimeout(() => { busy.current = false }, 450)
+    } else {
+      // 먼 이동 또는 초기화: 즉시 이동
+      busy.current = true
+      ref.current.scrollTop = targetPos
+      setTimeout(() => { busy.current = false }, 60)
+    }
   }, [value, items])
 
   const onScroll = () => {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      if (!ref.current) return
-      const idx = Math.max(0, Math.min(items.length - 1, Math.round(ref.current.scrollTop / ITEM_H)))
-      busy.current = true
-      ref.current.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' })
-      setTimeout(() => { busy.current = false }, 400)
-      if (items[idx] !== value) onChange(items[idx])
-    }, 100)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      if (!ref.current || busy.current) return
+      const rawIdx = Math.round(ref.current.scrollTop / ITEM_H)
+      const clamped = Math.max(0, Math.min(COPIES * N - 1, rawIdx))
+      const itemIdx = clamped % N
+      const item = items[itemIdx]
+      const prev = lastRawRef.current
+      lastRawRef.current = clamped
+      if (prev !== null && onWrap) {
+        const prevItemIdx = prev % N, movedForward = clamped > prev
+        if (movedForward && prevItemIdx === N - 1 && itemIdx === 0) { onWrap('forward'); return }
+        if (!movedForward && prevItemIdx === 0 && itemIdx === N - 1) { onWrap('backward'); return }
+      }
+      if (item !== value) onChange(item)
+      if (clamped < N || clamped >= (COPIES - 1) * N) {
+        busy.current = true
+        ref.current.scrollTop = (MID * N + itemIdx) * ITEM_H
+        lastRawRef.current = MID * N + itemIdx
+        setTimeout(() => { busy.current = false }, 60)
+      }
+    }, 150)
+  }
+
+  const allItems = []
+  for (let c = 0; c < COPIES; c++) {
+    for (let i = 0; i < N; i++) allItems.push({ item: items[i], key: `${c}_${i}` })
   }
 
   return (
-    <div style={{ position: 'relative', height: ITEM_H * SHOW, flex: 1, overflow: 'hidden', userSelect: 'none' }}>
-      {/* 선택 영역 하이라이트 */}
-      <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 6, right: 6, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
-      {/* 상단 페이드 */}
+    <div style={{ position: 'relative', height: ITEM_H * 5, flex: 1, overflow: 'hidden', userSelect: 'none' }}>
+      <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 4, right: 4, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
-      {/* 하단 페이드 */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to top, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
-      {/* 스크롤 드럼 */}
-      <div ref={ref} onScroll={onScroll} className="drum-scroll"
-        style={{ position: 'absolute', inset: 0, overflowY: 'scroll', scrollSnapType: 'y mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-        {Array.from({ length: PAD }).map((_, i) => <div key={`t${i}`} style={{ height: ITEM_H }} />)}
-        {items.map(item => (
-          <div key={item} style={{ height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center', scrollSnapAlign: 'center', fontSize: '1.45rem', fontWeight: item === value ? 700 : 400, color: item === value ? '#1c1c1e' : '#bbb', transition: 'all 0.15s' }}>
-            {item}
+      <div
+        ref={ref}
+        onScroll={onScroll}
+        className="drum-scroll"
+        style={{
+          position: 'absolute', inset: 0,
+          overflowY: 'scroll',
+          scrollSnapType: 'y mandatory',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+          paddingTop: PAD * ITEM_H,
+          paddingBottom: PAD * ITEM_H,
+          boxSizing: 'border-box',
+        }}
+      >
+        {allItems.map(({ item, key }) => (
+          <div key={key} style={{
+            height: ITEM_H,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            scrollSnapAlign: 'center',
+            fontSize,
+            fontWeight: item === value ? 700 : 400,
+            color: item === value ? '#1c1c1e' : '#bbb',
+            whiteSpace: 'nowrap',
+          }}>
+            {renderItem ? renderItem(item) : item}
           </div>
         ))}
-        {Array.from({ length: PAD }).map((_, i) => <div key={`b${i}`} style={{ height: ITEM_H }} />)}
       </div>
     </div>
   )
@@ -121,28 +212,27 @@ export default function NotifySheet() {
     } catch (e) { console.warn(e) }
   }
 
-  // 드럼 피커용 아이템 목록
-  const ampmItems = ['오전', '오후']
-  const hourItems = Array.from({ length: 12 }, (_, i) => String(i + 1))
-  const minItems = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'))
-
   const [h24, mn] = time.split(':').map(Number)
   const isPm = h24 >= 12
-  const h12 = h24 % 12 || 12
+
   const ampmVal = isPm ? '오후' : '오전'
-  const hourVal = String(h12)
+  const hourVal = String(h24)           // 0~23 그대로 value로 사용
   const minVal = String(Math.round(mn / 5) * 5 % 60).padStart(2, '0')
 
   function onAmPm(val) {
     const newPm = val === '오후'
     if (newPm === isPm) return
-    const h24New = newPm ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12)
+    const h24New = (h24 + 12) % 24
     applyTime(`${String(h24New).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
   }
 
   function onHour(val) {
-    const h12New = parseInt(val)
-    const h24New = isPm ? (h12New === 12 ? 12 : h12New + 12) : (h12New === 12 ? 0 : h12New)
+    applyTime(`${String(parseInt(val)).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
+  }
+
+  function onHourWrap(direction) {
+    // 23→0 순환(forward) or 0→23 순환(backward)
+    const h24New = direction === 'forward' ? 0 : 23
     applyTime(`${String(h24New).padStart(2, '0')}:${String(mn).padStart(2, '0')}`)
   }
 
@@ -186,10 +276,10 @@ export default function NotifySheet() {
                 {pickerOpen && (
                   <div style={{ borderTop: '1px solid #ebebeb', padding: '8px 16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <DrumPicker items={ampmItems} value={ampmVal} onChange={onAmPm} />
-                      <DrumPicker items={hourItems} value={hourVal} onChange={onHour} />
-                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ccc', flexShrink: 0, marginBottom: 2 }}>:</div>
-                      <DrumPicker items={minItems} value={minVal} onChange={onMin} />
+                      <AmPmDrum value={ampmVal} onChange={onAmPm} />
+                      <InfiniteDrum items={HOUR_ITEMS} value={hourVal} onChange={onHour} onWrap={onHourWrap} renderItem={displayHour} />
+                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ccc', flexShrink: 0 }}>:</div>
+                      <InfiniteDrum items={MIN_ITEMS} value={minVal} onChange={onMin} />
                     </div>
                   </div>
                 )}

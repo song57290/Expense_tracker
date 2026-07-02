@@ -10,7 +10,12 @@ async function req(url, opts = {}) {
     }
     throw new Error('Unauthorized')
   }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}))
+    const err = new Error(body.error || `HTTP ${r.status}`)
+    err.data = body
+    throw err
+  }
   return r.json()
 }
 

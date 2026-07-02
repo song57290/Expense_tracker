@@ -13,8 +13,8 @@
         var h = parseInt(parts[0]) || 0;
         var m = parseInt(parts[1]) || 0;
         var ampm = h >= 12 ? '오후' : '오전';
-        var h12 = h % 12 || 12;
-        return ampm + ' ' + h12 + ':' + (m < 10 ? '0' : '') + m;
+        var hDisplay = h < 12 ? h : (h === 12 ? 12 : h - 12);
+        return ampm + ' ' + hDisplay + ':' + (m < 10 ? '0' : '') + m;
     }
 
     function _updatePickerUI(t) {
@@ -22,7 +22,7 @@
         var h24 = parseInt(parts[0]) || 0;
         var m = parseInt(parts[1]) || 0;
         var ispm = h24 >= 12;
-        var h12 = h24 % 12 || 12;
+        var h12 = h24 < 12 ? h24 : (h24 === 12 ? 12 : h24 - 12);
         var amBtn = document.getElementById('tpAmBtn');
         var pmBtn = document.getElementById('tpPmBtn');
         if (amBtn) {
@@ -160,7 +160,7 @@
         var m = parseInt(parts[1]);
         var currentPm = h24 >= 12;
         if ((ampm === 'pm') === currentPm) return;
-        h24 = ampm === 'pm' ? h24 + 12 : h24 - 12;
+        h24 = (h24 + 12) % 24;
         _applyTime((h24 < 10 ? '0' : '') + h24 + ':' + (m < 10 ? '0' : '') + m);
     };
 
@@ -169,12 +169,7 @@
         var parts = t.split(':');
         var h24 = parseInt(parts[0]);
         var m = parseInt(parts[1]);
-        var ispm = h24 >= 12;
-        var h12 = h24 % 12 || 12;
-        h12 += delta;
-        if (h12 > 12) h12 = 1;
-        if (h12 < 1) h12 = 12;
-        h24 = ispm ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12);
+        h24 = (h24 + delta + 24) % 24;
         _applyTime((h24 < 10 ? '0' : '') + h24 + ':' + (m < 10 ? '0' : '') + m);
     };
 

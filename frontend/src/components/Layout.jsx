@@ -42,13 +42,15 @@ export default function Layout({ user, onLogout }) {
     const getIdx = () => { const i = NAV_PATHS.indexOf(location.pathname); return i >= 0 ? i : 0 }
 
     function onTS(e) {
+      if (document.body.classList.contains('sheet-open')) { swipe.current = { x: null, y: null, h: false }; return }
       const cx = e.touches[0].clientX
       const rect = el.getBoundingClientRect()
       const relX = cx - rect.left
-      const EDGE_ONLY = ['/', '/budget', '/categories']
       const isEdge = relX < 80 || relX > rect.width - 80
       const isNavZone = !!(e.target.closest && e.target.closest('.swipe-nav-zone'))
-      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: isEdge || isNavZone || !EDGE_ONLY.includes(location.pathname) }
+      const hasItemSwipe = !!(e.target.closest && e.target.closest('[data-item-swipe]'))
+      const hasScrollX = !!(e.target.closest && e.target.closest('[data-scroll-x]'))
+      swipe.current = { x: cx, y: e.touches[0].clientY, h: false, edge: (isEdge || isNavZone || !hasItemSwipe) && !hasScrollX }
     }
     function onTM(e) {
       const s = swipe.current
@@ -108,6 +110,7 @@ export default function Layout({ user, onLogout }) {
           className={`container-fluid px-3 px-lg-4 ${animDir ? `route-slide-${animDir}` : 'route-anim'}`}
           onAnimationEnd={() => setAnimDir(null)}
           style={{
+            minHeight: 'calc(100dvh - 170px)',
             transform: dragX ? `translateX(${dragX}px)` : undefined,
             transition: dragX ? 'none' : 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)',
           }}

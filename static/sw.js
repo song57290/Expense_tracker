@@ -1,7 +1,13 @@
-var NAV_CACHE = 'nav-prefetch-v1';
+var NAV_CACHE = 'nav-prefetch-v2';
 
 self.addEventListener('install', function (e) { self.skipWaiting(); });
-self.addEventListener('activate', function (e) { e.waitUntil(clients.claim()); });
+self.addEventListener('activate', function (e) {
+    e.waitUntil(
+        caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }).then(function () { return clients.claim(); })
+    );
+});
 
 // prefetch.js → SW로 PREFETCH 메시지 수신 → 캐싱
 self.addEventListener('message', function (e) {
@@ -41,7 +47,7 @@ self.addEventListener('fetch', function (e) {
 self.addEventListener('push', function (e) {
     var data = e.data ? e.data.json() : {};
     e.waitUntil(self.registration.showNotification(data.title || '나의 가계부', {
-        body: data.body || '오늘 지출을 기록해보세요!',
+        body: data.body || '오늘 지출을 기록했나요? 📝',
         icon: '/static/icon-192.png',
         badge: '/static/icon-192.png',
         data: { url: data.url || '/' }
