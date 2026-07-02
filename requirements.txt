@@ -6,3 +6,4 @@ openpyxl
 xlrd
 cryptography
 gunicorn
+finance-datareader

@@ -51,3 +51,27 @@ class Card(db.Model):
     tier3 = db.Column(db.Integer, nullable=True, server_default='80')
     account_balance = db.Column(db.Integer, nullable=False, default=0)
     user_id = db.Column(db.Integer, nullable=True)
+
+class Savings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    stype = db.Column(db.String(10), nullable=False, default='예금')
+    bank = db.Column(db.String(50), nullable=False, default='')
+    name = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    interest_rate = db.Column(db.Float, nullable=False, default=0.0)
+    interest_type = db.Column(db.String(10), nullable=False, default='단리')
+    start_date = db.Column(db.String(10), nullable=False)
+    end_date = db.Column(db.String(10), nullable=False)
+
+class Investment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    itype = db.Column(db.String(20), nullable=False, default='국내주식')
+    name = db.Column(db.String(100), nullable=False)
+    ticker = db.Column(db.String(30), nullable=True, default='')
+    quantity = db.Column(db.Float, nullable=False, default=0)
+    avg_price = db.Column(db.Float, nullable=False, default=0)
+    current_price = db.Column(db.Float, nullable=True)
+    memo = db.Column(db.String(200), nullable=True, default='')
+    price_updated_at = db.Column(db.DateTime, nullable=True)
