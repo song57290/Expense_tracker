@@ -67,13 +67,16 @@ function SwipeItem({ children, onDelete, onEdit }) {
     else setOffsetX(0)
   }
 
+  const deleteWidth = Math.max(0, -offsetX)
+  const editWidth = Math.max(0, offsetX)
+
   return (
     <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 6, border: '1px solid #eee' }}>
-      <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: 80, background: '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2 }}>
-        <i className="bi bi-trash" style={{ fontSize: '1.15rem' }} />삭제
+      <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: deleteWidth, background: '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+        <i className="bi bi-trash" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>삭제</span>
       </div>
-      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: 80, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2 }}>
-        <i className="bi bi-pencil" style={{ fontSize: '1.15rem' }} />수정
+      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: editWidth, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+        <i className="bi bi-pencil" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab' }}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
@@ -98,11 +101,18 @@ export default function Home() {
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '' })
   const [amountDisplay, setAmountDisplay] = useState('')
+  const [cardError, setCardError] = useState(false)
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
   const load = useCallback(() => api.get('/api/home').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const open = !!confirmSheet || !!cardSheet || importOpen
+    document.body.classList.toggle('sheet-open', open)
+    return () => document.body.classList.remove('sheet-open')
+  }, [confirmSheet, cardSheet, importOpen])
 
   useEffect(() => {
     if (data) {
@@ -126,8 +136,11 @@ export default function Home() {
     e.preventDefault()
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
     if (!amt || !form.category) return
+    if (data.card_list.length === 0) { navigate('/budget'); return }
+    if (!form.card) { setCardError(true); return }
+    setCardError(false)
     await api.post('/api/transactions', { ...form, amount: amt })
-    setForm(f => ({ ...f, amount: '', description: '' }))
+    setForm(f => ({ ...f, amount: '', description: '', card: '' }))
     setAmountDisplay('')
     load()
   }
@@ -167,7 +180,7 @@ export default function Home() {
 
       {/* 이번 달 요약 */}
       <div className="d-flex justify-content-between align-items-center mb-2 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSummaryOpen(o => !o)}>
-        <span className="text-muted fw-semibold" style={{ fontSize: '0.85rem' }}>이번 달 요약</span>
+        <span className="text-muted fw-semibold" style={{ fontSize: '1rem' }}>이번 달 요약</span>
         <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{summaryOpen ? '▴' : '▾'}</span>
       </div>
       {summaryOpen && (
@@ -176,7 +189,7 @@ export default function Home() {
             <div key={label} className="col-4">
               <div className="card text-center"><div className="card-body">
                 <h6 className={`card-title ${cls}`}>{label}</h6>
-                <p className="card-text fs-5">{fmt(val)}원</p>
+                <p className="card-text" style={{ fontSize: '1rem' }}>{fmt(val)}원</p>
               </div></div>
             </div>
           ))}
@@ -269,17 +282,33 @@ export default function Home() {
                 <input className="form-control" placeholder="항목 설명" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               </div>
               <div className="col-12 col-lg-2">
-                <select className="form-select" value={form.card} onChange={e => setForm(f => ({ ...f, card: e.target.value }))}>
-                  <option value="">카드 선택</option>
-                  {data.card_list.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
+                {data.card_list.length === 0 ? (
+                  <div style={{ fontSize: '0.82rem', color: '#aaa', padding: '9px 4px' }}>
+                    카드 없음 —{' '}
+                    <button type="button" onClick={() => navigate('/budget')}
+                      style={{ background: 'none', border: 'none', padding: 0, color: '#b088f9', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}>
+                      예산 탭에서 추가
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <select className="form-select" value={form.card}
+                      style={cardError ? { borderColor: '#dc3545' } : {}}
+                      onChange={e => { setForm(f => ({ ...f, card: e.target.value })); setCardError(false) }}>
+                      <option value="">카드 선택</option>
+                      {data.card_list.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                    {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
+                  </>
+                )}
               </div>
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem' }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
                 </button>
                 <div className="d-flex gap-2">
-                  <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
+                  <button type="submit" className="btn"
+                  style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
                   <button type="reset" className="btn btn-outline-secondary" onClick={() => setAmountDisplay('')}>취소</button>
                 </div>
               </div>

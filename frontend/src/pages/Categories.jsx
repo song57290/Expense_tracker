@@ -54,15 +54,19 @@ function SortableItem({ cat, onEdit, onDelete }) {
     else if (cur > 60) onEdit(cat)
   }
 
+  const deleteWidth = Math.max(0, -offsetX)
+  const editWidth = Math.max(0, offsetX)
+
   return (
     <div ref={setNodeRef} style={sortStyle} {...attributes}>
-      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 90, background: '#ff3b30', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.15rem' }}>
-        <i className="bi bi-trash" />
+      <div style={{ position: 'absolute', right: 0, top: 4, bottom: 4, width: deleteWidth, background: '#ff3b30', borderRadius: '0 10px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+        <i className="bi bi-trash" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>삭제</span>
       </div>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 90, background: '#b088f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.15rem' }}>
-        <i className="bi bi-pencil" />
+      <div style={{ position: 'absolute', left: 0, top: 4, bottom: 4, width: editWidth, background: '#b088f9', borderRadius: '10px 0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+        <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div
+        data-item-swipe
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

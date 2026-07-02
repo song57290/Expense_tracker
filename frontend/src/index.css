@@ -60,6 +60,7 @@ html, body {
   box-shadow: 0 4px 20px rgba(123,107,224,0.3);
   z-index: 1000;
 }
+body.sheet-open .bottom-nav { display: none !important; }
 .bottom-nav a {
   color: white;
   text-decoration: none;
@@ -157,11 +158,11 @@ html, body {
 .route-slide-l { animation: slideFromRight 0.3s cubic-bezier(0.25,0.46,0.45,0.94) both; }
 .route-slide-r { animation: slideFromLeft  0.3s cubic-bezier(0.25,0.46,0.45,0.94) both; }
 
-.page-wrap { overflow-x: hidden; }
+.page-wrap { overflow-x: hidden; min-height: 100vh; min-height: 100dvh; }
 
 @media (min-width: 480px) and (max-width: 991px) {
   .page-wrap {
-    padding: 0 20px;
+    padding: 0 10px;
   }
 }
 
@@ -203,6 +204,10 @@ html, body {
 .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #ff3b30 !important; }
 .fc-col-header-cell.fc-day-sat a,
 .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #007aff !important; }
+
+/* Calendar dots positioning */
+.fc-daygrid-day-frame { position: relative !important; min-height: 52px !important; }
+.fc-daygrid-day-number { position: static !important; }
 
 /* Drum picker scrollbar hide */
 .drum-scroll::-webkit-scrollbar { display: none; }
