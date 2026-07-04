@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
 import xlrd
 from io import BytesIO
-import tempfile, json, os, re, base64, random
+import tempfile, json, os, re, base64, random, smtplib
+from email.mime.text import MIMEText
 
 _listing_cache = {}
 _listing_ts = {}
@@ -202,6 +203,19 @@ def api_login():
     session['user_id'] = user.id
     return jsonify({'ok': True, 'email': user.email, 'nickname': user.nickname})
 
+def send_reset_email(to_email, code):
+    mail_user = os.environ.get('MAIL_USER', '')
+    mail_pass = os.environ.get('MAIL_PASSWORD', '')
+    if not mail_user or not mail_pass:
+        raise RuntimeError('이메일 설정이 되어 있지 않습니다')
+    msg = MIMEText(f'인증번호: {code}\n\n30분 이내에 입력해주세요.', 'plain', 'utf-8')
+    msg['Subject'] = '[나의 가계부] 비밀번호 재설정 인증번호'
+    msg['From'] = mail_user
+    msg['To'] = to_email
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
+        s.login(mail_user, mail_pass)
+        s.sendmail(mail_user, to_email, msg.as_string())
+
 @app.route('/api/reset-request', methods=['POST'])
 def api_reset_request():
     email = (request.json or {}).get('email', '').strip().lower()
@@ -212,7 +226,11 @@ def api_reset_request():
     user.reset_code = code
     user.reset_expires = datetime.now() + timedelta(minutes=30)
     db.session.commit()
-    return jsonify({'ok': True, 'code': code})
+    try:
+        send_reset_email(email, code)
+    except Exception as e:
+        return jsonify({'error': f'이메일 발송에 실패했습니다: {str(e)}'}), 500
+    return jsonify({'ok': True})
 
 @app.route('/api/reset-confirm', methods=['POST'])
 def api_reset_confirm():
@@ -590,6 +608,8 @@ def api_card(card_id):
     card.tier3 = int(data.get('tier3', card.tier3 or 80))
     if 'account_balance' in data:
         card.account_balance = int(data['account_balance'])
+    if 'url' in data:
+        card.url = data['url'] or None
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1251,6 +1271,7 @@ def api_budget():
             'total_expense': total_expense, 'balance': balance,
             'spent': spent, 'target': card.monthly_target, 'percent': percent,
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
+            'url': card.url or '',
         })
 
     savings = Savings.query.filter_by(user_id=uid).all()
@@ -1391,6 +1412,44 @@ def fetch_investment_price():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
 
+
+ADMIN_EMAIL = 'song57290@gmail.com'
+
+@app.route('/api/notices', methods=['GET', 'POST'])
+@login_required
+def api_notices():
+    uid = session['user_id']
+    u = User.query.get(uid)
+    is_admin = u and u.email == ADMIN_EMAIL
+    if request.method == 'POST':
+        if not is_admin:
+            return jsonify({'ok': False, 'error': '권한이 없습니다'}), 403
+        data = request.json or {}
+        title = (data.get('title') or '').strip()
+        content = (data.get('content') or '').strip()
+        if not title or not content:
+            return jsonify({'ok': False, 'error': '제목과 내용을 입력하세요'}), 400
+        db.session.add(Notice(user_id=uid, title=title, content=content, created_at=datetime.now()))
+        db.session.commit()
+        return jsonify({'ok': True})
+    notices = Notice.query.order_by(Notice.created_at.desc()).all()
+    return jsonify([{
+        'id': n.id, 'title': n.title, 'content': n.content,
+        'created_at': n.created_at.strftime('%Y.%m.%d'),
+        'is_admin': is_admin,
+    } for n in notices])
+
+@app.route('/api/notices/<int:nid>', methods=['DELETE'])
+@login_required
+def api_notice(nid):
+    uid = session['user_id']
+    u = User.query.get(uid)
+    if not u or u.email != ADMIN_EMAIL:
+        return jsonify({'ok': False, 'error': '권한이 없습니다'}), 403
+    n = Notice.query.get_or_404(nid)
+    db.session.delete(n)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/portfolio')
 @login_required
