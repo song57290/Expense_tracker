@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
 
-function SortableItem({ cat, onEdit, onDelete }) {
+function SortableItem({ cat, onEdit, onDelete, isEditing }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id })
-  const sortStyle = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 999 : 'auto', position: 'relative', overflow: 'hidden' }
+  const sortStyle = {
+    transform: CSS.Transform.toString(transform), transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 999 : isEditing ? 10 : 'auto',
+    position: 'relative',
+    overflow: isDragging ? 'visible' : 'hidden',
+  }
 
   const startX = useRef(null)
   const startY = useRef(null)
@@ -14,42 +20,43 @@ function SortableItem({ cat, onEdit, onDelete }) {
   const offsetRef = useRef(0)
   const [offsetX, setOffsetX] = useState(0)
   const [swiping, setSwiping] = useState(false)
+  const mouseDown = useRef(false)
 
-  function onTouchStart(e) {
+  function onDragStart(e) {
     if (isDragging) return
-    const t = e.touches[0]
-    const wrap = e.currentTarget.closest('.page-wrap')
-    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
-    const relX = t.clientX - rect.left
-    if (relX < 80 || relX > rect.width - 80) return
-    startX.current = t.clientX
-    startY.current = t.clientY
-    horiz.current = false
+    if (e.touches) {
+      const t = e.touches[0]
+      const wrap = e.currentTarget.closest('.page-wrap')
+      const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+      if (t.clientX - rect.left < 80 || t.clientX - rect.left > rect.width - 80) return
+      startX.current = t.clientX; startY.current = t.clientY; horiz.current = false
+    } else {
+      startX.current = e.clientX; startY.current = e.clientY; horiz.current = true
+      mouseDown.current = true; setSwiping(true)
+    }
   }
 
-  function onTouchMove(e) {
+  function onDragMove(e) {
     if (startX.current === null) return
-    const dx = e.touches[0].clientX - startX.current
-    const dy = e.touches[0].clientY - startY.current
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    const dx = cx - startX.current
+    const dy = cy - startY.current
     if (!horiz.current) {
       if (Math.abs(dx) < 8) { if (Math.abs(dy) > 18) { startX.current = null; return } return }
       if (Math.abs(dy) > Math.abs(dx) * 1.5) { startX.current = null; return }
-      horiz.current = true
-      setSwiping(true)
+      horiz.current = true; setSwiping(true)
     }
     const clamped = Math.max(-90, Math.min(90, dx))
-    offsetRef.current = clamped
-    setOffsetX(clamped)
+    offsetRef.current = clamped; setOffsetX(clamped)
   }
 
-  function onTouchEnd() {
+  function onDragEnd() {
+    mouseDown.current = false
     if (startX.current === null) return
     const cur = offsetRef.current
-    startX.current = null
-    horiz.current = false
-    offsetRef.current = 0
-    setSwiping(false)
-    setOffsetX(0)
+    startX.current = null; horiz.current = false; offsetRef.current = 0
+    setSwiping(false); setOffsetX(0)
     if (cur < -60) onDelete(cat.id)
     else if (cur > 60) onEdit(cat)
   }
@@ -59,24 +66,42 @@ function SortableItem({ cat, onEdit, onDelete }) {
 
   return (
     <div ref={setNodeRef} style={sortStyle} {...attributes}>
-      <div style={{ position: 'absolute', right: 0, top: 4, bottom: 4, width: deleteWidth, background: '#ff3b30', borderRadius: '0 10px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
-        <i className="bi bi-trash" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>삭제</span>
-      </div>
-      <div style={{ position: 'absolute', left: 0, top: 4, bottom: 4, width: editWidth, background: '#b088f9', borderRadius: '10px 0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
-        <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
-      </div>
+      {!isDragging && (
+        <div style={{ position: 'absolute', right: 0, top: 4, bottom: 4, width: deleteWidth, background: '#ff3b30', borderRadius: '0 10px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+          <i className="bi bi-trash" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>삭제</span>
+        </div>
+      )}
+      {!isDragging && (
+        <div style={{ position: 'absolute', left: 0, top: 4, bottom: 4, width: editWidth, background: '#b088f9', borderRadius: '10px 0 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
+          <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
+        </div>
+      )}
       <div
         data-item-swipe
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        style={{ background: 'white', transform: `translateX(${offsetX}px)`, transition: swiping ? 'none' : 'transform 0.2s', display: 'flex', alignItems: 'center', padding: '12px 4px' }}
+        onTouchStart={isDragging ? undefined : onDragStart}
+        onTouchMove={isDragging ? undefined : onDragMove}
+        onTouchEnd={isDragging ? undefined : onDragEnd}
+        onMouseDown={isDragging ? undefined : onDragStart}
+        onMouseMove={isDragging ? undefined : e => { if (mouseDown.current) onDragMove(e) }}
+        onMouseUp={isDragging ? undefined : onDragEnd}
+        onMouseLeave={isDragging ? undefined : onDragEnd}
+        style={{
+          background: 'white',
+          transform: `translateX(${offsetX}px)`,
+          transition: swiping ? 'none' : 'transform 0.2s, box-shadow 0.2s',
+          display: 'flex', alignItems: 'center', padding: '12px 4px',
+          userSelect: 'none', cursor: 'grab',
+          borderRadius: isEditing ? 10 : 0,
+          boxShadow: isEditing ? '0 6px 24px rgba(176,136,249,0.45)' : 'none',
+          position: 'relative', zIndex: isEditing ? 2 : 1,
+        }}
       >
         <div {...listeners} style={{ cursor: 'grab', color: '#ccc', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
           <i className="bi bi-grip-vertical" />
         </div>
         <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
-        <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600 }}>{cat.name}</span>
+        <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600, color: isEditing ? '#b088f9' : '#1c1c1e' }}>{cat.name}</span>
+        {isEditing && <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem', color: '#b088f9', marginRight: 4 }} />}
       </div>
     </div>
   )
@@ -87,9 +112,12 @@ export default function Categories() {
   const [tab, setTab] = useState('expense')
   const [editCat, setEditCat] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', icon: '📦', type: 'expense' })
+  const [form, setForm] = useState({ name: '', icon: '', type: 'expense' })
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 300, tolerance: 8 } }))
+  const sensors = useSensors(
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
+  )
 
   const load = useCallback(() => api.get('/api/categories').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
@@ -113,7 +141,7 @@ export default function Categories() {
     if (!form.name.trim()) return
     if (editCat) await api.put(`/api/categories/${editCat.id}`, { name: form.name, icon: form.icon })
     else await api.post('/api/categories', { name: form.name, icon: form.icon, type: form.type || tab })
-    setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '📦', type: tab }); load()
+    setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }); load()
   }
 
   async function handleDelete(id) {
@@ -128,7 +156,7 @@ export default function Categories() {
         <h6 className="fw-bold mb-3">{editCat ? '카테고리 수정' : '카테고리 추가'}</h6>
         <div className="row g-2">
           <div className="col-3">
-            <input className="form-control text-center" placeholder="아이콘" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ fontSize: '1.3rem' }} />
+            <input className="form-control text-center" placeholder="🙂" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ fontSize: '1.3rem' }} />
           </div>
           <div className="col-9">
             <input className="form-control" placeholder="카테고리 이름" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -143,8 +171,8 @@ export default function Categories() {
           )}
         </div>
         <div className="d-flex justify-content-end gap-2 mt-3">
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '📦', type: tab }) }}>취소</button>
           <button className="btn btn-sm px-4" onClick={handleSave} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
+          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }) }}>취소</button>
         </div>
       </div>
     </div>
@@ -155,7 +183,7 @@ export default function Categories() {
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h5 className="mb-0 fw-bold">카테고리</h5>
         {!addOpen && !editCat && (
-          <button className="btn btn-sm px-3" onClick={() => { setAddOpen(true); setForm({ name: '', icon: '📦', type: tab }) }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>
+          <button className="btn btn-sm px-3" onClick={() => { setAddOpen(true); setForm({ name: '', icon: '', type: tab }) }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>
             <i className="bi bi-plus-lg me-1" />추가
           </button>
         )}
@@ -179,7 +207,7 @@ export default function Categories() {
               <SortableContext items={cats.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 {cats.map((cat, i) => (
                   <div key={cat.id} style={{ borderBottom: i < cats.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
-                    <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type }) }} onDelete={handleDelete} />
+                    <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
                   </div>
                 ))}
               </SortableContext>

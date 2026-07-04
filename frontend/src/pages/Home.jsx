@@ -36,29 +36,45 @@ function SwipeItem({ children, onDelete, onEdit }) {
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
+  const mouseDown = useRef(false)
 
-  const onTouchStart = e => {
-    const cx = e.touches[0].clientX
+  const getClientXY = e => e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY]
+
+  const onDragStart = e => {
+    const [cx, cy] = getClientXY(e)
+    if (!e.touches) {
+      // PC: 엣지 제한 없이 드래그 허용
+      startX.current = cx
+      startY.current = cy
+      horiz.current = true
+      mouseDown.current = true
+      setOffsetX(0)
+      return
+    }
     const wrap = e.currentTarget.closest('.page-wrap')
     const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
     const relX = cx - rect.left
     if (relX < 80 || relX > rect.width - 80) return
     startX.current = cx
-    startY.current = e.touches[0].clientY
+    startY.current = cy
     horiz.current = false
     setOffsetX(0)
   }
-  const onTouchMove = e => {
+
+  const onDragMove = e => {
     if (startX.current === null) return
-    const dx = startX.current - e.touches[0].clientX
-    const dy = startY.current - e.touches[0].clientY
+    const [cx, cy] = getClientXY(e)
+    const dx = startX.current - cx
+    const dy = startY.current - cy
     if (!horiz.current) {
       if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
       if (Math.abs(dx) > 8) horiz.current = true; else return
     }
     setOffsetX(Math.max(-110, Math.min(110, -dx)))
   }
-  const onTouchEnd = () => {
+
+  const onDragEnd = () => {
+    mouseDown.current = false
     if (startX.current === null) return
     const cur = offsetX
     startX.current = null
@@ -78,8 +94,9 @@ function SwipeItem({ children, onDelete, onEdit }) {
       <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: editWidth, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>수정</span>
       </div>
-      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab' }}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
+        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
         {children}
       </div>
     </div>
@@ -96,6 +113,7 @@ export default function Home() {
   const [addOpen, setAddOpen] = useState(true)
   const [txOpen, setTxOpen] = useState(true)
   const [importOpen, setImportOpen] = useState(false)
+  const [importTab, setImportTab] = useState('text')
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
@@ -417,36 +435,46 @@ export default function Home() {
           <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header p-3">
               <h5 className="modal-title mb-0">내역 가져오기</h5>
-              <button className="btn-close" onClick={() => setImportOpen(false)} />
+              <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text'); setImportFileName('') }} />
             </div>
             <div className="p-3">
-              <ul className="nav nav-tabs mb-3">
-                <li className="nav-item"><button className="nav-link active" data-bs-toggle="tab" data-bs-target="#tabText2"><i className="bi bi-chat-text text-primary" /> 문자 붙여넣기</button></li>
-                <li className="nav-item"><button className="nav-link" data-bs-toggle="tab" data-bs-target="#tabExcel2"><i className="bi bi-file-earmark-excel text-success" /> 엑셀</button></li>
-              </ul>
-              <div className="tab-content">
-                <div className="tab-pane fade show active" id="tabText2">
-                  <form action="/import/text" method="post">
-                    <p className="text-muted" style={{ fontSize: '0.85rem' }}>카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.</p>
-                    <textarea name="text" className="form-control mb-3" rows={7} placeholder="예) [신한카드] 일시불 50,000원 스타벅스 2026-06-17" style={{ fontSize: '0.82rem', resize: 'vertical' }} />
-                    <div className="d-flex justify-content-end gap-2 pb-2">
-                      <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>분석</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>
-                    </div>
-                  </form>
-                </div>
-                <div className="tab-pane fade" id="tabExcel2">
-                  <form action="/import" method="post" encType="multipart/form-data">
-                    <p className="text-muted" style={{ fontSize: '0.85rem' }}>양식을 다운받아 작성 후 업로드하거나, 은행 내보내기 파일을 바로 올리세요.</p>
-                    <a href="/import/template" className="btn btn-sm btn-outline-success mb-3" style={{ borderRadius: 8 }}><i className="bi bi-download" /> 양식 다운로드</a>
-                    <input type="file" name="file" className="form-control mb-3" accept=".xlsx,.xls" required />
-                    <div className="d-flex justify-content-end gap-2 pb-2">
-                      <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>다음</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>
-                    </div>
-                  </form>
-                </div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f0eeff', borderRadius: 12, padding: 4 }}>
+                {[['text', '💬 문자 붙여넣기'], ['excel', '📊 엑셀']].map(([t, label]) => (
+                  <button key={t} type="button" onClick={() => setImportTab(t)}
+                    style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                      background: importTab === t ? 'white' : 'transparent',
+                      color: importTab === t ? '#b088f9' : '#999',
+                      boxShadow: importTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+                    {label}
+                  </button>
+                ))}
               </div>
+              {importTab === 'text' && (
+                <form action="/import/text" method="post">
+                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.</p>
+                  <textarea name="text" className="form-control mb-3" rows={7} placeholder="예) [신한카드] 일시불 50,000원 스타벅스 2026-06-17" style={{ fontSize: '0.82rem', resize: 'vertical' }} />
+                  <div className="d-flex justify-content-end gap-2 pb-2">
+                    <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>분석</button>
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>
+                  </div>
+                </form>
+              )}
+              {importTab === 'excel' && (
+                <form action="/import" method="post" encType="multipart/form-data">
+                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>양식을 다운받아 작성 후 업로드하거나, 은행 내보내기 파일을 바로 올리세요.</p>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                    <a href="/import/template" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, background: '#e8e8e8', color: '#1c1c1e', fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none' }}>
+                      <i className="bi bi-download" /> 양식 다운로드
+                    </a>
+                  </div>
+                  <input type="file" name="file" className="form-control mb-3 file-input-green" accept=".xlsx,.xls" required
+                    style={{ border: '1.5px solid #4caf50', background: 'white', color: '#1c1c1e' }} />
+                  <div className="d-flex justify-content-end gap-2 pb-2">
+                    <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>다음</button>
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

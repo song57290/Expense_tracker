@@ -4,6 +4,17 @@
   --blue: #7baff0;
 }
 
+.file-input-green::file-selector-button {
+  background: #c8e6c9;
+  color: #1c1c1e;
+  border: none;
+  border-right: 1.5px solid #4caf50;
+  padding: 6px 14px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 html, body {
   background: #f8f9fa;
   overflow-x: hidden;
@@ -54,7 +65,7 @@ html, body {
 /* Bottom Nav */
 .bottom-nav {
   position: fixed;
-  bottom: 16px; left: 16px; right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom)); left: 16px; right: 16px;
   background: var(--grad);
   border-radius: 20px;
   box-shadow: 0 4px 20px rgba(123,107,224,0.3);
@@ -158,7 +169,7 @@ body.sheet-open .bottom-nav { display: none !important; }
 .route-slide-l { animation: slideFromRight 0.3s cubic-bezier(0.25,0.46,0.45,0.94) both; }
 .route-slide-r { animation: slideFromLeft  0.3s cubic-bezier(0.25,0.46,0.45,0.94) both; }
 
-.page-wrap { overflow-x: hidden; min-height: 100vh; min-height: 100dvh; }
+.page-wrap { overflow-x: hidden; min-height: 100vh; min-height: 100dvh; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
 @media (min-width: 480px) and (max-width: 991px) {
   .page-wrap {
