@@ -11,11 +11,10 @@ export default function Login({ onLogin }) {
   // 비밀번호 찾기
   const [resetStep, setResetStep] = useState(1)
   const [resetEmail, setResetEmail] = useState('')
-  const [resetCode, setResetCode] = useState('')
   const [resetCodeInput, setResetCodeInput] = useState('')
   const [resetPassword, setResetPassword] = useState('')
 
-  function switchTab(t) { setTab(t); setError(''); setResetStep(1); setResetEmail(''); setResetCode(''); setResetCodeInput(''); setResetPassword('') }
+  function switchTab(t) { setTab(t); setError(''); setResetStep(1); setResetEmail(''); setResetCodeInput(''); setResetPassword('') }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -53,7 +52,6 @@ export default function Login({ onLogin }) {
       })
       const d = await r.json()
       if (!r.ok) { setError(d.error); return }
-      setResetCode(d.code)
       setResetStep(2)
     } catch {
       setError('서버에 연결할 수 없습니다')
@@ -163,7 +161,7 @@ export default function Login({ onLogin }) {
         {/* 비밀번호 찾기 - 1단계 */}
         {tab === 'reset' && resetStep === 1 && (
           <form onSubmit={handleResetRequest}>
-            <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>가입한 이메일을 입력하면 인증 코드를 발급합니다.</p>
+            <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>가입한 이메일로 인증번호를 발송합니다.</p>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>이메일</label>
               <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} required placeholder="example@email.com"
@@ -171,7 +169,7 @@ export default function Login({ onLogin }) {
             </div>
             <button type="submit" disabled={loading}
               style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
-              {loading ? '처리 중...' : '인증 코드 발급'}
+              {loading ? '발송 중...' : '인증번호 발송'}
             </button>
           </form>
         )}
@@ -180,14 +178,14 @@ export default function Login({ onLogin }) {
         {tab === 'reset' && resetStep === 2 && (
           <form onSubmit={handleResetConfirm}>
             <div style={{ background: '#f0eeff', borderRadius: 12, padding: '12px 16px', marginBottom: 20, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.78rem', color: '#b088f9', marginBottom: 4 }}>인증 코드 (30분 유효)</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 700, letterSpacing: '0.2em', color: '#7c4dff' }}>{resetCode}</div>
+              <div style={{ fontSize: '0.85rem', color: '#b088f9', fontWeight: 600 }}>📧 인증번호를 이메일로 발송했습니다</div>
+              <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 4 }}>{resetEmail} · 30분 이내 입력</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>인증 코드 입력</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>인증번호 6자리</label>
               <input type="text" inputMode="numeric" value={resetCodeInput} onChange={e => setResetCodeInput(e.target.value)} required placeholder="000000" maxLength={6}
                 style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.1rem' }}
-                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>새 비밀번호 (6자 이상)</label>

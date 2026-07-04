@@ -299,10 +299,37 @@ export default function Settings() {
   const [pfSections, setPfSections] = useState({ summary: true, asset_composition: true, cards: true, savings: true, investments: true, transactions: true })
   const [pfSheetOpen, setPfSheetOpen] = useState(false)
   const [pfSheetVisible, setPfSheetVisible] = useState(false)
+  const [notices, setNotices] = useState([])
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const [noticeForm, setNoticeForm] = useState({ title: '', content: '' })
+  const [noticeFormOpen, setNoticeFormOpen] = useState(false)
+  const [noticeSaving, setNoticeSaving] = useState(false)
+  const [expandedNotice, setExpandedNotice] = useState(null)
+
+  const loadNotices = () => api.get('/api/notices').then(setNotices).catch(() => {})
 
   useEffect(() => {
     api.get('/api/me').then(d => { setUser(d.user); setNicknameVal(d.user?.nickname || '') }).catch(() => {})
+    loadNotices()
   }, [])
+
+  async function submitNotice(e) {
+    e.preventDefault()
+    setNoticeSaving(true)
+    try {
+      await api.post('/api/notices', noticeForm)
+      setNoticeForm({ title: '', content: '' })
+      setNoticeFormOpen(false)
+      loadNotices()
+    } finally {
+      setNoticeSaving(false)
+    }
+  }
+
+  async function deleteNotice(id) {
+    await api.delete(`/api/notices/${id}`)
+    loadNotices()
+  }
 
   async function savePassword() {
     setPwError('')
@@ -333,6 +360,7 @@ export default function Settings() {
     }
   }
 
+  const [securityOpen, setSecurityOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
 
   async function handleLogout() {
@@ -394,58 +422,195 @@ export default function Settings() {
     <div>
       <h5 className="fw-bold mb-3">설정</h5>
 
-      {/* 닉네임 */}
+      {/* 보안 */}
       <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>닉네임</div>
-          {!nicknameEdit ? (
-            <div className="d-flex justify-content-between align-items-center">
-              <span style={{ fontSize: '1rem', fontWeight: 600 }}>{user?.nickname || '(없음)'}</span>
-              <button onClick={() => { setNicknameVal(user?.nickname || ''); setNicknameEdit(true) }}
-                style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
-            </div>
-          ) : (
-            <div>
-              <input type="text" value={nicknameVal} onChange={e => setNicknameVal(e.target.value)} placeholder="닉네임 입력"
-                style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus maxLength={30} />
-              <div className="d-flex gap-2">
-                <button onClick={saveNickname} disabled={nicknameSaving}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: nicknameSaving ? 0.7 : 1 }}>
-                  {nicknameSaving ? '저장 중...' : '저장'}</button>
-                <button onClick={() => setNicknameEdit(false)}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+        <div className="card-body" style={{ paddingBottom: securityOpen ? 16 : undefined }}>
+          <div className="d-flex justify-content-between align-items-center" onClick={() => setSecurityOpen(o => !o)} style={{ cursor: 'pointer' }}>
+            <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>🔒 보안</div>
+            <span style={{ color: '#bbb', fontSize: '0.85rem' }}>{securityOpen ? '▴' : '▾'}</span>
+          </div>
+          {securityOpen && (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* 닉네임 */}
+              <div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>닉네임</div>
+                {!nicknameEdit ? (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <span style={{ fontSize: '1rem', fontWeight: 600 }}>{user?.nickname || '(없음)'}</span>
+                    <button onClick={() => { setNicknameVal(user?.nickname || ''); setNicknameEdit(true) }}
+                      style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
+                  </div>
+                ) : (
+                  <div>
+                    <input type="text" value={nicknameVal} onChange={e => setNicknameVal(e.target.value)} placeholder="닉네임 입력"
+                      style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus maxLength={30} />
+                    <div className="d-flex gap-2">
+                      <button onClick={saveNickname} disabled={nicknameSaving}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: nicknameSaving ? 0.7 : 1 }}>
+                        {nicknameSaving ? '저장 중...' : '저장'}</button>
+                      <button onClick={() => setNicknameEdit(false)}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+
+              {/* 비밀번호 */}
+              <div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>비밀번호</div>
+                {!pwEdit ? (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <span style={{ fontSize: '1rem', fontWeight: 600, color: '#bbb', letterSpacing: 4 }}>••••••</span>
+                    <button onClick={() => { setPwEdit(true); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }}
+                      style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
+                  </div>
+                ) : (
+                  <div>
+                    <input type="password" placeholder="현재 비밀번호" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                    <input type="password" placeholder="새 비밀번호 (6자 이상)" value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                    <input type="password" placeholder="새 비밀번호 확인" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+                      style={{ ...inputStyle, marginBottom: pwError ? 6 : 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                    {pwError && <p style={{ color: '#dc3545', fontSize: '0.8rem', marginBottom: 8 }}>{pwError}</p>}
+                    <div className="d-flex gap-2">
+                      <button onClick={savePassword} disabled={pwSaving}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: pwSaving ? 0.7 : 1 }}>
+                        {pwSaving ? '저장 중...' : '저장'}</button>
+                      <button onClick={() => { setPwEdit(false); setPwError('') }}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+
+              {/* 계정 / 로그아웃 */}
+              <div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>계정</div>
+                <div className="text-muted mb-3" style={{ fontSize: '0.82rem' }}>{user?.email}</div>
+                {!logoutConfirm ? (
+                  <button onClick={() => setLogoutConfirm(true)}
+                    style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: '#fff0f0', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    로그아웃
+                  </button>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: '0.88rem', color: '#555', marginBottom: 12, textAlign: 'center' }}>로그아웃 하시겠습니까?</p>
+                    <div className="d-flex gap-2">
+                      <button onClick={handleLogout}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#dc3545', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>로그아웃</button>
+                      <button onClick={() => setLogoutConfirm(false)}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+
+              {/* 회원 탈퇴 */}
+              <div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>개인 정보 보호</div>
+                {!deleteConfirm ? (
+                  <button onClick={() => setDeleteConfirm(true)}
+                    style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #dc3545', background: 'white', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    회원 탈퇴
+                  </button>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: '0.85rem', color: '#dc3545', marginBottom: 10 }}>탈퇴하면 모든 데이터가 삭제되며 복구할 수 없습니다.<br />확인을 위해 이메일 주소를 입력하세요.</p>
+                    <input type="email" value={deleteInput} onChange={e => setDeleteInput(e.target.value)} placeholder={user?.email}
+                      style={{ ...inputStyle, borderColor: '#ffcdd2', marginBottom: 10 }} />
+                    <div className="d-flex gap-2">
+                      <button onClick={handleDeleteAccount} disabled={deleteInput !== user?.email || deleting}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: deleteInput === user?.email ? '#dc3545' : '#eee', color: deleteInput === user?.email ? 'white' : '#aaa', fontWeight: 600, fontSize: '0.9rem', cursor: deleteInput === user?.email ? 'pointer' : 'not-allowed' }}>
+                        {deleting ? '처리 중...' : '탈퇴 확인'}</button>
+                      <button onClick={() => { setDeleteConfirm(false); setDeleteInput('') }}
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
         </div>
       </div>
 
-      {/* 비밀번호 */}
+      {/* 공지사항 */}
       <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>비밀번호</div>
-          {!pwEdit ? (
-            <div className="d-flex justify-content-between align-items-center">
-              <span style={{ fontSize: '1rem', fontWeight: 600, color: '#bbb', letterSpacing: 4 }}>••••••</span>
-              <button onClick={() => { setPwEdit(true); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }}
-                style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <div className="fw-semibold" style={{ fontSize: '0.88rem', color: '#888' }}>공지사항</div>
+            <div className="d-flex gap-2 align-items-center">
+              {user?.email === 'song57290@gmail.com' && (
+                <button onClick={() => { setNoticeFormOpen(o => !o); setNoticeForm({ title: '', content: '' }) }}
+                  style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {noticeFormOpen ? '취소' : '+ 작성'}
+                </button>
+              )}
+              <button onClick={() => setNoticeOpen(o => !o)}
+                style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.85rem', cursor: 'pointer', padding: '4px 6px' }}>
+                {noticeOpen ? '▴' : '▾'}
+              </button>
             </div>
+          </div>
+
+          {noticeFormOpen && (
+            <form onSubmit={submitNotice} style={{ marginBottom: 12 }}>
+              <input type="text" placeholder="제목" value={noticeForm.title}
+                onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e8e8e8', fontSize: '0.9rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+              <textarea placeholder="내용" value={noticeForm.content}
+                onChange={e => setNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e8e8e8', fontSize: '0.9rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <button type="submit" disabled={noticeSaving}
+                style={{ marginTop: 8, width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: noticeSaving ? 0.7 : 1 }}>
+                {noticeSaving ? '등록 중...' : '등록'}
+              </button>
+            </form>
+          )}
+
+          {notices.length === 0 ? (
+            <p style={{ fontSize: '0.82rem', color: '#ccc', margin: 0 }}>등록된 공지사항이 없습니다</p>
           ) : (
             <div>
-              <input type="password" placeholder="현재 비밀번호" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
-                style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
-              <input type="password" placeholder="새 비밀번호 (6자 이상)" value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
-                style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
-              <input type="password" placeholder="새 비밀번호 확인" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
-                style={{ ...inputStyle, marginBottom: pwError ? 6 : 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
-              {pwError && <p style={{ color: '#dc3545', fontSize: '0.8rem', marginBottom: 8 }}>{pwError}</p>}
-              <div className="d-flex gap-2">
-                <button onClick={savePassword} disabled={pwSaving}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: pwSaving ? 0.7 : 1 }}>
-                  {pwSaving ? '저장 중...' : '저장'}</button>
-                <button onClick={() => { setPwEdit(false); setPwError('') }}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
-              </div>
+              {/* 최신 1개는 항상 표시 */}
+              {notices.slice(0, noticeOpen ? notices.length : 1).map(n => (
+                <div key={n.id} style={{ borderRadius: 10, border: '1px solid #f0f0f0', marginBottom: 8, overflow: 'hidden' }}>
+                  <div className="d-flex justify-content-between align-items-center"
+                    onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
+                    style={{ padding: '10px 14px', cursor: 'pointer', background: '#fafafa' }}>
+                    <div>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#333' }}>{n.title}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{n.created_at}</span>
+                    </div>
+                    <div className="d-flex align-items-center gap-2">
+                      {n.is_admin && (
+                        <button onClick={e => { e.stopPropagation(); deleteNotice(n.id) }}
+                          style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
+                      )}
+                      <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{expandedNotice === n.id ? '▴' : '▾'}</span>
+                    </div>
+                  </div>
+                  {expandedNotice === n.id && (
+                    <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'white' }}>
+                      {n.content}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {!noticeOpen && notices.length > 1 && (
+                <button onClick={() => setNoticeOpen(true)}
+                  style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+                  전체 보기 ({notices.length}개) ▾
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -460,56 +625,6 @@ export default function Settings() {
             style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             포트폴리오 PDF 출력
           </button>
-        </div>
-      </div>
-
-      {/* 개인 정보 보호 */}
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>개인 정보 보호</div>
-          {!deleteConfirm ? (
-            <button onClick={() => setDeleteConfirm(true)}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #dc3545', background: 'white', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-              회원 탈퇴
-            </button>
-          ) : (
-            <div>
-              <p style={{ fontSize: '0.85rem', color: '#dc3545', marginBottom: 10 }}>탈퇴하면 모든 데이터가 삭제되며 복구할 수 없습니다.<br />확인을 위해 이메일 주소를 입력하세요.</p>
-              <input type="email" value={deleteInput} onChange={e => setDeleteInput(e.target.value)} placeholder={user?.email}
-                style={{ ...inputStyle, borderColor: '#ffcdd2', marginBottom: 10 }} />
-              <div className="d-flex gap-2">
-                <button onClick={handleDeleteAccount} disabled={deleteInput !== user?.email || deleting}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: deleteInput === user?.email ? '#dc3545' : '#eee', color: deleteInput === user?.email ? 'white' : '#aaa', fontWeight: 600, fontSize: '0.9rem', cursor: deleteInput === user?.email ? 'pointer' : 'not-allowed' }}>
-                  {deleting ? '처리 중...' : '탈퇴 확인'}</button>
-                <button onClick={() => { setDeleteConfirm(false); setDeleteInput('') }}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 계정 */}
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>계정</div>
-          <div className="text-muted mb-3" style={{ fontSize: '0.82rem' }}>{user?.email}</div>
-          {!logoutConfirm ? (
-            <button onClick={() => setLogoutConfirm(true)}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: '#fff0f0', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-              로그아웃
-            </button>
-          ) : (
-            <div>
-              <p style={{ fontSize: '0.88rem', color: '#555', marginBottom: 12, textAlign: 'center' }}>로그아웃 하시겠습니까?</p>
-              <div className="d-flex gap-2">
-                <button onClick={handleLogout}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#dc3545', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>로그아웃</button>
-                <button onClick={() => setLogoutConfirm(false)}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

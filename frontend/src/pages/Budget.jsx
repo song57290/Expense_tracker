@@ -44,6 +44,7 @@ function BankBtn({ bankName, logo, label, selected, onPick }) {
 function AddSheet({ open, visible, onClose, onSaved }) {
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
+  const [initialBalance, setInitialBalance] = useState('')
   const [target, setTarget] = useState('')
   const [url, setUrl] = useState('')
   const [tier1, setTier1] = useState(20)
@@ -56,8 +57,9 @@ function AddSheet({ open, visible, onClose, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault()
     const t = parseInt(target.replace(/,/g, '')) || 0
-    await api.post('/api/cards', { name, target: t, url, tier1, tier2, tier3 })
-    setSelected(''); setName(''); setTarget(''); setUrl('')
+    const ib = parseInt(initialBalance.replace(/,/g, '')) || 0
+    await api.post('/api/cards', { name, target: t, url, tier1, tier2, tier3, account_balance: ib })
+    setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
     setTier1(20); setTier2(50); setTier3(80); setTierOpen(false)
     onSaved(); onClose()
   }
@@ -71,8 +73,8 @@ function AddSheet({ open, visible, onClose, onSaved }) {
           <h6 className="mb-0 fw-bold">카드 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingBottom: '80px' }}>
-          <form onSubmit={handleSubmit}>
+        <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
+          <form id="add-card-form" onSubmit={handleSubmit}>
             <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
             <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
               {BANKS.map(([bname, logo, label]) => (
@@ -87,6 +89,11 @@ function AddSheet({ open, visible, onClose, onSaved }) {
             </div>
             <input type="text" className="form-control mb-2" placeholder="카드/은행 이름 (위 선택 시 자동 입력, 직접 수정 가능)"
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
+            <input type="text" className="form-control mb-2" placeholder="초기 잔고 (앱 사용 전 계좌 잔액, 선택)" inputMode="numeric"
+              value={initialBalance} onChange={e => {
+                const raw = e.target.value.replace(/[^0-9]/g, '')
+                setInitialBalance(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+              }} style={{ borderRadius: 10 }} />
             <input type="text" className="form-control mb-2" placeholder="월 목표 금액" inputMode="numeric"
               value={target} onChange={e => {
                 const raw = e.target.value.replace(/[^0-9]/g, '')
@@ -109,8 +116,13 @@ function AddSheet({ open, visible, onClose, onSaved }) {
                 <span className="badge" style={{ background: '#198754' }}>초록</span>
               </div>
             )}
-            <button type="submit" className="btn w-100 mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>추가하기</button>
           </form>
+        </div>
+        <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+          <div className="d-flex gap-2">
+            <button type="submit" form="add-card-form" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>추가하기</button>
+            <button type="button" className="btn btn-outline-secondary flex-fill" onClick={onClose} style={{ borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>취소</button>
+          </div>
         </div>
       </div>
     </div>
@@ -181,6 +193,12 @@ function SwipeCard({ card, onEdit, onDelete }) {
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
             <span className="fw-semibold">{card.name}</span>
+            {card.url && (
+              <a href={card.url} target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', color: '#b088f9', fontSize: '0.75rem', textDecoration: 'underline', lineHeight: 1, fontWeight: 600 }}>
+                🔗 혜택 사이트
+              </a>
+            )}
           </div>
           <div className="text-end">
             <div className="text-muted" style={{ fontSize: '0.7rem' }}>잔고</div>
@@ -665,6 +683,7 @@ export default function Budget() {
   const [editCard, setEditCard] = useState(null)
   const [editInitial, setEditInitial] = useState('')
   const [editTarget, setEditTarget] = useState('')
+  const [editUrl, setEditUrl] = useState('')
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editSheetVisible, setEditSheetVisible] = useState(false)
   const [addSheetOpen, setAddSheetOpen] = useState(false)
@@ -700,6 +719,7 @@ export default function Budget() {
     setEditCard(card)
     setEditInitial((card.initial_balance || 0).toLocaleString('ko-KR'))
     setEditTarget((card.target || 0).toLocaleString('ko-KR'))
+    setEditUrl(card.url || '')
     setEditSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setEditSheetVisible(true)))
   }
@@ -715,7 +735,7 @@ export default function Budget() {
     await api.put(`/api/cards/${editCard.id}`, {
       name: editCard.name, target,
       tier1: editCard.tier1, tier2: editCard.tier2, tier3: editCard.tier3,
-      account_balance: initial,
+      account_balance: initial, url: editUrl,
     })
     closeEdit(); load()
   }
@@ -916,23 +936,36 @@ export default function Budget() {
               <h6 className="mb-0 fw-bold">{editCard?.name} 수정</h6>
               <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 100 }}>
-              <form onSubmit={handleEditSave}>
+            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
+              <form id="edit-card-form" onSubmit={handleEditSave}>
                 <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (앱 사용 시작 전 계좌 잔액)</label>
                   <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }}
                     value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial)} />
                 </div>
-                <div className="mb-4">
+                <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월 실적 목표 금액</label>
                   <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }}
                     value={editTarget} onChange={e => fmtInput(e.target.value, setEditTarget)} />
                 </div>
-                <div className="d-flex gap-2">
-                  <button type="submit" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-                  <button type="button" className="btn btn-outline-secondary flex-fill" onClick={closeEdit} style={{ borderRadius: 10 }}>취소</button>
+                <div className="mb-2">
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>
+                  <input type="url" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }} placeholder="https://..."
+                    value={editUrl} onChange={e => setEditUrl(e.target.value)} />
                 </div>
+                {editUrl && (
+                  <a href={editUrl} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-block', fontSize: '0.82rem', color: '#b088f9', textDecoration: 'none', marginBottom: 8 }}>
+                    🔗 혜택 사이트 바로가기
+                  </a>
+                )}
               </form>
+            </div>
+            <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+              <div className="d-flex gap-2">
+                <button type="submit" form="edit-card-form" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>저장</button>
+                <button type="button" className="btn btn-outline-secondary flex-fill" onClick={closeEdit} style={{ borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>취소</button>
+              </div>
             </div>
           </div>
         </div>
