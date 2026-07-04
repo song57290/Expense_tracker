@@ -157,30 +157,36 @@ function SwipeCard({ card, onEdit, onDelete }) {
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
   const cardRef = useRef(null)
+  const mouseDown = useRef(false)
 
-  const onTouchStart = e => {
-    const cx = e.touches[0].clientX
-    const wrap = e.currentTarget.closest('.page-wrap')
-    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
-    const relX = cx - rect.left
-    if (relX < 80 || relX > rect.width - 80) return
-    startX.current = cx
-    startY.current = e.touches[0].clientY
-    horiz.current = false
+  const onDragStart = e => {
+    if (e.touches) {
+      const cx = e.touches[0].clientX
+      const wrap = e.currentTarget.closest('.page-wrap')
+      const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+      if (cx - rect.left < 80 || cx - rect.left > rect.width - 80) return
+      startX.current = cx; startY.current = e.touches[0].clientY; horiz.current = false
+    } else {
+      startX.current = e.clientX; startY.current = e.clientY; horiz.current = true
+      mouseDown.current = true; setOffsetX(0)
+    }
   }
-  const onTouchMove = e => {
+  const onDragMove = e => {
     if (startX.current === null) return
-    const dx = startX.current - e.touches[0].clientX
-    const dy = startY.current - e.touches[0].clientY
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    const dx = startX.current - cx
+    const dy = startY.current - cy
     if (!horiz.current) {
       if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
       if (Math.abs(dx) > 8) horiz.current = true; else return
     }
-    e.preventDefault()
+    if (e.touches) e.preventDefault()
     const maxSlide = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 4) : 80
     setOffsetX(Math.max(-maxSlide, Math.min(maxSlide, -dx)))
   }
-  const onTouchEnd = () => {
+  const onDragEnd = () => {
+    mouseDown.current = false
     if (startX.current === null) return
     const cur = offsetX
     startX.current = null
@@ -189,6 +195,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
     else if (cur > trigger) { setOffsetX(0); onEdit() }
     else setOffsetX(0)
   }
+  const onTouchStart = onDragStart; const onTouchMove = onDragMove; const onTouchEnd = onDragEnd
 
   const tierClass = (pct, t1, t2, t3) => {
     if (pct > t3) return 'bg-success'
@@ -211,7 +218,8 @@ function SwipeCard({ card, onEdit, onDelete }) {
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
@@ -267,31 +275,37 @@ function SavingsItem({ item, onEdit, onDelete }) {
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
   const cardRef = useRef(null)
+  const mouseDown = useRef(false)
 
-  const onTouchStart = e => {
-    const cx = e.touches[0].clientX
-    const wrap = e.currentTarget.closest('.page-wrap')
-    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
-    const relX = cx - rect.left
-    if (relX < 80 || relX > rect.width - 80) return
-    startX.current = cx; startY.current = e.touches[0].clientY; horiz.current = false
+  const onDragStart = e => {
+    if (e.touches) {
+      const cx = e.touches[0].clientX
+      const wrap = e.currentTarget.closest('.page-wrap')
+      const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+      if (cx - rect.left < 80 || cx - rect.left > rect.width - 80) return
+      startX.current = cx; startY.current = e.touches[0].clientY; horiz.current = false
+    } else {
+      startX.current = e.clientX; startY.current = e.clientY; horiz.current = true
+      mouseDown.current = true; setOffsetX(0)
+    }
   }
-  const onTouchMove = e => {
+  const onDragMove = e => {
     if (startX.current === null) return
-    const dx = startX.current - e.touches[0].clientX
-    const dy = startY.current - e.touches[0].clientY
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    const dx = startX.current - cx; const dy = startY.current - cy
     if (!horiz.current) {
       if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
       if (Math.abs(dx) > 8) horiz.current = true; else return
     }
-    e.preventDefault()
+    if (e.touches) e.preventDefault()
     const maxSlide = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 4) : 80
     setOffsetX(Math.max(-maxSlide, Math.min(maxSlide, -dx)))
   }
-  const onTouchEnd = () => {
+  const onDragEnd = () => {
+    mouseDown.current = false
     if (startX.current === null) return
-    const cur = offsetX
-    startX.current = null
+    const cur = offsetX; startX.current = null
     const trigger = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 8) : 40
     if (cur < -trigger) { setOffsetX(0); onDelete() }
     else if (cur > trigger) { setOffsetX(0); onEdit() }
@@ -313,7 +327,8 @@ function SavingsItem({ item, onEdit, onDelete }) {
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
@@ -488,31 +503,37 @@ function InvestmentItem({ item, onEdit, onDelete }) {
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
   const cardRef = useRef(null)
+  const mouseDown = useRef(false)
 
-  const onTouchStart = e => {
-    const cx = e.touches[0].clientX
-    const wrap = e.currentTarget.closest('.page-wrap')
-    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
-    const relX = cx - rect.left
-    if (relX < 80 || relX > rect.width - 80) return
-    startX.current = cx; startY.current = e.touches[0].clientY; horiz.current = false
+  const onDragStart = e => {
+    if (e.touches) {
+      const cx = e.touches[0].clientX
+      const wrap = e.currentTarget.closest('.page-wrap')
+      const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
+      if (cx - rect.left < 80 || cx - rect.left > rect.width - 80) return
+      startX.current = cx; startY.current = e.touches[0].clientY; horiz.current = false
+    } else {
+      startX.current = e.clientX; startY.current = e.clientY; horiz.current = true
+      mouseDown.current = true; setOffsetX(0)
+    }
   }
-  const onTouchMove = e => {
+  const onDragMove = e => {
     if (startX.current === null) return
-    const dx = startX.current - e.touches[0].clientX
-    const dy = startY.current - e.touches[0].clientY
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    const dx = startX.current - cx; const dy = startY.current - cy
     if (!horiz.current) {
       if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
       if (Math.abs(dx) > 8) horiz.current = true; else return
     }
-    e.preventDefault()
+    if (e.touches) e.preventDefault()
     const maxSlide = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 4) : 80
     setOffsetX(Math.max(-maxSlide, Math.min(maxSlide, -dx)))
   }
-  const onTouchEnd = () => {
+  const onDragEnd = () => {
+    mouseDown.current = false
     if (startX.current === null) return
-    const cur = offsetX
-    startX.current = null
+    const cur = offsetX; startX.current = null
     const trigger = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 8) : 40
     if (cur < -trigger) { setOffsetX(0); onDelete() }
     else if (cur > trigger) { setOffsetX(0); onEdit() }
@@ -534,7 +555,8 @@ function InvestmentItem({ item, onEdit, onDelete }) {
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem' }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
             <span style={{ fontSize: '1.1rem' }}>{icon}</span>

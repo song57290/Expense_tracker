@@ -90,8 +90,8 @@ export default function Edit() {
             <div className="d-flex justify-content-between gap-2">
               <button type="button" className="btn btn-outline-danger" onClick={handleDelete}>삭제</button>
               <div className="d-flex gap-2">
-                <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(-1)}>취소</button>
                 <button type="submit" className="btn px-4" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
+                <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(-1)}>취소</button>
               </div>
             </div>
           </form>
