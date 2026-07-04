@@ -360,6 +360,8 @@ export default function Settings() {
     }
   }
 
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpItem, setHelpItem] = useState(null)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
 
@@ -421,6 +423,47 @@ export default function Settings() {
   return (
     <div>
       <h5 className="fw-bold mb-3">설정</h5>
+
+      {/* 도움말 */}
+      {(() => {
+        const HELP = [
+          { icon: '🏠', title: '홈', desc: '수입·지출 내역을 기록하고 관리합니다.\n\n• 상단 탭으로 지출 / 수입 전환\n• 항목을 오른쪽으로 스와이프 → 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 우하단 + 버튼으로 새 내역 추가\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영' },
+          { icon: '💳', title: '예산', desc: '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제\n• 예적금 추가: 만기일·이율·납입액 입력 시 자동 계산\n• 투자 추가: 종목·수량·매수가 입력, 티커로 현재가 자동 조회' },
+          { icon: '📅', title: '캘린더', desc: '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동' },
+          { icon: '📊', title: '통계', desc: '카테고리별 지출을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리 비중 시각화\n• 월별 막대 차트: 최근 지출 추이\n• 월 이동 버튼으로 과거 달 조회 가능' },
+          { icon: '🏷️', title: '카테고리', desc: '지출·수입 카테고리를 관리합니다.\n\n• 오른쪽 스와이프 → 이름/아이콘 수정\n• 왼쪽 스와이프 → 삭제\n• 드래그로 순서 변경\n• 지출/수입 탭 분리 관리' },
+          { icon: '⚙️', title: '설정', desc: '앱 환경을 설정합니다.\n\n• 공지사항: 앱 업데이트 및 안내 확인\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴' },
+          { icon: '📄', title: '포트폴리오 PDF', desc: '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장' },
+        ]
+        return (
+          <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+            <div className="card-body">
+              <div className="d-flex justify-content-between align-items-center" onClick={() => setHelpOpen(o => !o)} style={{ cursor: 'pointer' }}>
+                <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>❓ 도움말</div>
+                <span style={{ color: '#bbb', fontSize: '0.85rem' }}>{helpOpen ? '▴' : '▾'}</span>
+              </div>
+              {helpOpen && (
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {HELP.map(h => (
+                    <div key={h.title}>
+                      <div onClick={() => setHelpItem(helpItem === h.title ? null : h.title)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: helpItem === h.title ? '#f0eaff' : '#fafafa', cursor: 'pointer' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: helpItem === h.title ? '#7c4fbf' : '#333' }}>{h.icon} {h.title}</span>
+                        <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{helpItem === h.title ? '▴' : '▾'}</span>
+                      </div>
+                      {helpItem === h.title && (
+                        <div style={{ padding: '10px 14px 6px', fontSize: '0.84rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
+                          {h.desc}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 보안 */}
       <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
