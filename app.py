@@ -502,7 +502,7 @@ def api_home():
 
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
-                          'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''} for tx in transactions],
+                          'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
         'balance': income_total - expense_total,
@@ -1768,47 +1768,120 @@ def import_confirm():
     col_desc   = gi('col_desc')
     col_cat    = gi('col_cat')
 
-    imported = 0
-    skipped = 0
-    for row in all_rows[header_row + 1:]:
+    parsed_rows = []
+    skipped_rows = []
+    row_num_offset = header_row + 2  # 1-based, header 다음 줄부터
+    for ri, row in enumerate(all_rows[header_row + 1:]):
+        row_num = ri + row_num_offset
+        raw_preview = ', '.join(str(c) for c in row if c is not None and str(c).strip())[:80]
         if not any(row):
             continue
         try:
             date_val = _parse_date(row[col_date]) if 0 <= col_date < len(row) else None
             if not date_val:
-                skipped += 1; continue
+                skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': '날짜 인식 불가'})
+                continue
 
             if col_debit >= 0 and col_credit >= 0:
                 debit  = _parse_amount(row[col_debit])  if col_debit  < len(row) else None
                 credit = _parse_amount(row[col_credit]) if col_credit < len(row) else None
                 if debit:    tx_type, amount = 'expense', debit
                 elif credit: tx_type, amount = 'income',  credit
-                else:        skipped += 1; continue
+                else:
+                    skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': '출금/입금 금액 없음'})
+                    continue
             elif col_amount >= 0 and col_type >= 0:
                 tx_type = _parse_type(row[col_type])
                 amount  = _parse_amount(row[col_amount])
                 if not tx_type or not amount:
-                    skipped += 1; continue
+                    skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': '금액 또는 유형 인식 불가'})
+                    continue
             elif col_amount >= 0:
                 amount = _parse_amount(row[col_amount])
-                if not amount: skipped += 1; continue
+                if not amount:
+                    skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': '금액 인식 불가'})
+                    continue
                 tx_type = 'expense'
             else:
-                skipped += 1; continue
+                skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': '금액 컬럼 미지정'})
+                continue
 
             desc_val = str(row[col_desc]).strip() if 0 <= col_desc < len(row) and row[col_desc] else ''
-            cat_val  = str(row[col_cat]).strip()  if 0 <= col_cat  < len(row) and row[col_cat]  else '기타'
+            cat_val  = str(row[col_cat]).strip()  if 0 <= col_cat  < len(row) and row[col_cat]  else ''
 
-            db.session.add(Transaction(
-                date=date_val, type=tx_type, category=cat_val,
-                description=desc_val, amount=amount, card=None, user_id=uid,
-            ))
-            imported += 1
-        except Exception:
-            skipped += 1
+            parsed_rows.append({
+                'date': date_val, 'type': tx_type,
+                'description': desc_val, 'amount': amount, 'category': cat_val,
+            })
+        except Exception as e:
+            skipped_rows.append({'row': row_num, 'preview': raw_preview, 'reason': f'파싱 오류: {str(e)[:40]}'})
+
+    # 파싱된 내역을 임시파일에 저장 후 카테고리 선택 페이지로
+    fd, cat_path = tempfile.mkstemp(suffix='.json', prefix='impc_')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump({'rows': parsed_rows, 'skipped_rows': skipped_rows}, f)
+
+    from urllib.parse import urlencode
+    return redirect('/import/categorize?' + urlencode({'tmp': os.path.basename(cat_path)}))
+
+
+@app.route('/import/categorize')
+def import_categorize():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
+    tmp = request.args.get('tmp', '')
+    if not tmp.startswith('impc_'):
+        return redirect('/')
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if not os.path.exists(path):
+        return redirect('/?import_error=세션이 만료되었습니다. 다시 업로드해주세요.')
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+
+    cats_expense = Category.query.filter(
+        (Category.user_id == uid) | (Category.user_id == None),
+        Category.cat_type == 'expense'
+    ).order_by(Category.position).all()
+    cats_income = Category.query.filter(
+        (Category.user_id == uid) | (Category.user_id == None),
+        Category.cat_type == 'income'
+    ).order_by(Category.position).all()
+
+    return render_template('import_categorize.html',
+                           rows=data['rows'], skipped_rows=data.get('skipped_rows', []),
+                           cats_expense=cats_expense, cats_income=cats_income,
+                           tmp=tmp)
+
+
+@app.route('/import/categorize/confirm', methods=['POST'])
+def import_categorize_confirm():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/login')
+    tmp = request.form.get('tmp', '')
+    if not tmp.startswith('impc_'):
+        return redirect('/')
+    path = os.path.join(tempfile.gettempdir(), tmp)
+    if not os.path.exists(path):
+        return redirect('/?import_error=세션이 만료되었습니다. 다시 업로드해주세요.')
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    os.remove(path)
+
+    imported = 0
+    for i, row in enumerate(data['rows']):
+        cat = request.form.get(f'cat_{i}', '기타').strip() or '기타'
+        db.session.add(Transaction(
+            date=row['date'], type=row['type'], category=cat,
+            description=row['description'], amount=row['amount'],
+            card=None, user_id=uid,
+        ))
+        imported += 1
 
     db.session.commit()
-    return redirect(f'/?imported={imported}&skipped={skipped}')
+    skipped_count = len(data.get('skipped_rows', []))
+    return redirect(f'/?imported={imported}&skipped={skipped_count}')
 
 def _parse_sms_line(line):
     amount_m = re.search(r'([\d,]+)원', line)
