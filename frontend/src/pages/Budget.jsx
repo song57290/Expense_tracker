@@ -42,6 +42,7 @@ function BankBtn({ bankName, logo, label, selected, onPick }) {
 }
 
 function AddSheet({ open, visible, onClose, onSaved }) {
+  const [assetType, setAssetType] = useState('card')
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
   const [initialBalance, setInitialBalance] = useState('')
@@ -54,12 +55,17 @@ function AddSheet({ open, visible, onClose, onSaved }) {
 
   function pick(cardName) { setSelected(cardName); setName(cardName) }
 
+  function switchType(t) {
+    setAssetType(t)
+    setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     const t = parseInt(target.replace(/,/g, '')) || 0
     const ib = parseInt(initialBalance.replace(/,/g, '')) || 0
     await api.post('/api/cards', { name, target: t, url, tier1, tier2, tier3, account_balance: ib })
-    setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
+    setAssetType('card'); setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
     setTier1(20); setTier2(50); setTier3(80); setTierOpen(false)
     onSaved(); onClose()
   }
@@ -70,37 +76,53 @@ function AddSheet({ open, visible, onClose, onSaved }) {
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="mb-0 fw-bold">카드 추가</h6>
+          <h6 className="mb-0 fw-bold">자산 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
           <form id="add-card-form" onSubmit={handleSubmit}>
-            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
-            <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
-              {BANKS.map(([bname, logo, label]) => (
-                <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+            {/* 자산 유형 선택 */}
+            <div className="d-flex gap-2 mb-3">
+              {[['card', '💳 카드 / 은행'], ['cash', '💵 현금']].map(([t, label]) => (
+                <button key={t} type="button" onClick={() => switchType(t)}
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? '#b088f9' : '#eee'}`, background: assetType === t ? 'rgba(176,136,249,0.1)' : 'white', color: assetType === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  {label}
+                </button>
               ))}
             </div>
-            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>카드사</p>
-            <div className="d-flex gap-2 pb-2 mb-3">
-              {CARD_COMPANIES.map(([bname, logo, label]) => (
-                <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
-              ))}
-            </div>
-            <input type="text" className="form-control mb-2" placeholder="카드/은행 이름 (위 선택 시 자동 입력, 직접 수정 가능)"
+
+            {assetType === 'card' && (<>
+              <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
+              <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
+                {BANKS.map(([bname, logo, label]) => (
+                  <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+                ))}
+              </div>
+              <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>카드사</p>
+              <div className="d-flex gap-2 pb-2 mb-3">
+                {CARD_COMPANIES.map(([bname, logo, label]) => (
+                  <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+                ))}
+              </div>
+            </>)}
+
+            <input type="text" className="form-control mb-2"
+              placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
-            <input type="text" className="form-control mb-2" placeholder="초기 잔고 (앱 사용 전 계좌 잔액, 선택)" inputMode="numeric"
+            <input type="text" className="form-control mb-2" placeholder="초기 잔고 (현재 보유 금액, 선택)" inputMode="numeric"
               value={initialBalance} onChange={e => {
                 const raw = e.target.value.replace(/[^0-9]/g, '')
                 setInitialBalance(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
               }} style={{ borderRadius: 10 }} />
-            <input type="text" className="form-control mb-2" placeholder="월 목표 금액" inputMode="numeric"
+            <input type="text" className="form-control mb-2" placeholder={assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
               value={target} onChange={e => {
                 const raw = e.target.value.replace(/[^0-9]/g, '')
                 setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
-              }} required style={{ borderRadius: 10 }} />
-            <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
-              value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
+              }} style={{ borderRadius: 10 }} />
+            {assetType === 'card' && (
+              <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
+                value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
+            )}
             <button type="button" style={{ fontSize: '0.8rem', color: '#b088f9', background: 'none', border: 'none', padding: 0 }}
               onClick={() => setTierOpen(o => !o)}>
               실적 구간 설정 {tierOpen ? '▴' : '▾'}
@@ -176,6 +198,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
   }
 
   const logo = bankLogo(card.name)
+  const isCash = !logo && (card.name.includes('현금') || card.name.includes('지갑'))
   const deleteWidth = Math.max(0, -offsetX)
   const editWidth = Math.max(0, offsetX)
 
@@ -192,6 +215,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
+            {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💵</span>}
             <span className="fw-semibold">{card.name}</span>
             {card.url && (
               <a href={card.url} target="_blank" rel="noreferrer"
@@ -794,9 +818,9 @@ export default function Budget() {
   return (
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3 px-1">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}> 카드별 잔고</span>
+        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>자산별 잔고</span>
         <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-          <i className="bi bi-plus-lg me-1" />카드 추가
+          <i className="bi bi-plus-lg me-1" />자산 추가
         </button>
       </div>
 
@@ -804,8 +828,8 @@ export default function Budget() {
         <div className="card mb-4 text-center">
           <div className="card-body py-5 text-muted">
             <i className="bi bi-credit-card" style={{ fontSize: '2rem' }} />
-            <p className="mt-2 mb-0">등록된 카드가 없습니다</p>
-            <button onClick={openAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>카드 추가 →</button>
+            <p className="mt-2 mb-0">등록된 자산이 없습니다</p>
+            <button onClick={openAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>자산 추가 →</button>
           </div>
         </div>
       ) : (
