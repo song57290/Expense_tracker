@@ -137,7 +137,7 @@
                 전체 적용
             </button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:0.8rem;font-weight:700;color:#2e7d32;background:#f0fff4;padding:3px 10px;border-radius:20px;flex-shrink:0;min-width:32px;text-align:center;">수입</span>
             <select id="bulkIncomeCat" class="cat-select" style="flex:1;max-width:none;">
                 <option value="">카테고리 선택…</option>
@@ -150,6 +150,22 @@
                 전체 적용
             </button>
         </div>
+        {% if cards %}
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:0.8rem;font-weight:700;color:#6c3fc5;background:#f0eeff;padding:3px 10px;border-radius:20px;flex-shrink:0;min-width:32px;text-align:center;">카드</span>
+            <select id="bulkCard" class="cat-select" style="flex:1;max-width:none;">
+                <option value="">현금 / 미지정</option>
+                {% for c in cards %}
+                <option value="{{ c.name }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" onclick="applyBulkCard()"
+                style="flex-shrink:0;padding:7px 14px;background:#6c3fc5;color:white;border:none;border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                전체 적용
+            </button>
+        </div>
+        <div style="font-size:0.72rem;color:#aaa;margin-top:6px;">현금 지출을 카드별로 추적하려면 예산 탭에서 현금 자산을 먼저 등록하세요.</div>
+        {% endif %}
     </div>
 
     <form action="/import/categorize/confirm" method="post">
@@ -167,23 +183,33 @@
             <span class="tx-amount {{ 'amount-expense' if row.type == 'expense' else 'amount-income' }}">
                 {{ '{:,}'.format(row.amount) }}원
             </span>
-            <select name="cat_{{ loop.index0 }}" class="cat-select" data-type="{{ row.type }}">
-                {% if row.type == 'expense' %}
-                    {% for c in cats_expense %}
-                    <option value="{{ c.name }}" {{ 'selected' if c.name == row.category or (not row.category and c.name == '기타') }}>{{ c.icon }} {{ c.name }}</option>
-                    {% endfor %}
-                    {% if not cats_expense %}
-                    <option value="기타" selected>기타</option>
+            <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">
+                <select name="cat_{{ loop.index0 }}" class="cat-select" data-type="{{ row.type }}">
+                    {% if row.type == 'expense' %}
+                        {% for c in cats_expense %}
+                        <option value="{{ c.name }}" {{ 'selected' if c.name == row.category or (not row.category and c.name == '기타') }}>{{ c.icon }} {{ c.name }}</option>
+                        {% endfor %}
+                        {% if not cats_expense %}
+                        <option value="기타" selected>기타</option>
+                        {% endif %}
+                    {% else %}
+                        {% for c in cats_income %}
+                        <option value="{{ c.name }}" {{ 'selected' if c.name == row.category or (not row.category and c.name == '기타') }}>{{ c.icon }} {{ c.name }}</option>
+                        {% endfor %}
+                        {% if not cats_income %}
+                        <option value="기타" selected>기타</option>
+                        {% endif %}
                     {% endif %}
-                {% else %}
-                    {% for c in cats_income %}
-                    <option value="{{ c.name }}" {{ 'selected' if c.name == row.category or (not row.category and c.name == '기타') }}>{{ c.icon }} {{ c.name }}</option>
+                </select>
+                {% if cards %}
+                <select name="card_{{ loop.index0 }}" class="cat-select card-select" style="border-color:#d0c0f8;background:#faf7ff;color:#6c3fc5;">
+                    <option value="">현금 / 미지정</option>
+                    {% for c in cards %}
+                    <option value="{{ c.name }}">{{ c.name }}</option>
                     {% endfor %}
-                    {% if not cats_income %}
-                    <option value="기타" selected>기타</option>
-                    {% endif %}
+                </select>
                 {% endif %}
-            </select>
+            </div>
         </div>
         {% endfor %}
 
@@ -214,6 +240,12 @@ function applyBulk(type) {
     var val = sel.value;
     if (!val) return;
     document.querySelectorAll('.cat-select[data-type="' + type + '"]').forEach(function(s) {
+        s.value = val;
+    });
+}
+function applyBulkCard() {
+    var val = document.getElementById('bulkCard').value;
+    document.querySelectorAll('.card-select').forEach(function(s) {
         s.value = val;
     });
 }
