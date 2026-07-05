@@ -305,8 +305,6 @@ def api_delete_account():
 
 # ── Savings helper ───────────────────────────────────────────────────────────
 
-_TAX_RATES = {'일반과세': 0.154, '세금우대': 0.095, '비과세': 0.0}
-
 def _savings_stats(s):
     from datetime import date as _date
     today = _date.today()
@@ -322,15 +320,16 @@ def _savings_stats(s):
     rate = s.interest_rate or 0
     itype = getattr(s, 'interest_type', '단리') or '단리'
     tax_type = getattr(s, 'tax_type', '일반과세') or '일반과세'
-    tax_rate = _TAX_RATES.get(tax_type, 0.154)
+    days_total = max(1, (end - start).days)
     if s.stype == '예금':
         total_paid = s.amount
         current_paid = s.amount
-        years = months_total / 12
         if itype == '복리':
-            maturity_amount = int(s.amount * (1 + rate / 100) ** years)
+            # 월 복리 (은행 표준)
+            maturity_amount = int(s.amount * (1 + rate / 100 / 12) ** months_total)
         else:
-            maturity_amount = int(s.amount * (1 + rate / 100 * years))
+            # 일할계산 단리 (은행 표준: 실제 일수/365)
+            maturity_amount = int(s.amount * (1 + rate / 100 * days_total / 365))
         interest = maturity_amount - s.amount
     else:
         total_paid = s.amount * months_total
@@ -340,9 +339,17 @@ def _savings_stats(s):
         if itype == '복리' and r_m > 0:
             maturity_amount = int(s.amount * (1 + r_m) * ((1 + r_m) ** n - 1) / r_m)
         else:
-            maturity_amount = int(total_paid + s.amount * n * (n + 1) / 2 * r_m)
+            # 적금 단리: 월납입액 × 월이율 × n(n+1)/2
+            maturity_amount = int(total_paid + s.amount * r_m * n * (n + 1) / 2)
         interest = maturity_amount - total_paid
-    interest_after_tax = int(interest * (1 - tax_rate))
+    # 세금: 소득세(14%)·지방소득세(1.4%) 각각 원 미만 절사 후 합산 (은행 표준)
+    if tax_type == '비과세':
+        tax = 0
+    elif tax_type == '세금우대':
+        tax = int(interest * 0.09) + int(interest * 0.005)
+    else:
+        tax = int(interest * 0.14) + int(interest * 0.014)
+    interest_after_tax = interest - tax
     principal = s.amount if s.stype == '예금' else total_paid
     maturity_after_tax = principal + interest_after_tax
     return {
