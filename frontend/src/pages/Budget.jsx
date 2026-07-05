@@ -109,16 +109,22 @@ function AddSheet({ open, visible, onClose, onSaved }) {
             <input type="text" className="form-control mb-2"
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
-            <input type="text" className="form-control mb-2" placeholder="초기 잔고 (현재 보유 금액, 선택)" inputMode="numeric"
-              value={initialBalance} onChange={e => {
-                const raw = e.target.value.replace(/[^0-9]/g, '')
-                setInitialBalance(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
-              }} style={{ borderRadius: 10 }} />
-            <input type="text" className="form-control mb-2" placeholder={assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
-              value={target} onChange={e => {
-                const raw = e.target.value.replace(/[^0-9]/g, '')
-                setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
-              }} style={{ borderRadius: 10 }} />
+            <div className="mb-2" style={{ position: 'relative' }}>
+              <input type="text" className="form-control" placeholder="초기 잔고 (현재 보유 금액, 선택)" inputMode="numeric"
+                value={initialBalance} onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '')
+                  setInitialBalance(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+                }} style={{ borderRadius: 10, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+            </div>
+            <div className="mb-2" style={{ position: 'relative' }}>
+              <input type="text" className="form-control" placeholder={assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
+                value={target} onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '')
+                  setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+                }} style={{ borderRadius: 10, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+            </div>
             {assetType === 'card' && (
               <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
                 value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
@@ -333,7 +339,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
             <span className="fw-semibold">{item.name}</span>
-            <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : '#b088f9' }}>{item.stype}</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
@@ -341,6 +347,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div style={{ fontSize: '0.75rem', color: '#888' }}>{item.stype === '예금' ? '예치금액' : '월 납입액'}</div>
+
             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{fmt(item.amount)}원</div>
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
@@ -352,7 +359,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div>
           </div>
         </div>
-        {item.stype === '적금' && (
+        {(item.stype === '적금' || item.stype === '청약') && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
             <span>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
             <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
@@ -434,7 +441,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <form id="savings-form" onSubmit={handleSubmit}>
             <div className="d-flex gap-2 mb-3">
-              {['예금', '적금'].map(t => (
+              {['예금', '적금', '청약'].map(t => (
                 <button key={t} type="button" onClick={() => setStype(t)}
                   style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${stype === t ? '#b088f9' : '#eee'}`, background: stype === t ? 'rgba(176,136,249,0.1)' : 'white', color: stype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                   {t}
@@ -449,8 +456,11 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             </div>
             <input type="text" className="form-control mb-2" placeholder="이름 (위 선택 시 자동 입력, 수정 가능)"
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
-            <input type="text" className="form-control mb-2" placeholder={stype === '예금' ? '예치금액 (원)' : '월 납입액 (원)'} inputMode="numeric"
-              value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ borderRadius: 10 }} />
+            <div className="mb-2" style={{ position: 'relative' }}>
+              <input type="text" className="form-control" placeholder={stype === '예금' ? '예치금액' : '월 납입액 (청약은 2~50만원)'} inputMode="numeric"
+                value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ borderRadius: 10, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+            </div>
             <div className="d-flex gap-2 mb-2">
               <input type="number" className="form-control" placeholder="연 이율 (%)" step="0.01" min="0" max="100"
                 value={rate} onChange={e => setRate(e.target.value)} required style={{ borderRadius: 10 }} />
@@ -462,7 +472,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               ))}
             </div>
             <div className="d-flex gap-2 mb-3">
-              {[['일반과세', '15.4%'], ['세금우대', '9.5%'], ['비과세', '0%']].map(([t, label]) => (
+              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
                 <button key={t} type="button" onClick={() => setTaxType(t)}
                   style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
                   {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
@@ -502,11 +512,13 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
 const ITYPE_COLORS = {
   '국내주식': { bg: '#fff0f4', color: '#e84393' },
   '해외주식': { bg: '#fff4e8', color: '#e87000' },
+  '펀드': { bg: '#e8f8f0', color: '#1a7a4a' },
   '코인': { bg: '#fffbe8', color: '#c9960a' },
   'ETF': { bg: '#e8f4ff', color: '#0d6efd' },
   '기타': { bg: '#f2f2f7', color: '#666' },
 }
-const ITYPE_ICONS = { '국내주식': '🇰🇷', '해외주식': '🌎', '코인': '₿', 'ETF': '📊', '기타': '📦' }
+const ITYPE_ICONS = { '국내주식': '🇰🇷', '해외주식': '🌎', '펀드': '💼', '코인': '₿', 'ETF': '📊', '기타': '📦' }
+const ITYPE_UNITS = { '국내주식': '주', '해외주식': '주', '펀드': '좌', '코인': '개', 'ETF': '주', '기타': '' }
 
 function InvestmentItem({ item, onEdit, onDelete }) {
   const startX = useRef(null)
@@ -580,20 +592,29 @@ function InvestmentItem({ item, onEdit, onDelete }) {
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div style={{ fontSize: '0.72rem', color: '#888' }}>평가금액</div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
+            {item.itype === '해외주식' && item.exchange_rate && (
+              <div style={{ fontSize: '0.68rem', color: '#aaa' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div style={{ fontSize: '0.72rem', color: '#888' }}>매수금액</div>
             <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(item.purchase_value)}원</div>
+            {item.itype === '해외주식' && item.exchange_rate && (
+              <div style={{ fontSize: '0.68rem', color: '#aaa' }}>(${(item.avg_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
           </div>
           <div className="text-center flex-fill">
             <div style={{ fontSize: '0.72rem', color: '#888' }}>수익</div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isProfit ? '#198754' : '#dc3545' }}>
               {isProfit ? '+' : ''}{fmt(item.profit)}원
             </div>
+            {item.itype === '해외주식' && item.exchange_rate && (
+              <div style={{ fontSize: '0.68rem', color: '#aaa' }}>({isProfit ? '+' : ''}${((item.current_price - item.avg_price) * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
           </div>
         </div>
         <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: '#aaa' }}>
-          <span>수량 {item.quantity}</span>
+          <span>수량 {item.quantity}{item.itype === '해외주식' && item.exchange_rate ? ` · 매수 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
           <span style={{ color: isProfit ? '#198754' : '#dc3545', fontWeight: 600 }}>
             {isProfit ? '▲' : '▼'} {Math.abs(item.profit_pct).toFixed(2)}%
           </span>
@@ -619,6 +640,9 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const [memo, setMemo] = useState('')
   const [fetching, setFetching] = useState(false)
   const [fetchResult, setFetchResult] = useState(null)
+  const [exchangeRate, setExchangeRate] = useState(null)
+  const [usdAvgPrice, setUsdAvgPrice] = useState('')
+  const [usdCurrentPrice, setUsdCurrentPrice] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -633,11 +657,31 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
     } else {
       setItype('국내주식'); setName(''); setTicker(''); setQuantity(''); setAvgPrice(''); setCurrentPrice(''); setMemo('')
     }
+    setUsdAvgPrice(''); setUsdCurrentPrice(''); setExchangeRate(null)
     setFetchResult(null)
   }, [open, editItem])
 
-  const ITYPES = ['국내주식', '해외주식', '코인', 'ETF', '기타']
-  const tickerHints = { '국내주식': '예) 005930 (삼성전자)', '해외주식': '예) AAPL, TSLA', '코인': '예) KRW-BTC, KRW-ETH', 'ETF': '예) 069500 (KODEX200), QQQ', '기타': '' }
+  // 환율 자동 조회 (해외주식 선택 시)
+  useEffect(() => {
+    if (itype !== '해외주식') return
+    api.get('/api/usd-rate').then(res => {
+      if (res.ok) {
+        setExchangeRate(res.rate)
+      }
+    }).catch(() => {})
+  }, [itype])
+
+  // 환율 로드 후 수정 항목의 KRW → USD 변환
+  useEffect(() => {
+    if (!editItem || itype !== '해외주식' || !exchangeRate) return
+    if (!usdAvgPrice && editItem.avg_price)
+      setUsdAvgPrice((editItem.avg_price / exchangeRate).toFixed(2))
+    if (!usdCurrentPrice && editItem.current_price)
+      setUsdCurrentPrice((editItem.current_price / exchangeRate).toFixed(2))
+  }, [exchangeRate, editItem, itype])
+
+  const ITYPES = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타']
+  const tickerHints = { '국내주식': '예) 005930 (삼성전자)', '해외주식': '예) AAPL, TSLA', '펀드': '펀드코드 (선택)', '코인': '예) KRW-BTC, KRW-ETH', 'ETF': '예) 069500 (KODEX200), QQQ', '기타': '' }
 
   async function fetchPrice() {
     if (!ticker.trim()) return
@@ -648,6 +692,11 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
         const krw = Math.round(res.price_krw)
         setCurrentPrice(krw.toLocaleString('ko-KR'))
         setFetchResult({ currency: res.currency, price: res.price, price_krw: res.price_krw })
+        if (res.currency === 'USD' && res.price > 0) {
+          const rate = Math.round(res.price_krw / res.price)
+          setExchangeRate(rate)
+          setUsdCurrentPrice(res.price.toFixed(2))
+        }
       } else {
         setFetchResult({ error: res.error || '조회 실패' })
       }
@@ -657,11 +706,15 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    const isUsd = itype === '해외주식'
     const payload = {
       itype, name: name.trim(), ticker: ticker.trim(),
       quantity: parseFloat(quantity) || 0,
-      avg_price: parseFloat(avgPrice.replace(/,/g, '')) || 0,
-      current_price: currentPrice ? parseFloat(currentPrice.replace(/,/g, '')) : null,
+      avg_price: isUsd ? (parseFloat(usdAvgPrice) || 0) : (parseFloat(avgPrice.replace(/,/g, '')) || 0),
+      current_price: isUsd
+        ? (usdCurrentPrice ? (parseFloat(usdCurrentPrice) || null) : null)
+        : (currentPrice ? parseFloat(currentPrice.replace(/,/g, '')) : null),
+      exchange_rate: isUsd ? (exchangeRate || null) : null,
       memo: memo.trim(),
     }
     if (editItem) await api.put(`/api/investments/${editItem.id}`, payload)
@@ -712,14 +765,57 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
               </div>
             )}
 
-            <input type="text" placeholder="수량 (소수 가능, 예: 0.5)" value={quantity} onChange={e => setQuantity(e.target.value)} required
-              inputMode="decimal" style={{ ...inp, marginBottom: 10 }} />
-            <input type="text" placeholder="평균 매수가 (원)" value={avgPrice} inputMode="numeric"
-              onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setAvgPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
-              required style={{ ...inp, marginBottom: 10 }} />
-            <input type="text" placeholder="현재가 (원, 선택사항)" value={currentPrice} inputMode="numeric"
-              onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setCurrentPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
-              style={{ ...inp, marginBottom: 10 }} />
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <input type="text" placeholder="수량 (소수 가능, 예: 0.5)" value={quantity} onChange={e => setQuantity(e.target.value)} required
+                inputMode="decimal" style={{ ...inp, paddingRight: ITYPE_UNITS[itype] ? 36 : undefined }} />
+              {ITYPE_UNITS[itype] && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>{ITYPE_UNITS[itype]}</span>}
+            </div>
+            {itype === '해외주식' ? (<>
+              <div style={{ fontSize: '0.72rem', color: '#b08040', background: '#fffbf0', border: '1px solid #ffe8a0', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>
+                ⚠️ 환율은 실시간이 아닐 수 있어 실제 금액과 차이가 있을 수 있습니다{exchangeRate ? ` (현재 적용 환율: $1 ≈ ${exchangeRate.toLocaleString()}원)` : ''}
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" placeholder="평균 매수가" value={usdAvgPrice} inputMode="decimal"
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '')
+                      setUsdAvgPrice(val)
+                      const krw = exchangeRate ? Math.round((parseFloat(val) || 0) * exchangeRate) : 0
+                      setAvgPrice(krw ? krw.toLocaleString('ko-KR') : '')
+                    }}
+                    required style={{ ...inp, paddingRight: 46 }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>달러</span>
+                </div>
+                {exchangeRate && usdAvgPrice && <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: 3, paddingLeft: 4 }}>({Math.round((parseFloat(usdAvgPrice) || 0) * exchangeRate).toLocaleString()}원)</div>}
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" placeholder="현재가 (선택사항)" value={usdCurrentPrice} inputMode="decimal"
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '')
+                      setUsdCurrentPrice(val)
+                      const krw = exchangeRate ? Math.round((parseFloat(val) || 0) * exchangeRate) : 0
+                      setCurrentPrice(krw ? krw.toLocaleString('ko-KR') : '')
+                    }}
+                    style={{ ...inp, paddingRight: 46 }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>달러</span>
+                </div>
+                {exchangeRate && usdCurrentPrice && <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: 3, paddingLeft: 4 }}>({Math.round((parseFloat(usdCurrentPrice) || 0) * exchangeRate).toLocaleString()}원)</div>}
+              </div>
+            </>) : (<>
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <input type="text" placeholder="평균 매수가" value={avgPrice} inputMode="numeric"
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setAvgPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
+                  required style={{ ...inp, paddingRight: 36 }} />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+              </div>
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <input type="text" placeholder="현재가 (선택사항)" value={currentPrice} inputMode="numeric"
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setCurrentPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
+                  style={{ ...inp, paddingRight: 36 }} />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+              </div>
+            </>)}
             <input type="text" placeholder="메모 (선택)" value={memo} onChange={e => setMemo(e.target.value)}
               style={{ ...inp, marginBottom: 10 }} />
           </form>
@@ -741,6 +837,9 @@ export default function Budget() {
   const [editInitial, setEditInitial] = useState('')
   const [editTarget, setEditTarget] = useState('')
   const [editUrl, setEditUrl] = useState('')
+  const [editTier1, setEditTier1] = useState(20)
+  const [editTier2, setEditTier2] = useState(50)
+  const [editTier3, setEditTier3] = useState(80)
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editSheetVisible, setEditSheetVisible] = useState(false)
   const [addSheetOpen, setAddSheetOpen] = useState(false)
@@ -777,6 +876,9 @@ export default function Budget() {
     setEditInitial((card.initial_balance || 0).toLocaleString('ko-KR'))
     setEditTarget((card.target || 0).toLocaleString('ko-KR'))
     setEditUrl(card.url || '')
+    setEditTier1(card.tier1 || 20)
+    setEditTier2(card.tier2 || 50)
+    setEditTier3(card.tier3 || 80)
     setEditSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setEditSheetVisible(true)))
   }
@@ -791,7 +893,7 @@ export default function Budget() {
     const target = parseInt(editTarget.replace(/,/g, '')) || 0
     await api.put(`/api/cards/${editCard.id}`, {
       name: editCard.name, target,
-      tier1: editCard.tier1, tier2: editCard.tier2, tier3: editCard.tier3,
+      tier1: editTier1, tier2: editTier2, tier3: editTier3,
       account_balance: initial, url: editUrl,
     })
     closeEdit(); load()
@@ -871,6 +973,32 @@ export default function Budget() {
         ))
       )}
 
+      {/* 자산별 잔고 종합 */}
+      {data.card_stats.length > 0 && (() => {
+        const totalBalance = data.card_stats.reduce((s, c) => s + c.balance, 0)
+        const totalSpent = data.card_stats.reduce((s, c) => s + c.spent, 0)
+        const totalTarget = data.card_stats.reduce((s, c) => s + c.target, 0)
+        return (
+          <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid #f0e8fd' }}>
+            <div className="card-body py-3">
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>자산별 잔고 종합</div>
+              <div className="d-flex gap-2">
+                {[
+                  { label: '총 잔고', val: totalBalance, color: totalBalance >= 0 ? '#198754' : '#dc3545' },
+                  { label: '이번달 지출', val: totalSpent, color: '#dc3545' },
+                  { label: '이번달 한도', val: totalTarget, color: '#555' },
+                ].map(({ label, val, color }) => (
+                  <div key={label} style={{ flex: 1, background: '#faf8ff', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{fmt(val)}원</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* 예적금 섹션 */}
       <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>예적금</span>
@@ -893,6 +1021,42 @@ export default function Budget() {
             onDelete={() => setConfirmSavings(item)} />
         ))
       )}
+
+      {/* 예적금 종합 */}
+      {(data.savings || []).length > 0 && (() => {
+        const savings = data.savings || []
+        const depositTotal = savings.filter(s => s.stype === '예금').reduce((s, i) => s + i.current_paid, 0)
+        const installTotal = savings.filter(s => s.stype !== '예금').reduce((s, i) => s + i.current_paid, 0)
+        const maturityTotal = savings.reduce((s, i) => s + i.maturity_after_tax, 0)
+        const interestTotal = savings.reduce((s, i) => s + i.interest_after_tax, 0)
+        return (
+          <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid #f0e8fd' }}>
+            <div className="card-body py-3">
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>예적금 종합</div>
+              <div className="d-flex gap-2 mb-2">
+                <div style={{ flex: 1, background: '#faf8ff', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예금 원금</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#555' }}>{fmt(depositTotal)}원</div>
+                </div>
+                <div style={{ flex: 1, background: '#faf8ff', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>적금/청약 납입액</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#555' }}>{fmt(installTotal)}원</div>
+                </div>
+              </div>
+              <div className="d-flex gap-2">
+                <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>세후 예상이자</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
+                </div>
+                <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>세후 예상만기금액</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 투자 섹션 */}
       <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
@@ -997,13 +1161,31 @@ export default function Budget() {
               <form id="edit-card-form" onSubmit={handleEditSave}>
                 <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (앱 사용 시작 전 계좌 잔액)</label>
-                  <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }}
-                    value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial)} />
+                  <div style={{ position: 'relative' }}>
+                    <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
+                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial)} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  </div>
                 </div>
                 <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월 실적 목표 금액</label>
-                  <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }}
-                    value={editTarget} onChange={e => fmtInput(e.target.value, setEditTarget)} />
+                  <div style={{ position: 'relative' }}>
+                    <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
+                      value={editTarget} onChange={e => fmtInput(e.target.value, setEditTarget)} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>색상 구간 설정 (%)</label>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <span className="badge" style={{ background: '#dc3545' }}>빨강 ≤</span>
+                    <input type="number" className="form-control form-control-sm" style={{ width: 60, borderRadius: 8 }} value={editTier1} min={0} max={100} onChange={e => setEditTier1(+e.target.value)} />
+                    <span className="badge" style={{ background: '#ffc107', color: '#333' }}>노랑 ≤</span>
+                    <input type="number" className="form-control form-control-sm" style={{ width: 60, borderRadius: 8 }} value={editTier2} min={0} max={100} onChange={e => setEditTier2(+e.target.value)} />
+                    <span className="badge" style={{ background: '#0d6efd' }}>파랑 ≤</span>
+                    <input type="number" className="form-control form-control-sm" style={{ width: 60, borderRadius: 8 }} value={editTier3} min={0} max={100} onChange={e => setEditTier3(+e.target.value)} />
+                    <span className="badge" style={{ background: '#198754' }}>초록</span>
+                  </div>
                 </div>
                 <div className="mb-2">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>

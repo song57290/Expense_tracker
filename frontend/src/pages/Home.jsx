@@ -252,13 +252,14 @@ export default function Home() {
               <h5 className="card-title mb-0">카테고리별 지출 <span className="text-muted fw-normal" style={{ fontSize: '0.78rem' }}></span></h5>
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
             </div>
-            {catOpen && Object.entries(data.category_totals).map(([cat, amt]) => (
+            {catOpen && Object.entries(data.category_totals).sort(([, a], [, b]) => b - a).map(([cat, amt]) => (
               <div key={cat} className="mb-2 mt-2">
                 <div className="d-flex justify-content-between align-items-center mb-1">
                   <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
-                  <span className="text-muted" style={{ fontSize: '0.8rem' }}>
-                    {fmt(amt)}원&nbsp;<span style={{ fontSize: '0.72rem' }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(amt)}원</span>
+                    <span style={{ fontSize: '0.72rem', color: '#aaa', display: 'inline-block', width: '3em', textAlign: 'left' }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+                  </div>
                 </div>
                 <div className="progress" style={{ height: 5 }}>
                   <div className="progress-bar" style={{ width: `${catSum > 0 ? Math.round(amt / catSum * 100) : 0}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
@@ -293,8 +294,11 @@ export default function Home() {
                 </select>
               </div>
               <div className="col-6 col-lg-2">
-                <input className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
-                  onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required />
+                <div style={{ position: 'relative' }}>
+                  <input className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
+                    onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ paddingRight: 36 }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
               </div>
               <div className="col-12 col-lg-2">
                 <input className="form-control" placeholder="항목 설명" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
