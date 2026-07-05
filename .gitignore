@@ -2,4 +2,8 @@ __pycache__/
 *.pyc
 instance/
 vapid_keys.json
+vapid_private_v2.pem
+vapid_public_v2.txt
 subscriptions.json
+expense.db
+*.db
