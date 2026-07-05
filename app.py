@@ -317,7 +317,7 @@ def _savings_stats(s):
         start = today; end = today
     months_total = max(1, (end.year - start.year) * 12 + (end.month - start.month))
     months_elapsed = max(0, min(months_total, (today.year - start.year) * 12 + (today.month - start.month)))
-    progress = min(100, int(months_elapsed / months_total * 100))
+    progress = min(100.0, round(months_elapsed / months_total * 100, 1))
     d_day = (end - today).days
     rate = s.interest_rate or 0
     itype = getattr(s, 'interest_type', '단리') or '단리'
