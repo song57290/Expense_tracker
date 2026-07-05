@@ -305,6 +305,8 @@ export default function Settings() {
   const [noticeFormOpen, setNoticeFormOpen] = useState(false)
   const [noticeSaving, setNoticeSaving] = useState(false)
   const [expandedNotice, setExpandedNotice] = useState(null)
+  const [editNotice, setEditNotice] = useState(null)
+  const [editNoticeForm, setEditNoticeForm] = useState({ title: '', content: '' })
 
   const loadNotices = () => api.get('/api/notices').then(setNotices).catch(() => {})
 
@@ -328,6 +330,13 @@ export default function Settings() {
 
   async function deleteNotice(id) {
     await api.delete(`/api/notices/${id}`)
+    loadNotices()
+  }
+
+  async function saveEditNotice(e) {
+    e.preventDefault()
+    await api.put(`/api/notices/${editNotice}`, editNoticeForm)
+    setEditNotice(null)
     loadNotices()
   }
 
@@ -428,9 +437,9 @@ export default function Settings() {
       {(() => {
         const HELP = [
           { icon: '🏠', title: '홈', desc: '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력' },
-          { icon: '💳', title: '예산', desc: '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 예적금 추가: 만기일·이율·납입액 입력 시 자동 계산\n• 투자 추가: 종목·수량·매수가 입력, 티커로 현재가 자동 조회' },
+          { icon: '💳', title: '예산', desc: '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n• 예금·적금·청약 추가: 만기일·이율·납입액 입력 시 자동 계산 (청약은 월 2~50만원 납입)\n• 투자 추가: 종목·수량·매수가 입력, 티커로 현재가 자동 조회' },
           { icon: '📅', title: '캘린더', desc: '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동' },
-          { icon: '📊', title: '통계', desc: '카테고리별 지출을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리 비중 시각화\n• 월별 막대 차트: 최근 지출 추이\n• 월 이동 버튼으로 과거 달 조회 가능' },
+          { icon: '📊', title: '통계', desc: '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출/수입 토글로 전환, 날짜 범위 자유 설정 가능\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능' },
           { icon: '🏷️', title: '카테고리', desc: '지출·수입 카테고리를 관리합니다.\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리' },
           { icon: '⚙️', title: '설정', desc: '앱 환경을 설정합니다.\n\n• 공지사항: 앱 업데이트 및 안내 확인\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴' },
           { icon: '📄', title: '포트폴리오 PDF', desc: '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장' },
@@ -626,25 +635,46 @@ export default function Settings() {
               {/* 최신 1개는 항상 표시 */}
               {notices.slice(0, noticeOpen ? notices.length : 1).map(n => (
                 <div key={n.id} style={{ borderRadius: 10, border: '1px solid #f0f0f0', marginBottom: 8, overflow: 'hidden' }}>
-                  <div className="d-flex justify-content-between align-items-center"
-                    onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
-                    style={{ padding: '10px 14px', cursor: 'pointer', background: '#fafafa' }}>
-                    <div>
-                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#333' }}>{n.title}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{n.created_at}</span>
-                    </div>
-                    <div className="d-flex align-items-center gap-2">
-                      {n.is_admin && (
-                        <button onClick={e => { e.stopPropagation(); deleteNotice(n.id) }}
-                          style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
+                  {editNotice === n.id ? (
+                    <form onSubmit={saveEditNotice} style={{ padding: '12px 14px', background: '#faf8ff' }}>
+                      <input type="text" value={editNoticeForm.title}
+                        onChange={e => setEditNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #d0b8ff', fontSize: '0.88rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+                      <textarea value={editNoticeForm.content}
+                        onChange={e => setEditNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #d0b8ff', fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                      <div className="d-flex gap-2 mt-2">
+                        <button type="submit" style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
+                        <button type="button" onClick={() => setEditNotice(null)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="d-flex justify-content-between align-items-center"
+                        onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
+                        style={{ padding: '10px 14px', cursor: 'pointer', background: '#fafafa' }}>
+                        <div>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#333' }}>{n.title}</span>
+                          <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{n.created_at}</span>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          {n.is_admin && (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); setEditNoticeForm({ title: n.title, content: n.content }); setEditNotice(n.id); setExpandedNotice(null) }}
+                                style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>수정</button>
+                              <button onClick={e => { e.stopPropagation(); deleteNotice(n.id) }}
+                                style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
+                            </>
+                          )}
+                          <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{expandedNotice === n.id ? '▴' : '▾'}</span>
+                        </div>
+                      </div>
+                      {expandedNotice === n.id && (
+                        <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'white' }}>
+                          {n.content}
+                        </div>
                       )}
-                      <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{expandedNotice === n.id ? '▴' : '▾'}</span>
-                    </div>
-                  </div>
-                  {expandedNotice === n.id && (
-                    <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'white' }}>
-                      {n.content}
-                    </div>
+                    </>
                   )}
                 </div>
               ))}

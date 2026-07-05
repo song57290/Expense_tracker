@@ -65,10 +65,12 @@ html, body {
 /* Bottom Nav */
 .bottom-nav {
   position: fixed;
-  bottom: calc(16px + env(safe-area-inset-bottom)); left: 16px; right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 16px; right: 16px;
   background: var(--grad);
   border-radius: 20px;
-  box-shadow: 0 4px 20px rgba(123,107,224,0.3);
+  box-shadow: 0 -4px 20px rgba(123,107,224,0.3);
+  clip-path: inset(-40px -40px 0px -40px round 20px);
   z-index: 1000;
 }
 body.sheet-open .bottom-nav { display: none !important; }

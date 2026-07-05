@@ -99,7 +99,6 @@ export default function Layout({ user, onLogout }) {
     <>
       <div className="top-fade d-lg-none" style={{ opacity: topFade ? 1 : 0 }} />
       <div className="bot-fade d-lg-none" style={{ opacity: botFade ? 1 : 0 }} />
-      <div className="d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 'calc(24px + env(safe-area-inset-bottom))', background: '#f8f9fa', zIndex: 999, pointerEvents: 'none' }} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={onLogout} />
       <div ref={pageRef} className="page-wrap">
         <Navbar onMenuClick={() => setSidebarOpen(true)} nickname={user?.nickname} />
@@ -120,6 +119,7 @@ export default function Layout({ user, onLogout }) {
           <div className="d-lg-none swipe-nav-zone" style={{ height: 90 }} />
         </div>
       </div>
+      <div className="d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 'calc(16px + env(safe-area-inset-bottom))', background: '#f8f9fa', zIndex: 1001 }} />
       <BottomNav />
       <NotifySheet />
     </>

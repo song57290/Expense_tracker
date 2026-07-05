@@ -81,5 +81,6 @@ class Investment(db.Model):
     quantity = db.Column(db.Float, nullable=False, default=0)
     avg_price = db.Column(db.Float, nullable=False, default=0)
     current_price = db.Column(db.Float, nullable=True)
+    exchange_rate = db.Column(db.Float, nullable=True)
     memo = db.Column(db.String(200), nullable=True, default='')
     price_updated_at = db.Column(db.DateTime, nullable=True)

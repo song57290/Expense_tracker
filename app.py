@@ -127,6 +127,12 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE category ADD COLUMN position INTEGER DEFAULT 0"))
             conn.commit()
         cats = Category.query.order_by(Category.id).all()
@@ -315,23 +321,22 @@ def _savings_stats(s):
         start = today; end = today
     months_total = max(1, (end.year - start.year) * 12 + (end.month - start.month))
     months_elapsed = max(0, min(months_total, (today.year - start.year) * 12 + (today.month - start.month)))
-    progress = min(100.0, round(months_elapsed / months_total * 100, 1))
+    days_total = max(1, (end - start).days)
+    days_elapsed = max(0, (today - start).days)
+    progress = min(100.0, round(days_elapsed / days_total * 100, 1))
     d_day = (end - today).days
     rate = s.interest_rate or 0
     itype = getattr(s, 'interest_type', '단리') or '단리'
     tax_type = getattr(s, 'tax_type', '일반과세') or '일반과세'
-    days_total = max(1, (end - start).days)
     if s.stype == '예금':
         total_paid = s.amount
         current_paid = s.amount
         if itype == '복리':
-            # 월 복리 (은행 표준)
             interest = int(s.amount * (1 + rate / 100 / 12) ** months_total) - s.amount
         else:
-            # 일할계산 단리: 이자를 별도 계산 후 절사 (부동소수점 오차 방지)
             interest = int(s.amount * rate / 100 * days_total / 365)
         maturity_amount = s.amount + interest
-    else:
+    else:  # 적금, 청약
         total_paid = s.amount * months_total
         current_paid = s.amount * months_elapsed
         n = months_total
@@ -345,12 +350,12 @@ def _savings_stats(s):
     # 세금: 이자소득세(14%) 원 미만 절사 → 지방소득세 = 이자소득세의 10% 원 미만 절사
     if tax_type == '비과세':
         tax = 0
-    elif tax_type == '세금우대':
-        income_tax = int(interest * 0.09)
-        tax = income_tax + int(income_tax * 0.1)
+    elif tax_type in ('세금우대', 'ISA'):
+        income_tax = (int(interest * 0.09) // 10) * 10
+        tax = income_tax + (int(income_tax * 0.1) // 10) * 10
     else:
-        income_tax = int(interest * 0.14)
-        tax = income_tax + int(income_tax * 0.1)
+        income_tax = (int(interest * 0.14) // 10) * 10
+        tax = income_tax + (int(income_tax * 0.1) // 10) * 10
     interest_after_tax = interest - tax
     principal = s.amount if s.stype == '예금' else total_paid
     maturity_after_tax = principal + interest_after_tax
@@ -469,8 +474,13 @@ def _investment_stats(inv):
     qty = inv.quantity or 0
     avg = inv.avg_price or 0
     cur = inv.current_price if inv.current_price is not None else avg
-    purchase_value = int(qty * avg)
-    current_value = int(qty * cur)
+    fx = inv.exchange_rate or None
+    if inv.itype == '해외주식' and fx:
+        purchase_value = int(qty * avg * fx)
+        current_value = int(qty * cur * fx)
+    else:
+        purchase_value = int(qty * avg)
+        current_value = int(qty * cur)
     profit = current_value - purchase_value
     profit_pct = round(profit / purchase_value * 100, 2) if purchase_value else 0
     updated_at = None
@@ -480,6 +490,7 @@ def _investment_stats(inv):
         'id': inv.id, 'itype': inv.itype, 'name': inv.name,
         'ticker': inv.ticker or '', 'quantity': qty,
         'avg_price': avg, 'current_price': cur,
+        'exchange_rate': fx,
         'purchase_value': purchase_value, 'current_value': current_value,
         'profit': profit, 'profit_pct': profit_pct,
         'memo': inv.memo or '',
@@ -687,14 +698,25 @@ def api_stats():
             totals[tx.category] += tx.amount
         return sorted([{'name': k, 'amount': v, 'icon': icon_map.get(k, '📦')} for k, v in totals.items()], key=lambda x: x['amount'], reverse=True)
 
-    six_months = []
-    for i in range(5, -1, -1):
-        m = now.month - i; y = now.year
-        while m <= 0: m += 12; y -= 1
-        six_months.append(f'{y}-{m:02d}')
+    bar_from_raw = request.args.get('bar_from')
+    bar_to_raw = request.args.get('bar_to')
+    if bar_from_raw and bar_to_raw:
+        bf_y, bf_m = int(bar_from_raw[:4]), int(bar_from_raw[5:])
+        bt_y, bt_m = int(bar_to_raw[:4]), int(bar_to_raw[5:])
+    else:
+        bt_y, bt_m = now.year, now.month
+        bf_m = bt_m - 5; bf_y = bt_y
+        while bf_m <= 0: bf_m += 12; bf_y -= 1
+
+    bar_months = []
+    cy2, cm2 = bf_y, bf_m
+    while (cy2, cm2) <= (bt_y, bt_m):
+        bar_months.append(f'{cy2}-{cm2:02d}')
+        cm2 += 1
+        if cm2 > 12: cm2 = 1; cy2 += 1
 
     monthly = []
-    for mo in six_months:
+    for mo in bar_months:
         e = Transaction.query.filter_by(user_id=uid).filter(
             Transaction.type == 'expense', Transaction.date.like(f'{mo}%')).all()
         inc = Transaction.query.filter_by(user_id=uid).filter(
@@ -705,7 +727,7 @@ def api_stats():
     card_monthly_trend = {}
     for card in cards:
         trend = []
-        for mo in six_months:
+        for mo in bar_months:
             amt = sum(
                 tx.amount for tx in Transaction.query.filter_by(user_id=uid).filter(
                     Transaction.type == 'expense',
@@ -748,52 +770,65 @@ def api_stats():
     if total_months < 1:
         tf_y, tf_m = tt_y, tt_m
 
-    card_initial = sum(c.account_balance or 0 for c in cards)
-    asset_trend = []
-    cy, cm = tf_y, tf_m
-    while (cy, cm) <= (tt_y, tt_m):
-        last_day = _cal.monthrange(cy, cm)[1]
-        mo_end = f'{cy}-{cm:02d}-{last_day:02d}'
-        inc = sum(tx.amount for tx in all_txs_ever if tx.type == 'income' and tx.date <= mo_end)
-        exp = sum(tx.amount for tx in all_txs_ever if tx.type == 'expense' and tx.date <= mo_end)
-        card_bal = card_initial + inc - exp
-        sav_bal = 0
-        mo_end_date = _date(cy, cm, last_day)
-        for s in savings_list:
-            if s.start_date > mo_end: continue
-            start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
-            end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
-            if s.stype == '예금':
-                sav_bal += s.amount
-            else:
-                mt = max(1, (end_d.year - start.year) * 12 + (end_d.month - start.month))
-                me = max(0, min(mt, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month)))
-                sav_bal += s.amount * me
-        asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': card_bal + sav_bal})
-        cm += 1
-        if cm > 12: cm = 1; cy += 1
-
-    # 포트폴리오 구성 비율
+    # 투자 현재 평가액
     inv_list = Investment.query.filter_by(user_id=uid).all()
-    total_inc_ever = sum(tx.amount for tx in all_txs_ever if tx.type == 'income')
-    total_exp_ever = sum(tx.amount for tx in all_txs_ever if tx.type == 'expense')
-    card_balance_now = sum(c.account_balance or 0 for c in cards) + total_inc_ever - total_exp_ever
-    deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
-    installment_total = sum(_savings_stats(s)['current_paid'] for s in savings_list if s.stype == '적금')
     inv_by_type = {}
     for inv in inv_list:
-        val = int((inv.quantity or 0) * ((inv.current_price if inv.current_price is not None else inv.avg_price) or 0))
+        price = (inv.current_price if inv.current_price is not None else inv.avg_price) or 0
+        fx = (inv.exchange_rate or 1) if inv.itype == '해외주식' else 1
+        val = int((inv.quantity or 0) * price * fx)
         inv_by_type[inv.itype] = inv_by_type.get(inv.itype, 0) + val
+    inv_total_now = sum(inv_by_type.values())
+
+    # 포트폴리오 구성 (현재 스냅샷) — asset_trend 현재 월과 동일한 값 사용
+    card_balance_now = sum(c.account_balance or 0 for c in cards)
+    deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
+    installment_total = sum(_savings_stats(s)['current_paid'] for s in savings_list if s.stype in ('적금', '청약'))
+    total_assets_now = card_balance_now + deposit_total + installment_total + inv_total_now
+
     portfolio_breakdown = []
     if card_balance_now > 0:
-        portfolio_breakdown.append({'label': '카드잔고', 'value': card_balance_now})
+        portfolio_breakdown.append({'label': '통장잔고', 'value': card_balance_now})
     if deposit_total > 0:
         portfolio_breakdown.append({'label': '예금', 'value': deposit_total})
     if installment_total > 0:
-        portfolio_breakdown.append({'label': '적금', 'value': installment_total})
+        portfolio_breakdown.append({'label': '적금/청약', 'value': installment_total})
     for k, v in inv_by_type.items():
         if v > 0:
             portfolio_breakdown.append({'label': k, 'value': v})
+
+    card_initial = card_balance_now
+    asset_trend = []
+    cy, cm = tf_y, tf_m
+    while (cy, cm) <= (tt_y, tt_m):
+        if (cy, cm) == (tt_y, tt_m):
+            bd = {'통장잔고': card_balance_now, '예금': deposit_total, '적금/청약': installment_total}
+            bd.update({k: v for k, v in inv_by_type.items()})
+            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': total_assets_now, 'breakdown': bd})
+        else:
+            last_day = _cal.monthrange(cy, cm)[1]
+            mo_end = f'{cy}-{cm:02d}-{last_day:02d}'
+            inc = sum(tx.amount for tx in all_txs_ever if tx.type == 'income' and tx.date <= mo_end)
+            exp = sum(tx.amount for tx in all_txs_ever if tx.type == 'expense' and tx.date <= mo_end)
+            card_bal = card_initial + inc - exp
+            dep_bal = 0
+            inst_bal = 0
+            mo_end_date = _date(cy, cm, last_day)
+            for s in savings_list:
+                if s.start_date > mo_end: continue
+                start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
+                end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
+                if s.stype == '예금':
+                    dep_bal += s.amount
+                else:
+                    mt = max(1, (end_d.year - start.year) * 12 + (end_d.month - start.month))
+                    me = max(0, min(mt, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month)))
+                    inst_bal += s.amount * me
+            bd = {'통장잔고': card_bal, '예금': dep_bal, '적금/청약': inst_bal}
+            bd.update({k: v for k, v in inv_by_type.items()})
+            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': card_bal + dep_bal + inst_bal + inv_total_now, 'breakdown': bd})
+        cm += 1
+        if cm > 12: cm = 1; cy += 1
 
     return jsonify({
         'expense_cats': cat_totals(expense_txs),
@@ -805,6 +840,7 @@ def api_stats():
         'card_monthly': card_monthly,
         'asset_trend': asset_trend,
         'portfolio_breakdown': portfolio_breakdown,
+        'total_assets': total_assets_now,
     })
 
 @app.route('/api/portfolio-pdf')
@@ -1354,6 +1390,19 @@ def api_saving(sid):
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.route('/api/usd-rate')
+@login_required
+def get_usd_rate():
+    try:
+        import FinanceDataReader as fdr
+        from datetime import date, timedelta
+        start = (date.today() - timedelta(days=7)).strftime('%Y-%m-%d')
+        fx = fdr.DataReader('USD/KRW', start)
+        rate = int(float(fx['Close'].iloc[-1])) if not fx.empty else 1380
+        return jsonify({'ok': True, 'rate': rate})
+    except Exception:
+        return jsonify({'ok': True, 'rate': 1380})
+
 @app.route('/api/investments', methods=['GET', 'POST'])
 @login_required
 def api_investments():
@@ -1368,6 +1417,7 @@ def api_investments():
             quantity=float(data.get('quantity', 0)),
             avg_price=float(data.get('avg_price', 0)),
             current_price=float(data['current_price']) if data.get('current_price') not in (None, '') else None,
+            exchange_rate=float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else None,
             memo=data.get('memo', ''),
         )
         db.session.add(inv)
@@ -1392,6 +1442,7 @@ def api_investment(iid):
     inv.quantity = float(data.get('quantity', inv.quantity))
     inv.avg_price = float(data.get('avg_price', inv.avg_price))
     inv.current_price = float(data['current_price']) if data.get('current_price') not in (None, '') else None
+    inv.exchange_rate = float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else inv.exchange_rate
     inv.memo = data.get('memo', inv.memo)
     db.session.commit()
     return jsonify({'ok': True})
@@ -1464,7 +1515,7 @@ def api_notices():
         'is_admin': is_admin,
     } for n in notices])
 
-@app.route('/api/notices/<int:nid>', methods=['DELETE'])
+@app.route('/api/notices/<int:nid>', methods=['DELETE', 'PUT'])
 @login_required
 def api_notice(nid):
     uid = session['user_id']
@@ -1472,7 +1523,17 @@ def api_notice(nid):
     if not u or u.email != ADMIN_EMAIL:
         return jsonify({'ok': False, 'error': '권한이 없습니다'}), 403
     n = Notice.query.get_or_404(nid)
-    db.session.delete(n)
+    if request.method == 'DELETE':
+        db.session.delete(n)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    title = (data.get('title') or '').strip()
+    content = (data.get('content') or '').strip()
+    if not title or not content:
+        return jsonify({'ok': False, 'error': '제목과 내용을 입력하세요'}), 400
+    n.title = title
+    n.content = content
     db.session.commit()
     return jsonify({'ok': True})
 
