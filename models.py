@@ -61,6 +61,7 @@ class Savings(db.Model):
     amount = db.Column(db.Integer, nullable=False, default=0)
     interest_rate = db.Column(db.Float, nullable=False, default=0.0)
     interest_type = db.Column(db.String(10), nullable=False, default='단리')
+    tax_type = db.Column(db.String(10), nullable=False, default='일반과세')
     start_date = db.Column(db.String(10), nullable=False)
     end_date = db.Column(db.String(10), nullable=False)
 

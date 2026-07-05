@@ -121,6 +121,12 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN tax_type VARCHAR(10) NOT NULL DEFAULT '일반과세'"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE category ADD COLUMN position INTEGER DEFAULT 0"))
             conn.commit()
         cats = Category.query.order_by(Category.id).all()
@@ -299,6 +305,8 @@ def api_delete_account():
 
 # ── Savings helper ───────────────────────────────────────────────────────────
 
+_TAX_RATES = {'일반과세': 0.154, '세금우대': 0.095, '비과세': 0.0}
+
 def _savings_stats(s):
     from datetime import date as _date
     today = _date.today()
@@ -313,6 +321,8 @@ def _savings_stats(s):
     d_day = (end - today).days
     rate = s.interest_rate or 0
     itype = getattr(s, 'interest_type', '단리') or '단리'
+    tax_type = getattr(s, 'tax_type', '일반과세') or '일반과세'
+    tax_rate = _TAX_RATES.get(tax_type, 0.154)
     if s.stype == '예금':
         total_paid = s.amount
         current_paid = s.amount
@@ -332,14 +342,19 @@ def _savings_stats(s):
         else:
             maturity_amount = int(total_paid + s.amount * n * (n + 1) / 2 * r_m)
         interest = maturity_amount - total_paid
+    interest_after_tax = int(interest * (1 - tax_rate))
+    principal = s.amount if s.stype == '예금' else total_paid
+    maturity_after_tax = principal + interest_after_tax
     return {
         'id': s.id, 'stype': s.stype, 'bank': s.bank, 'name': s.name,
         'amount': s.amount, 'interest_rate': rate, 'interest_type': itype,
+        'tax_type': tax_type,
         'start_date': s.start_date, 'end_date': s.end_date,
         'months_total': months_total, 'months_elapsed': months_elapsed,
         'progress': progress, 'd_day': d_day,
         'total_paid': total_paid, 'current_paid': current_paid,
         'interest': interest, 'maturity_amount': maturity_amount,
+        'interest_after_tax': interest_after_tax, 'maturity_after_tax': maturity_after_tax,
     }
 
 _KST = timezone(timedelta(hours=9))
@@ -1299,6 +1314,7 @@ def api_savings():
             amount=int(data.get('amount', 0)),
             interest_rate=float(data.get('interest_rate', 0)),
             interest_type=data.get('interest_type', '단리'),
+            tax_type=data.get('tax_type', '일반과세'),
             start_date=data['start_date'],
             end_date=data['end_date'],
         ))
@@ -1323,6 +1339,7 @@ def api_saving(sid):
     s.amount = int(data.get('amount', s.amount))
     s.interest_rate = float(data.get('interest_rate', s.interest_rate))
     s.interest_type = data.get('interest_type', getattr(s, 'interest_type', '단리') or '단리')
+    s.tax_type = data.get('tax_type', getattr(s, 'tax_type', '일반과세') or '일반과세')
     s.start_date = data.get('start_date', s.start_date)
     s.end_date = data.get('end_date', s.end_date)
     db.session.commit()
