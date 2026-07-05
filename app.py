@@ -1572,6 +1572,21 @@ _DIST_INDEX = os.path.join(_DIST_DIR, 'index.html')
 def serve_dist_assets(filename):
     return send_from_directory(os.path.join(_DIST_DIR, 'assets'), filename)
 
+@app.route('/.well-known/assetlinks.json')
+def assetlinks():
+    from flask import Response
+    data = [{
+        'relation': ['delegate_permission/common.handle_all_urls'],
+        'target': {
+            'namespace': 'android_app',
+            'package_name': 'app.gaegyebu',
+            'sha256_cert_fingerprints': [
+                '9A:52:C8:28:82:F8:A7:77:E1:CE:0A:93:7F:D2:8E:DB:09:37:C3:C4:09:AF:FF:BF:21:4C:39:9C:D8:2E:3C:76'
+            ]
+        }
+    }]
+    return Response(json.dumps(data), mimetype='application/json')
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_spa(path):
