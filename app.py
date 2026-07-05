@@ -326,29 +326,31 @@ def _savings_stats(s):
         current_paid = s.amount
         if itype == '복리':
             # 월 복리 (은행 표준)
-            maturity_amount = int(s.amount * (1 + rate / 100 / 12) ** months_total)
+            interest = int(s.amount * (1 + rate / 100 / 12) ** months_total) - s.amount
         else:
-            # 일할계산 단리 (은행 표준: 실제 일수/365)
-            maturity_amount = int(s.amount * (1 + rate / 100 * days_total / 365))
-        interest = maturity_amount - s.amount
+            # 일할계산 단리: 이자를 별도 계산 후 절사 (부동소수점 오차 방지)
+            interest = int(s.amount * rate / 100 * days_total / 365)
+        maturity_amount = s.amount + interest
     else:
         total_paid = s.amount * months_total
         current_paid = s.amount * months_elapsed
         n = months_total
         r_m = rate / 100 / 12
         if itype == '복리' and r_m > 0:
-            maturity_amount = int(s.amount * (1 + r_m) * ((1 + r_m) ** n - 1) / r_m)
+            interest = int(s.amount * (1 + r_m) * ((1 + r_m) ** n - 1) / r_m) - total_paid
         else:
             # 적금 단리: 월납입액 × 월이율 × n(n+1)/2
-            maturity_amount = int(total_paid + s.amount * r_m * n * (n + 1) / 2)
-        interest = maturity_amount - total_paid
-    # 세금: 소득세(14%)·지방소득세(1.4%) 각각 원 미만 절사 후 합산 (은행 표준)
+            interest = int(s.amount * r_m * n * (n + 1) / 2)
+        maturity_amount = total_paid + interest
+    # 세금: 이자소득세(14%) 원 미만 절사 → 지방소득세 = 이자소득세의 10% 원 미만 절사
     if tax_type == '비과세':
         tax = 0
     elif tax_type == '세금우대':
-        tax = int(interest * 0.09) + int(interest * 0.005)
+        income_tax = int(interest * 0.09)
+        tax = income_tax + int(income_tax * 0.1)
     else:
-        tax = int(interest * 0.14) + int(interest * 0.014)
+        income_tax = int(interest * 0.14)
+        tax = income_tax + int(income_tax * 0.1)
     interest_after_tax = interest - tax
     principal = s.amount if s.stype == '예금' else total_paid
     maturity_after_tax = principal + interest_after_tax
