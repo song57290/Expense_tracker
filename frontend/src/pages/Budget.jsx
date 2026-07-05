@@ -4,7 +4,7 @@ import { fmt, bankLogo, fmtMonth, today } from '../utils.js'
 
 const BANKS = [
   ['신한은행', '/static/cards/sinhanbank.png', '신한은행'],
-  ['KB국민은행', '/static/cards/kbbank.png', 'KB국민'],
+  ['국민은행', '/static/cards/kbbank.png', 'KB국민'],
   ['농협은행', '/static/cards/nhbank.png', '농협은행'],
   ['하나은행', '/static/cards/hanabank.png', '하나은행'],
   ['우리은행', '/static/cards/wooribank.png', '우리은행'],
@@ -245,11 +245,11 @@ function SwipeCard({ card, onEdit, onDelete }) {
             <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(card.initial_balance)}</div>
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
-            <div className="text-muted" style={{ fontSize: '0.8rem' }}>수입</div>
+            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
             <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
           </div>
           <div className="text-center flex-fill">
-            <div className="text-muted" style={{ fontSize: '0.8rem' }}>지출</div>
+            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
             <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
           </div>
         </div>
