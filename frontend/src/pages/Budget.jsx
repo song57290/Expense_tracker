@@ -348,20 +348,20 @@ function SavingsItem({ item, onEdit, onDelete }) {
             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{item.interest_rate}%</div>
           </div>
           <div className="text-center flex-fill">
-            <div style={{ fontSize: '0.75rem', color: '#888' }}>만기 수령</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_amount)}원</div>
+            <div style={{ fontSize: '0.75rem', color: '#888' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div>
           </div>
         </div>
         {item.stype === '적금' && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
             <span>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
-            <span>예상 이자 +{fmt(item.interest)}원</span>
+            <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
         {item.stype === '예금' && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
-            <span>{item.months_total}개월</span>
-            <span>예상 이자 +{fmt(item.interest)}원</span>
+            <span>{item.months_total}개월 · {item.tax_type}</span>
+            <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
         <div className="progress" style={{ height: 7, borderRadius: 4 }}>
@@ -369,6 +369,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
         </div>
         <div className="d-flex justify-content-between mt-1">
           <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.start_date}</span>
+          <span style={{ fontSize: '0.7rem', color: '#b088f9', fontWeight: 600 }}>{item.progress}%</span>
           <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.end_date}</span>
         </div>
       </div>
@@ -379,6 +380,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
 function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   const [stype, setStype] = useState('예금')
   const [itype, setItype] = useState('단리')
+  const [taxType, setTaxType] = useState('일반과세')
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
@@ -391,6 +393,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
     if (editItem) {
       setStype(editItem.stype || '예금')
       setItype(editItem.interest_type || '단리')
+      setTaxType(editItem.tax_type || '일반과세')
       setSelected(editItem.bank || '')
       setName(editItem.name || '')
       setAmount((editItem.amount || 0).toLocaleString('ko-KR'))
@@ -398,7 +401,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setStartDate(editItem.start_date || today())
       setEndDate(editItem.end_date || '')
     } else {
-      setStype('예금'); setItype('단리'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate('')
     }
   }, [open, editItem])
 
@@ -406,7 +409,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const payload = { stype, interest_type: itype, bank: selected, name: name.trim(), amount: parseInt(amount.replace(/,/g, '')) || 0, interest_rate: parseFloat(rate) || 0, start_date: startDate, end_date: endDate }
+    const payload = { stype, interest_type: itype, tax_type: taxType, bank: selected, name: name.trim(), amount: parseInt(amount.replace(/,/g, '')) || 0, interest_rate: parseFloat(rate) || 0, start_date: startDate, end_date: endDate }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
     else await api.post('/api/savings', payload)
     onSaved(); onClose()
@@ -448,13 +451,21 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <input type="text" className="form-control mb-2" placeholder={stype === '예금' ? '예치금액 (원)' : '월 납입액 (원)'} inputMode="numeric"
               value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ borderRadius: 10 }} />
-            <div className="d-flex gap-2 mb-3">
+            <div className="d-flex gap-2 mb-2">
               <input type="number" className="form-control" placeholder="연 이율 (%)" step="0.01" min="0" max="100"
                 value={rate} onChange={e => setRate(e.target.value)} required style={{ borderRadius: 10 }} />
               {['단리', '복리'].map(t => (
                 <button key={t} type="button" onClick={() => setItype(t)}
                   style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                   {t}
+                </button>
+              ))}
+            </div>
+            <div className="d-flex gap-2 mb-3">
+              {[['일반과세', '15.4%'], ['세금우대', '9.5%'], ['비과세', '0%']].map(([t, label]) => (
+                <button key={t} type="button" onClick={() => setTaxType(t)}
+                  style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
                 </button>
               ))}
             </div>
