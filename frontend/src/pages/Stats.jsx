@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Chart as ChartJS, ArcElement, Tooltip,
   CategoryScale, LinearScale, BarElement,
@@ -60,6 +61,15 @@ export default function Stats() {
   const [assetVisible, setAssetVisible] = useState(false)
   const [trendFrom, setTrendFrom] = useState(() => defaultTrendRange().from)
   const [trendTo, setTrendTo] = useState(() => defaultTrendRange().to)
+  const [barFrom, setBarFrom] = useState(() => defaultTrendRange().from)
+  const [barTo, setBarTo] = useState(() => defaultTrendRange().to)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState('')
+  const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
+  const [pickerMode, setPickerMode] = useState('month')
+  const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
+  const [barMode, setBarMode] = useState('expense')
+  const [bdOpen, setBdOpen] = useState({})
 
   useEffect(() => {
     document.body.classList.toggle('sheet-open', assetDetail)
@@ -75,39 +85,150 @@ export default function Stats() {
     setTimeout(() => setAssetDetail(false), 300)
   }
 
+  function openPicker(target) {
+    const cur = { barFrom, barTo, trendFrom, trendTo }[target]
+    const y = parseInt(cur.split('-')[0])
+    setPickerTarget(target)
+    setPickerYear(y)
+    setPickerDecade(Math.floor((y - 1) / 10) * 10 + 1)
+    setPickerMode('month')
+    setPickerOpen(true)
+  }
+  function onPickerSelect(y, m) {
+    const ym = `${y}-${String(m).padStart(2, '0')}`
+    const now = nowYM()
+    if (pickerTarget === 'barFrom') {
+      setBarFrom(ym > barTo ? barTo : ym)
+    } else if (pickerTarget === 'barTo') {
+      const capped = ym > now ? now : ym
+      setBarTo(capped < barFrom ? barFrom : capped)
+    } else if (pickerTarget === 'trendFrom') {
+      const months = (parseInt(trendTo.slice(0,4))*12 + parseInt(trendTo.slice(5))) - (y*12 + m)
+      setTrendFrom(months > 5 ? shiftMonth(trendTo, -5) : ym)
+    } else if (pickerTarget === 'trendTo') {
+      const capped = ym > now ? now : ym
+      const months = (parseInt(capped.slice(0,4))*12 + parseInt(capped.slice(5))) - (parseInt(trendFrom.slice(0,4))*12 + parseInt(trendFrom.slice(5)))
+      setTrendTo(capped)
+      if (months > 5) setTrendFrom(shiftMonth(capped, -5))
+    }
+    setPickerOpen(false)
+  }
+
   const load = useCallback(() => {
-    api.get(`/api/stats?month=${month}&trend_from=${trendFrom}&trend_to=${trendTo}`).then(setData).catch(console.error)
-  }, [month, trendFrom, trendTo])
+    api.get(`/api/stats?month=${month}&trend_from=${trendFrom}&trend_to=${trendTo}&bar_from=${barFrom}&bar_to=${barTo}`).then(setData).catch(console.error)
+  }, [month, trendFrom, trendTo, barFrom, barTo])
   useEffect(() => { load() }, [load])
 
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
   const isCurrent = month === nowYM()
-  const cats = data.expense_cats || []
+  const cats = [...(data.expense_cats || [])].sort((a, b) => b.amount - a.amount)
   const expLabels = cats.map(c => c.name)
   const expData = cats.map(c => c.amount)
 
   const barMonths = (data.monthly || []).map(m => m.month)
   const barLabels = barMonths.map(m => parseInt(m.slice(5)) + '월')
-  const allBarData = (data.monthly || []).map(m => m.expense)
-  const barData = cardFilter === '__all__' ? allBarData : ((data.card_monthly_trend || {})[cardFilter] || allBarData)
-  const bgColors = barMonths.map(m => m === month ? 'rgba(176,136,249,0.9)' : 'rgba(176,136,249,0.32)')
+  const allExpData = (data.monthly || []).map(m => m.expense)
+  const allIncData = (data.monthly || []).map(m => m.income)
+  const allBarData = barMode === 'expense' ? allExpData : allIncData
+  const barData = barMode === 'expense' && cardFilter !== '__all__'
+    ? ((data.card_monthly_trend || {})[cardFilter] || allExpData)
+    : allBarData
+  const barColor = barMode === 'expense' ? 'rgba(176,136,249,' : 'rgba(52,199,89,'
+  const bgColors = barMonths.map(m => m === month ? `${barColor}0.9)` : `${barColor}0.32)`)
 
   function niceAxis(d) {
     const mx = Math.max(...d, 0)
-    if (!mx) return { max: 20000, step: 5000 }
-    let step = Math.ceil(mx / 4 / 5000) * 5000
-    if (!step) step = 5000
+    if (!mx) return { max: 2000000, step: 500000 }
+    const unit = 500000
+    const step = Math.ceil(Math.ceil(mx / unit) * unit / 4 / unit) * unit || unit
     return { max: step * 4, step }
   }
   const ax = niceAxis(barData)
 
+  const pickerBtnStyle = { flex: 1, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: '#555', background: '#faf8ff', cursor: 'pointer', textAlign: 'center', fontWeight: 500 }
+
   return (
     <div>
+      {/* 커스텀 년/월 피커 모달 */}
+      {pickerOpen && createPortal(
+        <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+            {pickerMode === 'month' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                    <i className="bi bi-chevron-left" />
+                  </button>
+                  <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }}
+                    style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: '#f0eeff', color: '#b088f9' }}>
+                    {pickerYear}년 ▾
+                  </span>
+                  <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                    <i className="bi bi-chevron-right" />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                    const ym = `${pickerYear}-${String(m).padStart(2,'0')}`
+                    const isSel = ym === { barFrom, barTo, trendFrom, trendTo }[pickerTarget]
+                    return (
+                      <button key={m} onClick={() => onPickerSelect(pickerYear, m)}
+                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                        {m}월
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            ) : pickerMode === 'decade' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>연도 선택</span>
+                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {[2001, 2011, 2021, 2031].map(start => {
+                    const end = start + 9
+                    const isCur = pickerYear >= start && pickerYear <= end
+                    return (
+                      <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
+                        style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isCur ? 'white' : '#333' }}>
+                        {start} ~ {end}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
+                  <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                  {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
+                    const isSel = y === pickerYear
+                    return (
+                      <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
+                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                        {y}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* 월 선택 */}
       <div className="d-flex align-items-center justify-content-center gap-3 mb-4" style={{ paddingBottom: '0.6rem' }}>
         <button onClick={() => setMonth(m => shiftMonth(m, -1))} className="btn btn-sm"
-          style={{ background: 'rgba(176,136,249,0.15)', color: '#b088f9', border: '1.5px solid #b088f9', borderRadius: 20, padding: '4px 18px', fontSize: '1.6rem', lineHeight: 1 }}>‹</button>
+          style={{ background: 'rgba(176,136,249,0.15)', color: '#b088f9', border: '1.5px solid #b088f9', borderRadius: 20, padding: '2px 18px 6px', fontSize: '1.6rem', lineHeight: 1 }}>‹</button>
         <div className="text-center" style={{ position: 'relative' }}>
           <div className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>{fmtMonth(month)}</div>
           {!isCurrent && (
@@ -117,7 +238,7 @@ export default function Stats() {
         </div>
         <button onClick={() => !isCurrent && setMonth(m => shiftMonth(m, 1))} className="btn btn-sm"
           disabled={isCurrent}
-          style={{ background: isCurrent ? 'rgba(176,136,249,0.05)' : 'rgba(176,136,249,0.15)', color: isCurrent ? '#ccc' : '#b088f9', border: `1.5px solid ${isCurrent ? '#ccc' : '#b088f9'}`, borderRadius: 20, padding: '4px 18px', fontSize: '1.6rem', lineHeight: 1 }}>›</button>
+          style={{ background: isCurrent ? 'rgba(176,136,249,0.05)' : 'rgba(176,136,249,0.15)', color: isCurrent ? '#ccc' : '#b088f9', border: `1.5px solid ${isCurrent ? '#ccc' : '#b088f9'}`, borderRadius: 20, padding: '2px 18px 6px', fontSize: '1.6rem', lineHeight: 1 }}>›</button>
       </div>
 
       {/* 카테고리별 지출 헤더 */}
@@ -150,11 +271,11 @@ export default function Stats() {
                         },
                       }}
                     />
-                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '7px 16px', marginTop: 16, width: '100%' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px 10px', marginTop: 16, width: '100%' }}>
                       {expLabels.map((cat, i) => (
-                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: '#555' }}>
-                          <div style={{ width: 11, height: 11, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                          <span>{data.emoji_map[cat] || '📦'} {cat}</span>
+                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: '#555', minWidth: 0 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
                         </div>
                       ))}
                     </div>
@@ -214,25 +335,50 @@ export default function Stats() {
         </div>
       )}
 
-      {/* 월별 지출 추이 */}
+      {/* 월별 지출/수입 추이 */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setBarOpen(o => !o)}>
-            <h5 className="card-title mb-0">월별 지출 추이 <span className="text-muted fw-normal" style={{ fontSize: '0.8rem' }}>(최근 6개월)</span></h5>
+            <div className="d-flex align-items-center gap-2">
+              <h5 className="card-title mb-0">월별 추이</h5>
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: '#f2f2f7', borderRadius: 10, padding: 3, gap: 2 }}>
+                {[['expense', '지출'], ['income', '수입']].map(([mode, label]) => (
+                  <button key={mode} onClick={() => setBarMode(mode)}
+                    style={{ border: 'none', borderRadius: 7, padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                      background: barMode === mode ? (mode === 'expense' ? '#b088f9' : '#34c759') : 'transparent',
+                      color: barMode === mode ? 'white' : '#888', transition: 'all 0.15s' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{barOpen ? '▴' : '▾'}</span>
           </div>
           {barOpen && (
+            <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
+              <button onClick={() => openPicker('barFrom')} style={pickerBtnStyle}>
+                {barFrom.slice(0,4)}년 {parseInt(barFrom.slice(5))}월
+              </button>
+              <span style={{ color: '#bbb', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
+              <button onClick={() => openPicker('barTo')} style={pickerBtnStyle}>
+                {barTo.slice(0,4)}년 {parseInt(barTo.slice(5))}월
+              </button>
+            </div>
+          )}
+          {barOpen && (
             <div>
-              <select className="form-select form-select-sm mt-3" value={cardFilter}
-                onChange={e => setCardFilter(e.target.value)}
-                style={{ maxWidth: 200, borderRadius: 10 }}
-                onClick={e => e.stopPropagation()}>
-                <option value="__all__">전체 총합</option>
-                {(data.card_list || []).map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
+              {barMode === 'expense' && (
+                <select className="form-select form-select-sm mt-2" value={cardFilter}
+                  onChange={e => setCardFilter(e.target.value)}
+                  style={{ maxWidth: 200, borderRadius: 10 }}
+                  onClick={e => e.stopPropagation()}>
+                  <option value="__all__">전체 총합</option>
+                  {(data.card_list || []).map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              )}
               <div style={{ maxHeight: 260, marginTop: 8 }}>
                 <Bar
-                  data={{ labels: barLabels, datasets: [{ data: barData, backgroundColor: bgColors, borderRadius: 6, barThickness: 24 }] }}
+                  data={{ labels: barLabels, datasets: [{ data: barData, backgroundColor: bgColors, borderRadius: 6, barPercentage: 0.75, categoryPercentage: 1.0 }] }}
                   options={{
                     responsive: true,
                     plugins: {
@@ -240,6 +386,7 @@ export default function Stats() {
                       datalabels: { display: false },
                     },
                     scales: {
+                      x: { grid: { display: false } },
                       y: {
                         min: 0, max: ax.max,
                         ticks: { callback: v => v === 0 ? '0' : (v / 10000) + '만', stepSize: ax.step },
@@ -285,8 +432,8 @@ export default function Stats() {
             </div>
             {portfolioOpen && (() => {
               const PF_COLORS = ['#b088f9', '#7baff0', '#4BC0C0', '#FF6384', '#FF9F40', '#FFCE56', '#9966FF', '#C9CBCF']
-              const items = data.portfolio_breakdown || []
-              const total = items.reduce((s, i) => s + i.value, 0)
+              const items = [...(data.portfolio_breakdown || [])].sort((a, b) => b.value - a.value)
+              const total = data.total_assets ?? items.reduce((s, i) => s + i.value, 0)
               const labels = items.map(i => i.label)
               const values = items.map(i => i.value)
               const pfCenter = {
@@ -357,22 +504,13 @@ export default function Stats() {
           </div>
           {assetOpen && (
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
-              <input type="month" value={trendFrom} max={trendTo}
-                onChange={e => {
-                  const v = e.target.value; if (!v) return
-                  const months = (trendTo.slice(0,4)*12 + parseInt(trendTo.slice(5))) - (v.slice(0,4)*12 + parseInt(v.slice(5)))
-                  setTrendFrom(months > 5 ? shiftMonth(trendTo, -5) : v)
-                }}
-                style={{ flex: 1, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: '#555', outline: 'none', background: '#faf8ff' }} />
+              <button onClick={() => openPicker('trendFrom')} style={pickerBtnStyle}>
+                {trendFrom.slice(0,4)}년 {parseInt(trendFrom.slice(5))}월
+              </button>
               <span style={{ color: '#bbb', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
-              <input type="month" value={trendTo} min={trendFrom} max={nowYM()}
-                onChange={e => {
-                  const v = e.target.value; if (!v) return
-                  const months = (v.slice(0,4)*12 + parseInt(v.slice(5))) - (trendFrom.slice(0,4)*12 + parseInt(trendFrom.slice(5)))
-                  setTrendTo(v)
-                  if (months > 5) setTrendFrom(shiftMonth(v, -5))
-                }}
-                style={{ flex: 1, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: '#555', outline: 'none', background: '#faf8ff' }} />
+              <button onClick={() => openPicker('trendTo')} style={pickerBtnStyle}>
+                {trendTo.slice(0,4)}년 {parseInt(trendTo.slice(5))}월
+              </button>
               <span style={{ fontSize: '0.7rem', color: '#bbb', flexShrink: 0, whiteSpace: 'nowrap' }}>최대 6개월</span>
             </div>
           )}
@@ -432,7 +570,7 @@ export default function Stats() {
 
             return (
               <div className="mt-3">
-                <div className="d-flex gap-3 mb-3">
+                <div className="d-flex gap-3 mb-2">
                   <div style={{ flex: 1, background: '#f8f5ff', borderRadius: 12, padding: '10px 14px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#888', marginBottom: 3 }}>현재 총 자산</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#b088f9' }}>{fmt(latest)}원</div>
@@ -444,6 +582,32 @@ export default function Stats() {
                     </div>
                   </div>
                 </div>
+                {(() => {
+                  if (trend.length < 2) return null
+                  const curBd = trend[trend.length - 1].breakdown || {}
+                  const prevBd = trend[trend.length - 2].breakdown || {}
+                  const keys = [...new Set([...Object.keys(curBd), ...Object.keys(prevBd)])]
+                  const changes = keys
+                    .map(k => ({ label: k, diff: (curBd[k] || 0) - (prevBd[k] || 0) }))
+                    .filter(c => c.diff !== 0)
+                    .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
+                  if (!changes.length) return null
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                      {changes.map(c => (
+                        <div key={c.label} style={{
+                          background: c.diff > 0 ? '#f0faf4' : '#fff0f0',
+                          border: `1px solid ${c.diff > 0 ? '#c3e6cb' : '#f5c6cb'}`,
+                          borderRadius: 8, padding: '4px 10px',
+                          fontSize: '0.74rem', fontWeight: 600,
+                          color: c.diff > 0 ? '#198754' : '#dc3545',
+                        }}>
+                          {c.label} {c.diff > 0 ? '+' : ''}{fmt(c.diff)}원
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
                 <div style={{ position: 'relative', cursor: 'pointer' }} onClick={openAssetDetail}>
                   <div style={{ height: 200 }}>
                     <Line data={{ labels: tLabels, datasets: [lineDataset] }} options={lineOptions(ax2.min, ax2.max, ax2.step)} />
@@ -509,28 +673,66 @@ export default function Stats() {
                             const pct = prev2 ? ((t.assets - prev2) / Math.abs(prev2) * 100).toFixed(1) : null
                             const isMax = i === maxIdx
                             const isMin = i === minIdx && tData.length > 1
+                            const bdChanges = (() => {
+                              if (i === 0 || !t.breakdown) return []
+                              const cur = t.breakdown
+                              const prv = trend[i - 1].breakdown || {}
+                              const keys = [...new Set([...Object.keys(cur), ...Object.keys(prv)])]
+                              return keys
+                                .map(k => ({ label: k, diff: (cur[k] || 0) - (prv[k] || 0) }))
+                                .filter(c => c.diff !== 0)
+                                .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
+                            })()
                             return (
                               <div key={t.month} style={{
-                                display: 'flex', alignItems: 'center', padding: '13px 16px',
+                                padding: '13px 16px',
                                 borderBottom: i < trend.length - 1 ? '1px solid #f5f5f5' : 'none',
                                 background: isMax ? '#f8f5ff' : isMin ? '#fff8f8' : '#fff',
                               }}>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 600, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    {parseInt(t.month.slice(5))}월
-                                    {isMax && <span style={{ fontSize: '0.65rem', background: '#b088f9', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최고</span>}
-                                    {isMin && <span style={{ fontSize: '0.65rem', background: '#ff8fa3', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최저</span>}
-                                  </div>
-                                  <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>{t.month}</div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#333' }}>{fmt(t.assets)}원</div>
-                                  {chg !== null && (
-                                    <div style={{ fontSize: '0.72rem', color: chg >= 0 ? '#198754' : '#dc3545', marginTop: 2 }}>
-                                      {chg >= 0 ? '▲' : '▼'} {fmt(Math.abs(chg))}원 ({chg >= 0 ? '+' : ''}{pct}%)
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                                      {parseInt(t.month.slice(5))}월
                                     </div>
-                                  )}
+                                    <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>{t.month}</div>
+                                  </div>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                      {isMax && <span style={{ fontSize: '0.65rem', background: '#b088f9', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최고</span>}
+                                      {isMin && <span style={{ fontSize: '0.65rem', background: '#ff8fa3', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최저</span>}
+                                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#333' }}>{fmt(t.assets)}원</div>
+                                    </div>
+                                    {chg !== null && (
+                                      <div
+                                        onClick={bdChanges.length > 0 ? () => setBdOpen(o => ({ ...o, [t.month]: !o[t.month] })) : undefined}
+                                        style={{
+                                          fontSize: '0.72rem', fontWeight: 600, marginTop: 3,
+                                          color: chg >= 0 ? '#198754' : '#dc3545',
+                                          textDecoration: bdChanges.length > 0 ? 'underline' : 'none',
+                                          textUnderlineOffset: '2px',
+                                          cursor: bdChanges.length > 0 ? 'pointer' : 'default',
+                                        }}
+                                      >
+                                        {chg >= 0 ? '▲' : '▼'} {fmt(Math.abs(chg))}원 ({chg >= 0 ? '+' : ''}{pct}%)
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
+                                {bdOpen[t.month] && bdChanges.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                                    {bdChanges.map(c => (
+                                      <span key={c.label} style={{
+                                        fontSize: '0.68rem', fontWeight: 600,
+                                        color: c.diff > 0 ? '#198754' : '#dc3545',
+                                        background: c.diff > 0 ? '#f0faf4' : '#fff0f0',
+                                        border: `1px solid ${c.diff > 0 ? '#c3e6cb' : '#f5c6cb'}`,
+                                        borderRadius: 6, padding: '2px 7px',
+                                      }}>
+                                        {c.label} {c.diff > 0 ? '+' : ''}{fmt(c.diff)}원
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )
                           })}

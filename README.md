@@ -79,7 +79,7 @@ Expense_tracker/
 
 ```bash
 cd C:\Users\song5\Expense_tracker
-flyctl deploy
+fly deploy
 ```
 
 또는 `deploy.bat` 더블클릭.
