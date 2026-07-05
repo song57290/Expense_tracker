@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
 import Home from './pages/Home.jsx'
-import Cards from './pages/Cards.jsx'
 import Calendar from './pages/Calendar.jsx'
 import Stats from './pages/Stats.jsx'
 import Budget from './pages/Budget.jsx'
@@ -81,12 +80,11 @@ export default function App() {
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onLogin={setUser} />} />
         <Route element={user ? <Layout user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" replace />}>
           <Route path="/" element={<Home />} />
-          <Route path="/cards" element={<Cards />} />
+          <Route path="/cards" element={<Navigate to="/budget" replace />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/categories" element={<Categories />} />
-          <Route path="/cards" element={<Navigate to="/budget" replace />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/edit/:id" element={<Edit />} />
         </Route>
