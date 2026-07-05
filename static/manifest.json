@@ -2,10 +2,16 @@
     "name": "나의 가계부",
     "short_name": "가계부",
     "description": "개인 가계부 앱",
+    "id": "/",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#7B6BE0",
     "theme_color": "#7B6BE0",
+    "lang": "ko",
+    "dir": "ltr",
+    "categories": ["finance", "productivity"],
     "icons": [
         {
             "src": "/static/icon-192.png",
@@ -15,7 +21,24 @@
         {
             "src": "/static/icon-512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/static/1.png",
+            "sizes": "390x844",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "홈 화면"
+        },
+        {
+            "src": "/static/3.png",
+            "sizes": "390x844",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "예산 화면"
         }
     ]
 }

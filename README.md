@@ -218,6 +218,8 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 68 | 파일 선택 버튼 스타일 — 테두리 초록, 버튼 연두색(`#c8e6c9`), 파일명 영역 흰색 (`::file-selector-button` CSS) |
 | 69 | 사이드바 "목록" → "카테고리" 레이블 수정 |
 | 70 | 도움말 내용 최신화 — 각 탭별 변경사항 반영 |
+| 71 | TWA Android 패키지 설정 — `/.well-known/assetlinks.json` 엔드포인트 추가, 패키지명 `app.gaegyebu`, SHA-256 지문 등록 |
+| 72 | manifest.json 보강 — `orientation`, `scope`, `lang`, `dir`, `categories`, `screenshots`, `id` 필드 추가 (PWABuilder 경고 해소) |
 
 ---
 
