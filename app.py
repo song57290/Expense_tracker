@@ -1259,17 +1259,16 @@ def api_budget():
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
-        total_income = sum(tx.amount for tx in card_txs if tx.type == 'income')
-        total_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense')
+        month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
+        month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
         initial_balance = card.account_balance or 0
-        balance = initial_balance + total_income - total_expense
-        spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
-        percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        balance = initial_balance + month_income - month_expense
+        percent = min(int(month_expense / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({
             'id': card.id, 'name': card.name,
-            'initial_balance': initial_balance, 'total_income': total_income,
-            'total_expense': total_expense, 'balance': balance,
-            'spent': spent, 'target': card.monthly_target, 'percent': percent,
+            'initial_balance': initial_balance, 'total_income': month_income,
+            'total_expense': month_expense, 'balance': balance,
+            'spent': month_expense, 'target': card.monthly_target, 'percent': percent,
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
             'url': card.url or '',
         })
@@ -1847,11 +1846,12 @@ def import_categorize():
         (Category.user_id == uid) | (Category.user_id == None),
         Category.cat_type == 'income'
     ).order_by(Category.position).all()
+    cards = Card.query.filter_by(user_id=uid).order_by(Card.id).all()
 
     return render_template('import_categorize.html',
                            rows=data['rows'], skipped_rows=data.get('skipped_rows', []),
                            cats_expense=cats_expense, cats_income=cats_income,
-                           tmp=tmp)
+                           cards=cards, tmp=tmp)
 
 
 @app.route('/import/categorize/confirm', methods=['POST'])
@@ -1872,10 +1872,11 @@ def import_categorize_confirm():
     imported = 0
     for i, row in enumerate(data['rows']):
         cat = request.form.get(f'cat_{i}', '기타').strip() or '기타'
+        card_val = request.form.get(f'card_{i}', '').strip() or None
         db.session.add(Transaction(
             date=row['date'], type=row['type'], category=cat,
             description=row['description'], amount=row['amount'],
-            card=None, user_id=uid,
+            card=card_val, user_id=uid,
         ))
         imported += 1
 
@@ -1968,7 +1969,7 @@ def import_text_preview():
         return redirect('/')
     with open(path, encoding='utf-8') as f:
         parsed = json.load(f)
-    categories = Category.query.filter_by(user_id=uid).order_by(Category.id).all()
+    categories = Category.query.filter_by(user_id=uid).order_by(Category.position, Category.id).all()
     cards = Card.query.filter_by(user_id=uid).all()
 
     _generic = {'카드', '은행', '뱅크', '체크', '신용', '승인', '출금', '입금', '이체', '결제', '납부'}

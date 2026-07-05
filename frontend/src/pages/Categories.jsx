@@ -154,25 +154,17 @@ export default function Categories() {
     <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
       <div className="card-body">
         <h6 className="fw-bold mb-3">{editCat ? '카테고리 수정' : '카테고리 추가'}</h6>
-        <div className="row g-2">
-          <div className="col-3">
-            <input className="form-control text-center" placeholder="🙂" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ fontSize: '1.3rem' }} />
-          </div>
-          <div className="col-9">
-            <input className="form-control" placeholder="카테고리 이름" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+          <input className="form-control text-center" placeholder="🙂" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ fontSize: '1.3rem', width: 48, flexShrink: 0, padding: '0 4px', height: 38 }} />
+          <input className="form-control" placeholder="카테고리 이름" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1, height: 38 }} />
           {!editCat && (
-            <div className="col-12">
-              <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                <option value="expense">지출</option>
-                <option value="income">수입</option>
-              </select>
-            </div>
+            <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={{ width: 74, flexShrink: 0, height: 38, padding: '0 8px' }}>
+              <option value="expense">지출</option>
+              <option value="income">수입</option>
+            </select>
           )}
-        </div>
-        <div className="d-flex justify-content-end gap-2 mt-3">
-          <button className="btn btn-sm px-4" onClick={handleSave} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }) }}>취소</button>
+          <button className="btn btn-sm" onClick={handleSave} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>저장</button>
+          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }) }} style={{ borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>취소</button>
         </div>
       </div>
     </div>
