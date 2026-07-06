@@ -9,6 +9,7 @@ import Categories from './pages/Categories.jsx'
 import Edit from './pages/Edit.jsx'
 import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
+import UpdateNoticeModal from './components/UpdateNoticeModal.jsx'
 
 export default function App() {
   const [user, setUser] = useState(undefined)
@@ -55,6 +56,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <UpdateNoticeModal />
       {noticePopup && (
         <div onClick={dismissNotice} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 380, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>

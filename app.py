@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -170,6 +170,50 @@ with app.app_context():
             pass
     # seed categories for user 1 (existing data owner)
     _seed_user_categories(1)
+
+    # seed help items
+    if HelpItem.query.count() == 0:
+        help_defaults = [
+            ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
+            ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n• 예금·적금·청약 추가: 만기일·이율·납입액 입력 시 자동 계산 (청약은 월 2~50만원 납입)\n• 투자 추가: 종목·수량·매수가 입력, 티커로 현재가 자동 조회'),
+            ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동'),
+            ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
+            ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다.\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리'),
+            ('⚙️', '설정', '앱 환경을 설정합니다.\n\n• 🆕 업데이트 내역: 최근 업데이트 내용을 언제든 다시 확인\n• 공지사항: 앱 업데이트 및 안내 확인\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴'),
+            ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 예금·적금·투자만 포함 (카드잔고 제외)\n• 금액 큰 순서대로 정렬\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
+        ]
+        for i, (icon, title, desc) in enumerate(help_defaults):
+            db.session.add(HelpItem(icon=icon, title=title, desc=desc, position=i))
+        db.session.commit()
+
+    # seed update notice config
+    if AppConfig.query.get('update_notice') is None:
+        initial = {
+            'version': 'ver 2.21',
+            'date': '2026년 7월 7일',
+            'updates': [
+                {'section': '📊 통계', 'items': [
+                    {'tag': 'new', 'title': '월별 추이 수입·지출 동시 보기', 'desc': '지출 / 수입 / 전체 모드 — 전체 선택 시 두 막대를 나란히 비교'},
+                    {'tag': 'new', 'title': '월별 추이 전체 기간 보기 버튼', 'desc': '날짜 범위 옆 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인'},
+                    {'tag': 'imp', 'title': '월별 추이 세로 구분선 추가', 'desc': '월 간격을 더 명확히 구분할 수 있는 연한 세로선'},
+                    {'tag': 'imp', 'title': '상세 내역 금액 오른쪽 정렬', 'desc': '지출 합계 열 정렬 개선으로 금액 비교가 편해짐'},
+                ]},
+                {'section': '📄 포트폴리오 PDF', 'items': [
+                    {'tag': 'imp', 'title': '자산 구성 금액 내림차순 정렬', 'desc': '도넛 차트와 목록 모두 큰 자산 순으로 표시'},
+                    {'tag': 'imp', 'title': '자산 구성 카드잔고 제외', 'desc': '예금·적금·투자만 포함'},
+                    {'tag': 'imp', 'title': '카드 달성률 바 색상 변경', 'desc': '노란색 → 파란색 그라데이션'},
+                    {'tag': 'new', 'title': '거래내역 기본 비활성화', 'desc': '체크 시 최근 30건만 출력'},
+                ]},
+                {'section': '🏠 홈 · 투자 · 설정', 'items': [
+                    {'tag': 'new', 'title': '투자 현재가 자동 갱신', 'desc': '국내·해외 장 마감 후 현재가 자동 업데이트'},
+                    {'tag': 'imp', 'title': '홈탭 카테고리 금액·비율 정렬', 'desc': '금액과 % 각각 독립 열로 정렬, 끝이 깔끔하게 정렬됨'},
+                    {'tag': 'fix', 'title': '포트폴리오 카드 잔고 오류 수정', 'desc': '현재 잔고가 음수로 표시되던 계산 오류 해결'},
+                    {'tag': 'imp', 'title': '설정 탭 애니메이션 추가', 'desc': '페이지 진입, 카드 호버, 섹션 펼침 등 전반적인 애니메이션 적용'},
+                ]},
+            ]
+        }
+        db.session.add(AppConfig(key='update_notice', value=json.dumps(initial, ensure_ascii=False)))
+        db.session.commit()
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
@@ -851,6 +895,9 @@ def api_stats():
         cm += 1
         if cm > 12: cm = 1; cy += 1
 
+    first_tx = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.asc()).first()
+    first_month = first_tx.date[:7] if first_tx else month
+
     return jsonify({
         'expense_cats': cat_totals(expense_txs),
         'income_cats': cat_totals(income_txs),
@@ -862,6 +909,7 @@ def api_stats():
         'asset_trend': asset_trend,
         'portfolio_breakdown': portfolio_breakdown,
         'total_assets': total_assets_now,
+        'first_month': first_month,
     })
 
 @app.route('/api/portfolio-pdf')
@@ -1561,6 +1609,47 @@ def api_notice(nid):
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.route('/api/help', methods=['GET'])
+def api_help_list():
+    items = HelpItem.query.order_by(HelpItem.position).all()
+    return jsonify([{'id': h.id, 'icon': h.icon, 'title': h.title, 'desc': h.desc} for h in items])
+
+@app.route('/api/help/<int:item_id>', methods=['PUT'])
+@login_required
+def api_help_item(item_id):
+    u = User.query.get(session['user_id'])
+    if u.email != ADMIN_EMAIL:
+        return jsonify({'error': 'Forbidden'}), 403
+    h = HelpItem.query.get_or_404(item_id)
+    data = request.get_json()
+    if 'icon' in data: h.icon = data['icon']
+    if 'title' in data: h.title = data['title']
+    if 'desc' in data: h.desc = data['desc']
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/update-notice-config', methods=['GET'])
+def api_update_notice_config_get():
+    config = AppConfig.query.get('update_notice')
+    if config:
+        return jsonify(json.loads(config.value))
+    return jsonify({'version': '', 'date': '', 'updates': []})
+
+@app.route('/api/update-notice-config', methods=['PUT'])
+@login_required
+def api_update_notice_config_put():
+    u = User.query.get(session['user_id'])
+    if u.email != ADMIN_EMAIL:
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json()
+    config = AppConfig.query.get('update_notice')
+    if config:
+        config.value = json.dumps(data, ensure_ascii=False)
+    else:
+        db.session.add(AppConfig(key='update_notice', value=json.dumps(data, ensure_ascii=False)))
+    db.session.commit()
+    return jsonify({'ok': True})
+
 @app.route('/api/portfolio')
 @login_required
 def api_portfolio():
@@ -1575,15 +1664,13 @@ def api_portfolio():
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in transactions if tx.card == card.name]
-        total_income = sum(tx.amount for tx in card_txs if tx.type == 'income')
-        total_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense')
-        initial = card.account_balance or 0
-        balance = initial + total_income - total_expense
+        current_balance = card.account_balance or 0
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
         spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        initial_balance = current_balance - month_income + spent
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
-        card_stats.append({'name': card.name, 'initial_balance': initial, 'total_income': total_income,
-                           'total_expense': total_expense, 'balance': balance,
+        card_stats.append({'name': card.name, 'initial_balance': initial_balance,
+                           'balance': current_balance,
                            'month_income': month_income, 'spent': spent,
                            'target': card.monthly_target, 'percent': percent})
     savings_list = Savings.query.filter_by(user_id=uid).all()
@@ -2258,6 +2345,15 @@ def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
     )
 
+def _scheduled_price_update():
+    with app.app_context():
+        try:
+            all_investments = Investment.query.all()
+            if all_investments:
+                _auto_fetch_investment_prices(all_investments)
+        except Exception as e:
+            app.logger.error('Scheduled price update error: %s', e)
+
 def _send_push_notifications():
     try:
         from datetime import timezone, timedelta
@@ -2298,6 +2394,8 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         import atexit
         _scheduler = BackgroundScheduler()
         _scheduler.add_job(_send_push_notifications, 'cron', minute='*')
+        _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='mon-fri', hour=6, minute=35)
+        _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='tue-sat', hour=2, minute=15)
         _scheduler.start()
         atexit.register(lambda: _scheduler.shutdown(wait=False))
     except ImportError:

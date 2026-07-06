@@ -72,6 +72,17 @@ class Notice(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
 
+class HelpItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    icon = db.Column(db.String(10), nullable=False, default='')
+    title = db.Column(db.String(50), nullable=False)
+    desc = db.Column(db.Text, nullable=False, default='')
+    position = db.Column(db.Integer, nullable=False, default=0)
+
+class AppConfig(db.Model):
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.Text, nullable=False)
+
 class Investment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=True)

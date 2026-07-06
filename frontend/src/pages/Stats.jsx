@@ -136,6 +136,8 @@ export default function Stats() {
     : allBarData
   const barColor = barMode === 'expense' ? 'rgba(176,136,249,' : 'rgba(52,199,89,'
   const bgColors = barMonths.map(m => m === month ? `${barColor}0.9)` : `${barColor}0.32)`)
+  const expColors = barMonths.map(m => m === month ? 'rgba(176,136,249,0.9)' : 'rgba(176,136,249,0.32)')
+  const incColors = barMonths.map(m => m === month ? 'rgba(52,199,89,0.9)' : 'rgba(52,199,89,0.32)')
 
   function niceAxis(d) {
     const mx = Math.max(...d, 0)
@@ -144,7 +146,7 @@ export default function Stats() {
     const step = Math.ceil(Math.ceil(mx / unit) * unit / 4 / unit) * unit || unit
     return { max: step * 4, step }
   }
-  const ax = niceAxis(barData)
+  const ax = barMode === 'both' ? niceAxis([...allExpData, ...allIncData]) : niceAxis(barData)
 
   const pickerBtnStyle = { flex: 1, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: '#555', background: '#faf8ff', cursor: 'pointer', textAlign: 'center', fontWeight: 500 }
 
@@ -292,14 +294,14 @@ export default function Stats() {
               <div className="card-body">
                 <h5 className="card-title">상세 내역</h5>
                 <table className="table table-hover" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-                  <thead><tr><th>카테고리</th><th>지출 합계</th></tr></thead>
+                  <thead><tr><th>카테고리</th><th style={{ textAlign: 'right' }}>지출 합계</th></tr></thead>
                   <tbody>
                     {cats.length === 0 ? (
                       <tr><td colSpan={2} className="text-muted text-center">내역 없음</td></tr>
                     ) : cats.map(c => (
                       <tr key={c.name}>
                         <td>{c.icon || data.emoji_map[c.name] || '📦'} {c.name}</td>
-                        <td>{fmt(c.amount)}원</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(c.amount)}원</td>
                       </tr>
                     ))}
                   </tbody>
@@ -342,10 +344,10 @@ export default function Stats() {
             <div className="d-flex align-items-center gap-2">
               <h5 className="card-title mb-0">월별 추이</h5>
               <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: '#f2f2f7', borderRadius: 10, padding: 3, gap: 2 }}>
-                {[['expense', '지출'], ['income', '수입']].map(([mode, label]) => (
+                {[['expense', '지출'], ['income', '수입'], ['both', '전체']].map(([mode, label]) => (
                   <button key={mode} onClick={() => setBarMode(mode)}
                     style={{ border: 'none', borderRadius: 7, padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                      background: barMode === mode ? (mode === 'expense' ? '#b088f9' : '#34c759') : 'transparent',
+                      background: barMode === mode ? (mode === 'expense' ? '#b088f9' : mode === 'income' ? '#34c759' : '#5b8def') : 'transparent',
                       color: barMode === mode ? 'white' : '#888', transition: 'all 0.15s' }}>
                     {label}
                   </button>
@@ -363,6 +365,12 @@ export default function Stats() {
               <button onClick={() => openPicker('barTo')} style={pickerBtnStyle}>
                 {barTo.slice(0,4)}년 {parseInt(barTo.slice(5))}월
               </button>
+              {data.first_month && (
+                <button onClick={() => { setBarFrom(data.first_month); setBarTo(nowYM()) }}
+                  style={{ flexShrink: 0, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 10px', fontSize: '0.78rem', color: barFrom === data.first_month && barTo === nowYM() ? '#fff' : '#b088f9', background: barFrom === data.first_month && barTo === nowYM() ? '#b088f9' : '#faf8ff', cursor: 'pointer', fontWeight: 600 }}>
+                  전체
+                </button>
+              )}
             </div>
           )}
           {barOpen && (
@@ -376,17 +384,24 @@ export default function Stats() {
                   {(data.card_list || []).map(name => <option key={name} value={name}>{name}</option>)}
                 </select>
               )}
-              <div style={{ maxHeight: 260, marginTop: 8 }}>
+              <div style={{ height: 240, marginTop: 8 }}>
                 <Bar
-                  data={{ labels: barLabels, datasets: [{ data: barData, backgroundColor: bgColors, borderRadius: 6, barPercentage: 0.75, categoryPercentage: 1.0 }] }}
+                  data={{ labels: barLabels, datasets: barMode === 'both'
+                    ? [
+                        { label: '수입', data: allIncData, backgroundColor: incColors, borderRadius: 6, barPercentage: 0.45, categoryPercentage: 1.0 },
+                        { label: '지출', data: allExpData, backgroundColor: expColors, borderRadius: 6, barPercentage: 0.45, categoryPercentage: 1.0 },
+                      ]
+                    : [{ data: barData, backgroundColor: bgColors, borderRadius: 6, barPercentage: 0.75, categoryPercentage: 1.0 }]
+                  }}
                   options={{
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
-                      legend: { display: false },
+                      legend: { display: barMode === 'both', position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
                       datalabels: { display: false },
                     },
                     scales: {
-                      x: { grid: { display: false } },
+                      x: { grid: { display: true, color: 'rgba(0,0,0,0.05)', drawTicks: false } },
                       y: {
                         min: 0, max: ax.max,
                         ticks: { callback: v => v === 0 ? '0' : (v / 10000) + '만', stepSize: ax.step },

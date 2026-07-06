@@ -121,11 +121,11 @@ function buildPortfolioHTML(d, sections) {
       <div class="ig">
         <div class="ic"><div class="l">현재 잔고</div><div class="v ${c.balance < 0 ? 'ce' : ''}">${f(c.balance)}원</div></div>
         <div class="ic"><div class="l">목표 금액</div><div class="v">${c.target ? f(c.target) + '원' : '-'}</div></div>
-        <div class="ic"><div class="l">달성률</div><div class="v" style="color:#ffc107">${c.percent || 0}%</div></div>
+        <div class="ic"><div class="l">달성률</div><div class="v" style="color:#5b8def">${c.percent || 0}%</div></div>
       </div>
       ${c.target ? `
       <div style="margin-top:4px">
-        <div class="pb"><div class="pf" style="width:${Math.min(c.percent||0,100)}%;background:#ffc107"></div></div>
+        <div class="pb"><div class="pf" style="width:${Math.min(c.percent||0,100)}%;background:linear-gradient(90deg,#7baff0,#5b8def)"></div></div>
         <div class="pl"><span>0원</span><span>${f(c.target)}원</span></div>
       </div>` : ''}
     </div>
@@ -162,11 +162,12 @@ function buildPortfolioHTML(d, sections) {
       <div class="sc"><div class="l">상품 수</div><div class="v cn">${savings.length}개</div></div>
     </div>` : ''
 
-  const txsHtml = txs.length === 0 ? '<div class="empty">거래 내역이 없습니다</div>' : `
+  const recentTxs = [...txs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
+  const txsHtml = recentTxs.length === 0 ? '<div class="empty">거래 내역이 없습니다</div>' : `
     <table>
       <thead><tr><th>날짜</th><th>유형</th><th>카테고리</th><th>설명</th><th>카드/계좌</th><th style="text-align:right">금액</th></tr></thead>
       <tbody>
-        ${txs.map(t => `
+        ${recentTxs.map(t => `
         <tr>
           <td>${t.date}</td>
           <td><span class="badge ${t.type === 'expense' ? 'be' : 'bi'}">${t.type === 'expense' ? '지출' : '수입'}</span></td>
@@ -207,12 +208,12 @@ function buildPortfolioHTML(d, sections) {
   const depositTotal = savings.filter(s => s.stype === '예금').reduce((s, v) => s + (v.amount || 0), 0)
   const installTotal = savings.filter(s => s.stype === '적금').reduce((s, v) => s + (v.current_paid || 0), 0)
   const portfolioItems = []
-  if (cardTotal > 0) portfolioItems.push(['카드잔고', cardTotal])
-  if (depositTotal > 0) portfolioItems.push(['예금', depositTotal])
+if (depositTotal > 0) portfolioItems.push(['예금', depositTotal])
   if (installTotal > 0) portfolioItems.push(['적금', installTotal])
   const invByType = {}
   investments.forEach(i => { invByType[i.itype] = (invByType[i.itype] || 0) + i.value })
   Object.entries(invByType).forEach(([k, v]) => { if (v > 0) portfolioItems.push([k, v]) })
+  portfolioItems.sort((a, b) => b[1] - a[1])
   const donutSvg = makeSvgDonut(portfolioItems, COLORS)
   const total2 = portfolioItems.reduce((s, x) => s + x[1], 0)
   const legendHtml = portfolioItems.map(([label, value], i) => {
@@ -252,11 +253,11 @@ ${sec.summary !== false ? `<div class="sec">
     <div class="sc"><div class="l">순자산</div><div class="v cn">${f(netWorth)}원</div></div>
     <div class="sc"><div class="l">이달 수입</div><div class="v ci">${f(sm.income)}원</div></div>
     <div class="sc"><div class="l">이달 지출</div><div class="v ce">${f(sm.expense)}원</div></div>
-    <div class="sc"><div class="l">이달 잔액</div><div class="v cb">${f(sm.balance)}원</div></div>
+    <div class="sc"><div class="l">총계</div><div class="v cb">${f(sm.balance)}원</div></div>
   </div></div>
 </div>` : ''}
 
-${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
+${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성 (카드 잔고 제외)</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
 
 ${sec.cards !== false ? `<div class="sec">
   <h2>카드 / 계좌 (${cards.length}개)</h2>
@@ -274,7 +275,7 @@ ${sec.investments !== false ? `<div class="sec">
 </div>` : ''}
 
 ${sec.transactions !== false ? `<div class="sec">
-  <h2>거래 내역 (총 ${txs.length}건)</h2>
+  <h2>거래 내역 (최근 ${recentTxs.length}건)</h2>
   <div class="si">${txsHtml}</div>
 </div>` : ''}
 
@@ -296,7 +297,7 @@ export default function Settings() {
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [portfolioExporting, setPortfolioExporting] = useState(false)
-  const [pfSections, setPfSections] = useState({ summary: true, asset_composition: true, cards: true, savings: true, investments: true, transactions: true })
+  const [pfSections, setPfSections] = useState({ summary: true, asset_composition: true, cards: true, savings: true, investments: true, transactions: false })
   const [pfSheetOpen, setPfSheetOpen] = useState(false)
   const [pfSheetVisible, setPfSheetVisible] = useState(false)
   const [notices, setNotices] = useState([])
@@ -307,13 +308,24 @@ export default function Settings() {
   const [expandedNotice, setExpandedNotice] = useState(null)
   const [editNotice, setEditNotice] = useState(null)
   const [editNoticeForm, setEditNoticeForm] = useState({ title: '', content: '' })
+  const [helpItems, setHelpItems] = useState([])
+  const [editHelpId, setEditHelpId] = useState(null)
+  const [editHelpForm, setEditHelpForm] = useState({ icon: '', title: '', desc: '' })
 
   const loadNotices = () => api.get('/api/notices').then(setNotices).catch(() => {})
+  const loadHelp = () => api.get('/api/help').then(setHelpItems).catch(() => {})
 
   useEffect(() => {
     api.get('/api/me').then(d => { setUser(d.user); setNicknameVal(d.user?.nickname || '') }).catch(() => {})
     loadNotices()
+    loadHelp()
   }, [])
+
+  async function saveHelp(id) {
+    await api.put(`/api/help/${id}`, editHelpForm)
+    setEditHelpId(null)
+    loadHelp()
+  }
 
   async function submitNotice(e) {
     e.preventDefault()
@@ -430,58 +442,78 @@ export default function Settings() {
   ]
 
   return (
-    <div>
+    <div style={{ animation: 'settingsFadeIn 0.28s ease' }}>
+      <style>{`
+        @keyframes settingsFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .s-card { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+        .s-card:hover { box-shadow: 0 4px 20px rgba(176,136,249,0.13) !important; }
+        .s-arrow { display: inline-block; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); color: #bbb; font-size: 0.85rem; line-height: 1; }
+        .s-collapse { overflow: hidden; transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1); }
+      `}</style>
       <h5 className="fw-bold mb-3">설정</h5>
 
       {/* 도움말 */}
-      {(() => {
-        const HELP = [
-          { icon: '🏠', title: '홈', desc: '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력' },
-          { icon: '💳', title: '예산', desc: '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n• 예금·적금·청약 추가: 만기일·이율·납입액 입력 시 자동 계산 (청약은 월 2~50만원 납입)\n• 투자 추가: 종목·수량·매수가 입력, 티커로 현재가 자동 조회' },
-          { icon: '📅', title: '캘린더', desc: '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동' },
-          { icon: '📊', title: '통계', desc: '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출/수입 토글로 전환, 날짜 범위 자유 설정 가능\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능' },
-          { icon: '🏷️', title: '카테고리', desc: '지출·수입 카테고리를 관리합니다.\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리' },
-          { icon: '⚙️', title: '설정', desc: '앱 환경을 설정합니다.\n\n• 공지사항: 앱 업데이트 및 안내 확인\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴' },
-          { icon: '📄', title: '포트폴리오 PDF', desc: '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장' },
-        ]
-        return (
-          <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center" onClick={() => setHelpOpen(o => !o)} style={{ cursor: 'pointer' }}>
-                <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>❓ 도움말</div>
-                <span style={{ color: '#bbb', fontSize: '0.85rem' }}>{helpOpen ? '▴' : '▾'}</span>
-              </div>
-              {helpOpen && (
-                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {HELP.map(h => (
-                    <div key={h.title}>
-                      <div onClick={() => setHelpItem(helpItem === h.title ? null : h.title)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: helpItem === h.title ? '#f0eaff' : '#fafafa', cursor: 'pointer' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: helpItem === h.title ? '#7c4fbf' : '#333' }}>{h.icon} {h.title}</span>
-                        <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{helpItem === h.title ? '▴' : '▾'}</span>
-                      </div>
-                      {helpItem === h.title && (
-                        <div style={{ padding: '10px 14px 6px', fontSize: '0.84rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
-                          {h.desc}
-                        </div>
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center" onClick={() => setHelpOpen(o => !o)} style={{ cursor: 'pointer' }}>
+            <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>❓ 도움말</div>
+            <span className="s-arrow" style={{ transform: helpOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+          </div>
+          <div className="s-collapse" style={{ maxHeight: helpOpen ? '1200px' : '0' }}>
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {helpItems.map(h => (
+                <div key={h.id}>
+                  <div onClick={() => { if (editHelpId !== h.id) setHelpItem(helpItem === h.title ? null : h.title) }}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: helpItem === h.title ? '#f0eaff' : '#fafafa', cursor: 'pointer', transition: 'background 0.18s ease' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: helpItem === h.title ? '#7c4fbf' : '#333' }}>{h.icon} {h.title}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {user?.email === 'song57290@gmail.com' && (
+                        <span onClick={e => { e.stopPropagation(); setEditHelpId(editHelpId === h.id ? null : h.id); setEditHelpForm({ icon: h.icon, title: h.title, desc: h.desc }) }}
+                          style={{ fontSize: '0.78rem', color: '#b088f9', padding: '2px 8px', borderRadius: 6, background: '#f0eaff', fontWeight: 600 }}>편집</span>
                       )}
+                      <span className="s-arrow" style={{ transform: helpItem === h.title ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
                     </div>
-                  ))}
+                  </div>
+                  {/* 관리자 편집 폼 */}
+                  <div className="s-collapse" style={{ maxHeight: editHelpId === h.id ? '400px' : '0' }}>
+                    <div style={{ padding: '10px 12px', background: '#faf8ff', borderRadius: 10, margin: '4px 0' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <input value={editHelpForm.icon} onChange={e => setEditHelpForm(f => ({ ...f, icon: e.target.value }))}
+                          placeholder="이모지" style={{ width: 52, padding: '6px 8px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '1rem', textAlign: 'center' }} />
+                        <input value={editHelpForm.title} onChange={e => setEditHelpForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder="탭 이름" style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '0.88rem' }} />
+                      </div>
+                      <textarea value={editHelpForm.desc} onChange={e => setEditHelpForm(f => ({ ...f, desc: e.target.value }))}
+                        rows={6} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '0.84rem', lineHeight: 1.7, resize: 'vertical' }} />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => saveHelp(h.id)}
+                          style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
+                        <button onClick={() => setEditHelpId(null)}
+                          style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e0d0fd', background: 'white', color: '#aaa', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 내용 */}
+                  <div className="s-collapse" style={{ maxHeight: helpItem === h.title && editHelpId !== h.id ? '600px' : '0' }}>
+                    <div style={{ padding: '10px 14px 6px', fontSize: '0.84rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
+                      {h.desc}
+                    </div>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           </div>
-        )
-      })()}
+        </div>
+      </div>
 
       {/* 보안 */}
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body" style={{ paddingBottom: securityOpen ? 16 : undefined }}>
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" onClick={() => setSecurityOpen(o => !o)} style={{ cursor: 'pointer' }}>
             <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>🔒 보안</div>
-            <span style={{ color: '#bbb', fontSize: '0.85rem' }}>{securityOpen ? '▴' : '▾'}</span>
+            <span className="s-arrow" style={{ transform: securityOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          {securityOpen && (
+          <div className="s-collapse" style={{ maxHeight: securityOpen ? '1000px' : '0' }}>
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
               {/* 닉네임 */}
@@ -590,16 +622,20 @@ export default function Settings() {
               </div>
 
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* 공지사항 */}
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div className="fw-semibold" style={{ fontSize: '0.88rem', color: '#888' }}>공지사항</div>
             <div className="d-flex gap-2 align-items-center">
+              <button onClick={() => window.dispatchEvent(new Event('showUpdateNotice'))}
+                style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                🆕 업데이트 내역
+              </button>
               {user?.email === 'song57290@gmail.com' && (
                 <button onClick={() => { setNoticeFormOpen(o => !o); setNoticeForm({ title: '', content: '' }) }}
                   style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
@@ -607,8 +643,8 @@ export default function Settings() {
                 </button>
               )}
               <button onClick={() => setNoticeOpen(o => !o)}
-                style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '0.85rem', cursor: 'pointer', padding: '4px 6px' }}>
-                {noticeOpen ? '▴' : '▾'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
+                <span className="s-arrow" style={{ transform: noticeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
               </button>
             </div>
           </div>
@@ -666,14 +702,14 @@ export default function Settings() {
                                 style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
                             </>
                           )}
-                          <span style={{ color: '#bbb', fontSize: '0.75rem' }}>{expandedNotice === n.id ? '▴' : '▾'}</span>
+                          <span className="s-arrow" style={{ transform: expandedNotice === n.id ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
                         </div>
                       </div>
-                      {expandedNotice === n.id && (
+                      <div className="s-collapse" style={{ maxHeight: expandedNotice === n.id ? '400px' : '0' }}>
                         <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'white' }}>
                           {n.content}
                         </div>
-                      )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -690,7 +726,7 @@ export default function Settings() {
       </div>
 
       {/* 포트폴리오 */}
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
           <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>포트폴리오</div>
           <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: 12 }}>자산 구성, 예적금, 투자 내역 등을 PDF로 출력합니다.</p>

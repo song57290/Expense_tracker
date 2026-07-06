@@ -232,7 +232,7 @@ export default function Calendar() {
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.expense_total)}원</div>
             </div>
             <div className="text-center">
-              <div style={{ fontSize: '0.78rem', color: '#007aff', fontWeight: 600 }}>잔액</div>
+              <div style={{ fontSize: '0.78rem', color: '#007aff', fontWeight: 600 }}>총계</div>
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total - data.expense_total)}원</div>
             </div>
           </div>
