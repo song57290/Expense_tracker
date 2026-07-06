@@ -621,6 +621,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
             <span style={{ fontSize: '1.1rem' }}>{icon}</span>
             <span className="fw-semibold" style={{ fontSize: '0.95rem' }}>{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: tc.bg, color: tc.color }}>{item.itype}</span>
+            <span style={{ fontSize: '0.72rem', color: '#aaa' }}>(수량 {item.quantity})</span>
           </div>
           <span style={{ fontSize: '0.8rem', color: '#aaa' }}>{item.ticker || ''}</span>
         </div>
@@ -650,7 +651,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
           </div>
         </div>
         <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: '#aaa' }}>
-          <span>수량 {item.quantity}{item.itype === '해외주식' && item.exchange_rate ? ` · 매수 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
+          <span>{item.itype === '해외주식' && item.exchange_rate ? `매수 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
           <span style={{ color: isProfit ? '#198754' : '#dc3545', fontWeight: 600 }}>
             {isProfit ? '▲' : '▼'} {Math.abs(item.profit_pct).toFixed(2)}%
           </span>
@@ -1075,17 +1076,17 @@ export default function Budget() {
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#555' }}>{fmt(depositTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: '#faf8ff', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>적금/청약 납입액</div>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>적금/청약 월 납입액</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#555' }}>{fmt(installTotal)}원</div>
                 </div>
               </div>
               <div className="d-flex gap-2">
                 <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>세후 예상이자</div>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예상이자 (세후)</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>세후 예상만기금액</div>
+                  <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예상만기금액 (세후)</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
                 </div>
               </div>
