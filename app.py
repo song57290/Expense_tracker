@@ -2241,12 +2241,12 @@ def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기
     priv_path = vapid_keys.get('private', '')
     if not priv_path or not os.path.exists(priv_path):
         raise RuntimeError('VAPID private key not found: ' + str(priv_path))
-    with open(priv_path, 'rb') as f:
-        priv_bytes = f.read()
+    with open(priv_path, 'r') as f:
+        priv_str = f.read()
     webpush(
         subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
         data=json.dumps({'title': title, 'body': body, 'url': '/'}),
-        vapid_private_key=priv_bytes,
+        vapid_private_key=priv_str,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
         content_encoding='aes128gcm',
     )
