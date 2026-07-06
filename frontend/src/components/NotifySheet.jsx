@@ -162,6 +162,7 @@ export default function NotifySheet() {
   const [active, setActive] = useState(localStorage.getItem('notifyActive') === '1')
   const [time, setTime] = useState(localStorage.getItem('notifyTime') || '21:00')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [testState, setTestState] = useState('idle') // idle | sending | ok | fail
 
   useEffect(() => {
     window.openNotifySheet = () => { setOpen(true); setTimeout(() => setVisible(true), 10) }
@@ -240,6 +241,15 @@ export default function NotifySheet() {
     applyTime(`${String(h24).padStart(2, '0')}:${val}`)
   }
 
+  async function sendTest() {
+    setTestState('sending')
+    try {
+      const r = await api.post('/api/test-notify', {})
+      if (r.ok) { setTestState('ok'); setTimeout(() => setTestState('idle'), 3000) }
+      else { alert('전송 실패: ' + (r.error || '알 수 없는 오류')); setTestState('fail'); setTimeout(() => setTestState('idle'), 3000) }
+    } catch (e) { alert('오류: ' + e.message); setTestState('fail'); setTimeout(() => setTestState('idle'), 3000) }
+  }
+
   if (!open) return null
 
   return (
@@ -286,6 +296,15 @@ export default function NotifySheet() {
               </>
             )}
           </div>
+        </div>
+        <div style={{ padding: '12px 20px 4px' }}>
+          <button
+            onClick={sendTest}
+            disabled={testState === 'sending'}
+            style={{ width: '100%', padding: '12px 0', border: 'none', borderRadius: 12, background: testState === 'ok' ? '#e8fdf0' : '#f2f2f7', color: testState === 'ok' ? '#198754' : '#555', fontSize: '0.9rem', fontWeight: 600, cursor: testState === 'sending' ? 'default' : 'pointer', transition: 'background 0.2s' }}
+          >
+            {testState === 'sending' ? '전송 중...' : testState === 'ok' ? '✅ 전송 완료!' : '테스트 알림 보내기'}
+          </button>
         </div>
         <div style={{ height: 'max(20px, env(safe-area-inset-bottom, 20px))' }} />
       </div>
