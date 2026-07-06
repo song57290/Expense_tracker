@@ -321,8 +321,9 @@ function SavingsItem({ item, onEdit, onDelete }) {
   const logo = bankLogo(item.bank || item.name)
   const deleteWidth = Math.max(0, -offsetX)
   const editWidth = Math.max(0, offsetX)
-  const dDayText = item.d_day > 0 ? `D-${item.d_day}` : item.d_day === 0 ? 'D-Day' : `D+${Math.abs(item.d_day)}`
-  const dDayColor = item.d_day < 0 ? '#198754' : item.d_day < 30 ? '#dc3545' : '#b088f9'
+  const isCheongYak = item.stype === '청약'
+  const dDayText = isCheongYak ? `납입 ${item.months_elapsed}회` : item.d_day > 0 ? `D-${item.d_day}` : item.d_day === 0 ? 'D-Day' : `D+${Math.abs(item.d_day)}`
+  const dDayColor = isCheongYak ? '#198754' : item.d_day < 0 ? '#198754' : item.d_day < 30 ? '#dc3545' : '#b088f9'
 
   return (
     <div ref={cardRef} style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, marginBottom: 12 }}>
@@ -340,29 +341,36 @@ function SavingsItem({ item, onEdit, onDelete }) {
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
             <span className="fw-semibold">{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
-            <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>
+            {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>}
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
         </div>
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div style={{ fontSize: '0.75rem', color: '#888' }}>{item.stype === '예금' ? '예치금액' : '월 납입액'}</div>
-
             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{fmt(item.amount)}원</div>
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
-            <div style={{ fontSize: '0.75rem', color: '#888' }}>연 이율</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{item.interest_rate}%</div>
+            <div style={{ fontSize: '0.75rem', color: '#888' }}>{isCheongYak ? '납입 회차' : '연 이율'}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{isCheongYak ? `${item.months_elapsed}회` : `${item.interest_rate}%`}</div>
           </div>
           <div className="text-center flex-fill">
-            <div style={{ fontSize: '0.75rem', color: '#888' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div>
+            {isCheongYak
+              ? (<><div style={{ fontSize: '0.75rem', color: '#888' }}>총 납입액</div><div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.current_paid)}원</div></>)
+              : (<><div style={{ fontSize: '0.75rem', color: '#888' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div><div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div></>)
+            }
           </div>
         </div>
-        {(item.stype === '적금' || item.stype === '청약') && (
+        {item.stype === '적금' && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
             <span>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
             <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
+          </div>
+        )}
+        {isCheongYak && (
+          <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
+            <span>{item.months_elapsed}회차 납입 중</span>
+            <span>납입액 {fmt(item.current_paid)}원</span>
           </div>
         )}
         {item.stype === '예금' && (
@@ -371,14 +379,23 @@ function SavingsItem({ item, onEdit, onDelete }) {
             <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
-        <div className="progress" style={{ height: 7, borderRadius: 4 }}>
-          <div className="progress-bar" style={{ width: `${item.progress}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
-        </div>
-        <div className="d-flex justify-content-between mt-1">
-          <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.start_date}</span>
-          <span style={{ fontSize: '0.7rem', color: '#b088f9', fontWeight: 600 }}>{item.progress}%</span>
-          <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.end_date}</span>
-        </div>
+        {!isCheongYak && (
+          <>
+            <div className="progress" style={{ height: 7, borderRadius: 4 }}>
+              <div className="progress-bar" style={{ width: `${item.progress}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
+            </div>
+            <div className="d-flex justify-content-between mt-1">
+              <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.start_date}</span>
+              <span style={{ fontSize: '0.7rem', color: '#b088f9', fontWeight: 600 }}>{item.progress}%</span>
+              <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.end_date}</span>
+            </div>
+          </>
+        )}
+        {isCheongYak && (
+          <div className="mt-1">
+            <span style={{ fontSize: '0.7rem', color: '#aaa' }}>시작일 {item.start_date}</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -416,7 +433,18 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const payload = { stype, interest_type: itype, tax_type: taxType, bank: selected, name: name.trim(), amount: parseInt(amount.replace(/,/g, '')) || 0, interest_rate: parseFloat(rate) || 0, start_date: startDate, end_date: endDate }
+    const isCheongYak = stype === '청약'
+    const payload = {
+      stype,
+      interest_type: isCheongYak ? '단리' : itype,
+      tax_type: isCheongYak ? '비과세' : taxType,
+      bank: selected,
+      name: name.trim(),
+      amount: parseInt(amount.replace(/,/g, '')) || 0,
+      interest_rate: isCheongYak ? 0 : parseFloat(rate) || 0,
+      start_date: startDate,
+      end_date: isCheongYak ? '' : endDate,
+    }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
     else await api.post('/api/savings', payload)
     onSaved(); onClose()
@@ -457,46 +485,54 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             <input type="text" className="form-control mb-2" placeholder="이름 (위 선택 시 자동 입력, 수정 가능)"
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={stype === '예금' ? '예치금액' : '월 납입액 (청약은 2~50만원)'} inputMode="numeric"
+              <input type="text" className="form-control" placeholder={stype === '예금' ? '예치금액' : stype === '청약' ? '월 납입액 (2~50만원)' : '월 납입액'} inputMode="numeric"
                 value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
-            <div className="d-flex gap-2 mb-2">
-              <input type="number" className="form-control" placeholder="연 이율 (%)" step="0.01" min="0" max="100"
-                value={rate} onChange={e => setRate(e.target.value)} required style={{ borderRadius: 10 }} />
-              {['단리', '복리'].map(t => (
-                <button key={t} type="button" onClick={() => setItype(t)}
-                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-            <div className="d-flex gap-2 mb-3">
-              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
-                <button key={t} type="button" onClick={() => setTaxType(t)}
-                  style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-                  {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
-                </button>
-              ))}
-            </div>
+            {stype !== '청약' && (
+              <div className="d-flex gap-2 mb-2">
+                <input type="number" className="form-control" placeholder="연 이율 (%)" step="0.01" min="0" max="100"
+                  value={rate} onChange={e => setRate(e.target.value)} required style={{ borderRadius: 10 }} />
+                {['단리', '복리'].map(t => (
+                  <button key={t} type="button" onClick={() => setItype(t)}
+                    style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+            {stype !== '청약' && (
+              <div className="d-flex gap-2 mb-3">
+                {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
+                  <button key={t} type="button" onClick={() => setTaxType(t)}
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                    {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="d-flex gap-2 mb-2">
               <div className="flex-fill">
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>시작일</label>
                 <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ borderRadius: 10 }} />
               </div>
-              <div className="flex-fill">
-                <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>만기일</label>
-                <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} required style={{ borderRadius: 10 }} />
+              {stype !== '청약' && (
+                <div className="flex-fill">
+                  <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>만기일</label>
+                  <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} required style={{ borderRadius: 10 }} />
+                </div>
+              )}
+            </div>
+            {stype !== '청약' && (
+              <div className="d-flex gap-2 mb-3">
+                {[['6개월', 6], ['1년', 12], ['2년', 24], ['3년', 36]].map(([label, months]) => (
+                  <button key={label} type="button" onClick={() => applyDuration(months)}
+                    style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: '1.5px solid #e8d5ff', background: 'white', color: '#b088f9', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                    {label}
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="d-flex gap-2 mb-3">
-              {[['6개월', 6], ['1년', 12], ['2년', 24], ['3년', 36]].map(([label, months]) => (
-                <button key={label} type="button" onClick={() => applyDuration(months)}
-                  style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: '1.5px solid #e8d5ff', background: 'white', color: '#b088f9', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            )}
           </form>
         </div>
         <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>

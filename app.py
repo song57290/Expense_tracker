@@ -314,6 +314,24 @@ def api_delete_account():
 def _savings_stats(s):
     from datetime import date as _date
     today = _date.today()
+    if s.stype == '청약':
+        try:
+            start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
+        except Exception:
+            start = today
+        months_elapsed = max(0, (today.year - start.year) * 12 + (today.month - start.month))
+        current_paid = s.amount * months_elapsed
+        return {
+            'id': s.id, 'stype': s.stype, 'bank': s.bank, 'name': s.name,
+            'amount': s.amount, 'interest_rate': 0, 'interest_type': '단리',
+            'tax_type': '비과세',
+            'start_date': s.start_date, 'end_date': '',
+            'months_total': None, 'months_elapsed': months_elapsed,
+            'progress': 0, 'd_day': None,
+            'total_paid': current_paid, 'current_paid': current_paid,
+            'interest': 0, 'maturity_amount': current_paid,
+            'interest_after_tax': 0, 'maturity_after_tax': current_paid,
+        }
     try:
         start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
         end = datetime.strptime(s.end_date, '%Y-%m-%d').date()
@@ -817,10 +835,13 @@ def api_stats():
             for s in savings_list:
                 if s.start_date > mo_end: continue
                 start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
-                end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
-                if s.stype == '예금':
+                if s.stype == '청약':
+                    me = max(0, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month))
+                    inst_bal += s.amount * me
+                elif s.stype == '예금':
                     dep_bal += s.amount
                 else:
+                    end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
                     mt = max(1, (end_d.year - start.year) * 12 + (end_d.month - start.month))
                     me = max(0, min(mt, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month)))
                     inst_bal += s.amount * me
@@ -926,10 +947,13 @@ def api_portfolio_pdf():
         for s in savings_list:
             if s.start_date > mo_end: continue
             start_d = datetime.strptime(s.start_date, '%Y-%m-%d').date()
-            end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
-            if s.stype == '예금':
+            if s.stype == '청약':
+                me = max(0, (mo_end_date.year - start_d.year) * 12 + (mo_end_date.month - start_d.month))
+                sav_bal += s.amount * me
+            elif s.stype == '예금':
                 sav_bal += s.amount
             else:
+                end_d = datetime.strptime(s.end_date, '%Y-%m-%d').date()
                 mt = max(1, (end_d.year - start_d.year) * 12 + (end_d.month - start_d.month))
                 me = max(0, min(mt, (mo_end_date.year - start_d.year) * 12 + (mo_end_date.month - start_d.month)))
                 sav_bal += s.amount * me

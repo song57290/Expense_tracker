@@ -691,15 +691,15 @@ export default function Stats() {
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 5 }}>
                                       {parseInt(t.month.slice(5))}월
+                                      {isMax && <span style={{ fontSize: '0.65rem', background: '#b088f9', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최고</span>}
+                                      {isMin && <span style={{ fontSize: '0.65rem', background: '#ff8fa3', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최저</span>}
                                     </div>
                                     <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>{t.month}</div>
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                                      {isMax && <span style={{ fontSize: '0.65rem', background: '#b088f9', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최고</span>}
-                                      {isMin && <span style={{ fontSize: '0.65rem', background: '#ff8fa3', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최저</span>}
+                                    <div>
                                       <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#333' }}>{fmt(t.assets)}원</div>
                                     </div>
                                     {chg !== null && (
