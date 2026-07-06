@@ -246,6 +246,10 @@
           + '</div>'
           // End card
           + '</div>'
+          // Test button
+          + '<div style="padding:16px 20px 4px;">'
+          + '<button onclick="sendTestNotify()" id="testNotifyBtn" style="width:100%;padding:12px 0;border:none;border-radius:12px;background:#f2f2f7;color:#555;font-size:0.9rem;font-weight:600;cursor:pointer;">테스트 알림 보내기</button>'
+          + '</div>'
           + '</div>'
           + '<div style="height:max(20px,env(safe-area-inset-bottom,20px));"></div>'
           + '</div>';
@@ -281,6 +285,25 @@
             if (picker) picker.style.display = 'none';
             if (chev) chev.style.transform = '';
         }, 320);
+    };
+
+    window.sendTestNotify = async function () {
+        var btn = document.getElementById('testNotifyBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '전송 중...'; }
+        try {
+            var r = await fetch('/api/test-notify', { method: 'POST' });
+            var data = await r.json();
+            if (data.ok) {
+                if (btn) { btn.textContent = '✅ 전송 완료!'; }
+                setTimeout(function () { if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 보내기'; } }, 3000);
+            } else {
+                alert('전송 실패: ' + (data.error || '알 수 없는 오류'));
+                if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 보내기'; }
+            }
+        } catch (e) {
+            alert('오류: ' + e.message);
+            if (btn) { btn.disabled = false; btn.textContent = '테스트 알림 보내기'; }
+        }
     };
 
     document.addEventListener('DOMContentLoaded', function () {

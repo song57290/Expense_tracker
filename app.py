@@ -2236,28 +2236,54 @@ def push_unsubscribe():
     _save_subs([s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')])
     return {'ok': True}
 
+def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기록했나요? 📝'):
+    from pywebpush import webpush
+    priv_path = vapid_keys.get('private', '')
+    if not priv_path or not os.path.exists(priv_path):
+        raise RuntimeError('VAPID private key not found: ' + str(priv_path))
+    with open(priv_path, 'rb') as f:
+        priv_bytes = f.read()
+    webpush(
+        subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
+        data=json.dumps({'title': title, 'body': body, 'url': '/'}).encode('utf-8'),
+        vapid_private_key=priv_bytes,
+        vapid_claims={'sub': 'mailto:song57290@gmail.com'},
+        content_encoding='aes128gcm',
+    )
+
 def _send_push_notifications():
     try:
-        from pywebpush import webpush
         from datetime import timezone, timedelta
         KST = timezone(timedelta(hours=9))
         now = datetime.now(KST)
-        priv = vapid_keys.get('private', '')
-        if not priv or not os.path.exists(priv):
-            return
         for sub in _load_subs():
             if now.hour == sub.get('notify_hour', 21) and now.minute == sub.get('notify_minute', 0):
                 try:
-                    webpush(
-                        subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
-                        data=json.dumps({'title': '💰 나의 가계부', 'body': '오늘 지출을 기록했나요? 📝', 'url': '/'}),
-                        vapid_private_key=priv,
-                        vapid_claims={'sub': 'mailto:song57290@gmail.com'}
-                    )
+                    _do_send_push(sub)
                 except Exception as e:
-                    app.logger.error('Push failed: %s', e)
-    except ImportError:
-        pass
+                    app.logger.error('Push failed for %s: %s', sub.get('endpoint', '')[:40], e)
+    except Exception as e:
+        app.logger.error('Push scheduler error: %s', e)
+
+@app.route('/api/test-notify', methods=['POST'])
+@login_required
+def test_notify():
+    uid = session['user_id']
+    subs = [s for s in _load_subs() if s.get('user_id') == uid or True]
+    if not subs:
+        return jsonify({'ok': False, 'error': '구독 정보 없음. 알림을 먼저 켜주세요.'}), 400
+    sent = 0
+    errors = []
+    for sub in subs:
+        try:
+            _do_send_push(sub, title='✅ 테스트 알림', body='알림이 정상 작동합니다!')
+            sent += 1
+        except Exception as e:
+            errors.append(str(e))
+            app.logger.error('Test push failed: %s', e)
+    if sent > 0:
+        return jsonify({'ok': True, 'sent': sent})
+    return jsonify({'ok': False, 'error': '; '.join(errors)}), 500
 
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     try:
