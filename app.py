@@ -1579,11 +1579,13 @@ def api_portfolio():
         total_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense')
         initial = card.account_balance or 0
         balance = initial + total_income - total_expense
+        month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
         spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'total_income': total_income,
                            'total_expense': total_expense, 'balance': balance,
-                           'spent': spent, 'target': card.monthly_target, 'percent': percent})
+                           'month_income': month_income, 'spent': spent,
+                           'target': card.monthly_target, 'percent': percent})
     savings_list = Savings.query.filter_by(user_id=uid).all()
     savings_stats = [_savings_stats(s) for s in savings_list]
     inv_list = Investment.query.filter_by(user_id=uid).all()

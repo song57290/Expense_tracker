@@ -115,15 +115,15 @@ function buildPortfolioHTML(d, sections) {
       <div class="cn2" style="display:flex;align-items:center;gap:10px">${bankLogoTag(c.name)}<span>${c.name}</span></div>
       <div class="ig">
         <div class="ic"><div class="l">초기 잔고</div><div class="v">${f(c.initial_balance)}원</div></div>
+        <div class="ic"><div class="l">이달 수입</div><div class="v ci">${f(c.month_income)}원</div></div>
         <div class="ic"><div class="l">이달 지출</div><div class="v ce">${f(c.spent)}원</div></div>
-        <div class="ic"><div class="l">현재 잔고</div><div class="v">${f(c.balance)}원</div></div>
       </div>
-      ${c.target ? `
       <div class="ig">
-        <div class="ic"><div class="l">월 예산</div><div class="v">${f(c.target)}원</div></div>
-        <div class="ic"><div class="l">이달 실적</div><div class="v">${f(c.spent)}원</div></div>
+        <div class="ic"><div class="l">현재 잔고</div><div class="v ${c.balance < 0 ? 'ce' : ''}">${f(c.balance)}원</div></div>
+        <div class="ic"><div class="l">목표 금액</div><div class="v">${c.target ? f(c.target) + '원' : '-'}</div></div>
         <div class="ic"><div class="l">달성률</div><div class="v" style="color:#ffc107">${c.percent || 0}%</div></div>
       </div>
+      ${c.target ? `
       <div style="margin-top:4px">
         <div class="pb"><div class="pf" style="width:${Math.min(c.percent||0,100)}%;background:#ffc107"></div></div>
         <div class="pl"><span>0원</span><span>${f(c.target)}원</span></div>
