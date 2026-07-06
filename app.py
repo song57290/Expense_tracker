@@ -2238,17 +2238,22 @@ def push_unsubscribe():
 
 def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기록했나요? 📝'):
     from pywebpush import webpush
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key, Encoding, PrivateFormat, NoEncryption
+    )
     priv_path = vapid_keys.get('private', '')
     if not priv_path or not os.path.exists(priv_path):
         raise RuntimeError('VAPID private key not found: ' + str(priv_path))
-    with open(priv_path, 'r') as f:
-        priv_str = f.read()
+    with open(priv_path, 'rb') as f:
+        pem_data = f.read()
+    # pywebpush requires EC PEM (TraditionalOpenSSL), not PKCS8
+    private_key = load_pem_private_key(pem_data, password=None)
+    ec_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption()).decode()
     webpush(
         subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
         data=json.dumps({'title': title, 'body': body, 'url': '/'}),
-        vapid_private_key=priv_str,
+        vapid_private_key=ec_pem,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
-        content_encoding='aes128gcm',
     )
 
 def _send_push_notifications():
