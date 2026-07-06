@@ -203,7 +203,7 @@ export default function Home() {
       </div>
       {summaryOpen && (
         <div className="row mb-4">
-          {[['수입', data.income_total, 'text-success'], ['지출', data.expense_total, 'text-danger'], ['잔액', data.balance, 'text-primary']].map(([label, val, cls]) => (
+          {[['수입', data.income_total, 'text-success'], ['지출', data.expense_total, 'text-danger'], ['총계', data.balance, 'text-primary']].map(([label, val, cls]) => (
             <div key={label} className="col-4">
               <div className="card text-center"><div className="card-body">
                 <h6 className={`card-title ${cls}`}>{label}</h6>
@@ -256,9 +256,9 @@ export default function Home() {
               <div key={cat} className="mb-2 mt-2">
                 <div className="d-flex justify-content-between align-items-center mb-1">
                   <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(amt)}원</span>
-                    <span style={{ fontSize: '0.72rem', color: '#aaa', display: 'inline-block', width: '3em', textAlign: 'left' }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
+                    <span style={{ fontSize: '0.72rem', color: '#aaa', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
                   </div>
                 </div>
                 <div className="progress" style={{ height: 5 }}>
