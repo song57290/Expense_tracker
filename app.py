@@ -2179,9 +2179,18 @@ VAPID_PUBLIC_FILE = os.path.join(_FILE_DIR, 'vapid_public_v2.txt')
 SUBSCRIPTIONS_FILE = os.path.join(_FILE_DIR, 'subscriptions.json')
 
 def _get_vapid_keys():
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    # 기존 키가 PKCS8 형식이면 삭제하고 EC PEM으로 재생성
+    if os.path.exists(VAPID_PRIVATE_FILE):
+        with open(VAPID_PRIVATE_FILE, 'rb') as f:
+            content = f.read()
+        if b'BEGIN PRIVATE KEY' in content:  # PKCS8 → 재생성
+            for p in [VAPID_PRIVATE_FILE, VAPID_PUBLIC_FILE]:
+                if os.path.exists(p): os.remove(p)
     if os.path.exists(VAPID_PRIVATE_FILE) and os.path.exists(VAPID_PUBLIC_FILE):
         try:
-            from cryptography.hazmat.primitives.serialization import load_pem_private_key
             with open(VAPID_PRIVATE_FILE, 'rb') as f:
                 load_pem_private_key(f.read(), password=None)
             with open(VAPID_PUBLIC_FILE) as f:
@@ -2191,10 +2200,9 @@ def _get_vapid_keys():
             for p in [VAPID_PRIVATE_FILE, VAPID_PUBLIC_FILE]:
                 if os.path.exists(p): os.remove(p)
     try:
-        from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives import serialization
         pk = ec.generate_private_key(ec.SECP256R1())
-        pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+        # pywebpush가 요구하는 EC PEM 형식 (TraditionalOpenSSL)
+        pem = pk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
         with open(VAPID_PRIVATE_FILE, 'wb') as f:
             f.write(pem)
         pub_b64 = base64.urlsafe_b64encode(
@@ -2238,21 +2246,13 @@ def push_unsubscribe():
 
 def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기록했나요? 📝'):
     from pywebpush import webpush
-    from cryptography.hazmat.primitives.serialization import (
-        load_pem_private_key, Encoding, PrivateFormat, NoEncryption
-    )
     priv_path = vapid_keys.get('private', '')
     if not priv_path or not os.path.exists(priv_path):
         raise RuntimeError('VAPID private key not found: ' + str(priv_path))
-    with open(priv_path, 'rb') as f:
-        pem_data = f.read()
-    # pywebpush requires EC PEM (TraditionalOpenSSL), not PKCS8
-    private_key = load_pem_private_key(pem_data, password=None)
-    ec_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption()).decode()
     webpush(
         subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
         data=json.dumps({'title': title, 'body': body, 'url': '/'}),
-        vapid_private_key=ec_pem,
+        vapid_private_key=priv_path,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
     )
 
