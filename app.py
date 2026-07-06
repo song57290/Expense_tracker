@@ -893,12 +893,10 @@ def api_portfolio_pdf():
         c_exp = sum(tx.amount for tx in card_txs if tx.type == 'expense')
         initial = card.account_balance or 0
         balance = initial + c_inc - c_exp
-        month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
-        month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
-        percent = min(int(month_expense / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'balance': balance,
-                           'month_income': month_income, 'month_expense': month_expense,
-                           'spent': month_expense, 'target': card.monthly_target, 'percent': percent})
+                           'spent': spent, 'target': card.monthly_target, 'percent': percent})
 
     sav_stats = [_savings_stats(s) for s in savings_list]
     net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in sav_stats)
