@@ -239,41 +239,36 @@ function SwipeCard({ card, onEdit, onDelete }) {
             )}
           </div>
           <div className="text-end">
-            <div className="text-muted" style={{ fontSize: '0.7rem' }}>달성</div>
-            <div className="fw-bold" style={{ fontSize: '1.15rem', color: '#b088f9' }}>{card.percent}%</div>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, marginBottom: 10 }}>
-          <div className="text-center" style={{ borderRight: '1px solid #eee', borderBottom: '1px solid #eee', padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>초기 잔고</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#555' }}>{fmt(card.initial_balance)}</div>
-          </div>
-          <div className="text-center" style={{ borderRight: '1px solid #eee', borderBottom: '1px solid #eee', padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>이달 수입</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(card.month_income)}</div>
-          </div>
-          <div className="text-center" style={{ borderBottom: '1px solid #eee', padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>이달 지출</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#dc3545' }}>{fmt(card.month_expense)}</div>
-          </div>
-          <div className="text-center" style={{ borderRight: '1px solid #eee', padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>현재 잔고</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: card.balance < 0 ? '#dc3545' : '#198754' }}>
-              {card.balance < 0 ? '-' : ''}{fmt(Math.abs(card.balance))}
+            <div className="text-muted" style={{ fontSize: '0.7rem' }}>잔고</div>
+            <div className="fw-bold" style={{ fontSize: '1.15rem', color: card.balance < 0 ? '#dc3545' : '#198754' }}>
+              {card.balance < 0 ? '-' : ''}{fmt(Math.abs(card.balance))}원
             </div>
           </div>
-          <div className="text-center" style={{ borderRight: '1px solid #eee', padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>목표 금액</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#555' }}>{fmt(card.target)}</div>
+        </div>
+        <div className="d-flex mb-3" style={{ gap: 1 }}>
+          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
+            <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(card.initial_balance)}</div>
           </div>
-          <div className="text-center" style={{ padding: '6px 4px' }}>
-            <div className="text-muted" style={{ fontSize: '0.72rem' }}>달성률</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#b088f9' }}>{card.percent}%</div>
+          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
+            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
+            <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
+          </div>
+          <div className="text-center flex-fill">
+            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
+            <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
           </div>
         </div>
-        <div className="progress" style={{ height: 6, borderRadius: 4 }}>
-          <div className={`progress-bar ${tierClass(card.percent, card.tier1, card.tier2, card.tier3)}`}
-            style={{ width: `${card.percent}%`, borderRadius: 4 }} />
+        <div className="border-top pt-2">
+          <div className="d-flex justify-content-between align-items-center mb-1">
+            <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 실적</span>
+            <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(card.spent)} / {fmt(card.target)}원</span>
+          </div>
+          <div className="progress" style={{ height: 7, borderRadius: 4 }}>
+            <div className={`progress-bar ${tierClass(card.percent, card.tier1, card.tier2, card.tier3)}`}
+              style={{ width: `${card.percent}%`, borderRadius: 4 }} />
+          </div>
+          <div className="text-end mt-1" style={{ fontSize: '0.72rem', color: '#aaa' }}>{card.percent}%</div>
         </div>
       </div>
     </div>
