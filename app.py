@@ -2245,7 +2245,7 @@ def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기
         priv_bytes = f.read()
     webpush(
         subscription_info={'endpoint': sub['endpoint'], 'keys': sub['keys']},
-        data=json.dumps({'title': title, 'body': body, 'url': '/'}).encode('utf-8'),
+        data=json.dumps({'title': title, 'body': body, 'url': '/'}),
         vapid_private_key=priv_bytes,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
         content_encoding='aes128gcm',
