@@ -1,0 +1,374 @@
+import { useState, useEffect } from 'react'
+import api from '../api.js'
+
+const fmt = n => Number(n || 0).toLocaleString()
+
+export default function Salary() {
+  const [salary, setSalary] = useState({ amount: 0, pay_day: '' })
+  const [allocations, setAllocations] = useState([])
+  const [fixed, setFixed] = useState([])
+  const [actual, setActual] = useState({})
+  const [categories, setCategories] = useState([])
+
+  const [salaryEdit, setSalaryEdit] = useState(false)
+  const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
+
+  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '' })
+  const [fixedFormOpen, setFixedFormOpen] = useState(false)
+  const [editFixed, setEditFixed] = useState(null)
+  const [editFixedForm, setEditFixedForm] = useState({})
+
+  const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
+
+  useEffect(() => {
+    load()
+    api.get('/api/categories').then(d => setCategories((d || []).filter(c => c.cat_type === 'expense'))).catch(() => {})
+  }, [])
+
+  function load() {
+    api.get('/api/salary').then(d => {
+      setSalary(d.salary || { amount: 0, pay_day: null })
+      setFixed(d.fixed_expenses || [])
+      setActual(d.actual || {})
+      const allocs = d.allocations || []
+      setAllocations(allocs)
+    }).catch(() => {})
+  }
+
+  async function saveSalary() {
+    await api.put('/api/salary', { amount: Number(salaryForm.amount) || 0, pay_day: Number(salaryForm.pay_day) || null })
+    setSalaryEdit(false)
+    load()
+  }
+
+  async function saveAllocations(newAllocs) {
+    await api.put('/api/salary/allocations', newAllocs)
+    load()
+  }
+
+  function setAllocPercent(catName, val) {
+    const pct = Math.max(0, Math.min(100, Number(val) || 0))
+    setAllocations(prev => {
+      const exists = prev.find(a => a.category_name === catName)
+      if (exists) return prev.map(a => a.category_name === catName ? { ...a, percent: pct } : a)
+      return [...prev, { category_name: catName, percent: pct }]
+    })
+  }
+
+  function getAllocPercent(catName) {
+    return allocations.find(a => a.category_name === catName)?.percent || 0
+  }
+
+  const totalAllocPct = allocations.reduce((s, a) => s + (a.percent || 0), 0)
+  const fixedTotal = fixed.reduce((s, f) => s + f.amount, 0)
+  const salaryAmt = salary.amount || 0
+  const remaining = salaryAmt - fixedTotal - (salaryAmt * totalAllocPct / 100)
+
+  async function addFixed(e) {
+    e.preventDefault()
+    await api.post('/api/salary/fixed', {
+      name: fixedForm.name,
+      amount: Number(fixedForm.amount) || 0,
+      day_of_month: Number(fixedForm.day_of_month) || null,
+      category: fixedForm.category,
+    })
+    setFixedForm({ name: '', amount: '', day_of_month: '', category: '' })
+    setFixedFormOpen(false)
+    load()
+  }
+
+  async function deleteFixed(id) {
+    await api.delete(`/api/salary/fixed/${id}`)
+    load()
+  }
+
+  async function saveEditFixed() {
+    await api.put(`/api/salary/fixed/${editFixed}`, {
+      name: editFixedForm.name,
+      amount: Number(editFixedForm.amount) || 0,
+      day_of_month: Number(editFixedForm.day_of_month) || null,
+      category: editFixedForm.category,
+    })
+    setEditFixed(null)
+    load()
+  }
+
+  const now = new Date()
+  const monthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
+
+  const inputStyle = { padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e8e0f8', fontSize: '0.9rem', background: '#faf8ff', width: '100%' }
+  const cardStyle = { background: 'white', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '18px 16px', marginBottom: 12 }
+
+  return (
+    <div style={{ padding: '16px 14px 100px', maxWidth: 540, margin: '0 auto' }}>
+      <h5 className="fw-bold mb-3">월급 관리</h5>
+
+      {/* 월급 설정 카드 */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: salaryEdit ? 14 : 0 }}>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: 2 }}>이번 달 월급</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, background: 'linear-gradient(90deg,#b088f9,#7baff0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {fmt(salaryAmt)}원
+            </div>
+            {salary.pay_day && <div style={{ fontSize: '0.75rem', color: '#bbb', marginTop: 2 }}>매월 {salary.pay_day}일 지급</div>}
+          </div>
+          <button onClick={() => { setSalaryForm({ amount: salaryAmt, pay_day: salary.pay_day || '' }); setSalaryEdit(o => !o) }}
+            style={{ background: '#f0eaff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+            {salaryEdit ? '취소' : '변경'}
+          </button>
+        </div>
+        {salaryEdit && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input type="number" placeholder="월급 금액" value={salaryForm.amount}
+              onChange={e => setSalaryForm(f => ({ ...f, amount: e.target.value }))} style={inputStyle} />
+            <input type="number" placeholder="지급일 (예: 25)" value={salaryForm.pay_day}
+              onChange={e => setSalaryForm(f => ({ ...f, pay_day: e.target.value }))} style={inputStyle} />
+            <button onClick={saveSalary}
+              style={{ padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+              저장
+            </button>
+          </div>
+        )}
+        {/* 요약 바 */}
+        {salaryAmt > 0 && !salaryEdit && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#aaa', marginBottom: 4 }}>
+              <span>고정지출 {fmt(fixedTotal)}원</span>
+              <span>예산배분 {totalAllocPct.toFixed(0)}%</span>
+              <span style={{ color: remaining >= 0 ? '#34c759' : '#ff3b30', fontWeight: 700 }}>잔여 {fmt(Math.abs(remaining))}원{remaining < 0 ? ' 초과' : ''}</span>
+            </div>
+            <div style={{ height: 8, background: '#f0eaff', borderRadius: 8, overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${Math.min(fixedTotal / salaryAmt * 100, 100)}%`, background: '#ff9f0a', borderRadius: '8px 0 0 8px' }} />
+              <div style={{ width: `${Math.min(totalAllocPct, 100 - fixedTotal / salaryAmt * 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.68rem' }}>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#ff9f0a', marginRight: 3 }} />고정지출</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#b088f9', marginRight: 3 }} />예산배분</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#e8e0f8', marginRight: 3 }} />미배분</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 탭 */}
+      <div style={{ display: 'flex', background: '#f0eaff', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+        {[['plan', '📊 예산 배분'], ['fixed', '📌 고정 지출'], ['compare', '📈 실적 비교']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+              background: tab === key ? 'white' : 'transparent',
+              color: tab === key ? '#b088f9' : '#9b8ec0',
+              boxShadow: tab === key ? '0 2px 8px rgba(0,0,0,0.08)' : 'none' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* 예산 배분 탭 */}
+      {tab === 'plan' && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
+            <div style={{ fontSize: '0.75rem', color: totalAllocPct > 100 ? '#ff3b30' : '#aaa' }}>
+              총 {totalAllocPct.toFixed(0)}% / 100%
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {categories.map(cat => {
+              const pct = getAllocPercent(cat.name)
+              const allocAmt = salaryAmt ? Math.round(salaryAmt * pct / 100) : 0
+              const actualAmt = actual[cat.name] || 0
+              return (
+                <div key={cat.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {salaryAmt > 0 && pct > 0 && <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{fmt(allocAmt)}원</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input type="number" value={pct || ''} placeholder="0"
+                          onChange={e => setAllocPercent(cat.name, e.target.value)}
+                          style={{ width: 52, padding: '4px 8px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#aaa' }}>%</span>
+                      </div>
+                    </div>
+                  </div>
+                  {pct > 0 && (
+                    <div style={{ height: 5, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <button onClick={() => saveAllocations(allocations)}
+            style={{ width: '100%', marginTop: 18, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+            저장
+          </button>
+        </div>
+      )}
+
+      {/* 고정 지출 탭 */}
+      {tab === 'fixed' && (
+        <div>
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>고정 지출 <span style={{ color: '#b088f9' }}>{fmt(fixedTotal)}원</span></div>
+              <button onClick={() => setFixedFormOpen(o => !o)}
+                style={{ background: '#f0eaff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                + 추가
+              </button>
+            </div>
+
+            {fixedFormOpen && (
+              <form onSubmit={addFixed} style={{ background: '#faf8ff', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input placeholder="항목명 (예: 월세, 넷플릭스)" value={fixedForm.name}
+                  onChange={e => setFixedForm(f => ({ ...f, name: e.target.value }))} required style={inputStyle} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="number" placeholder="금액" value={fixedForm.amount}
+                    onChange={e => setFixedForm(f => ({ ...f, amount: e.target.value }))} required style={{ ...inputStyle, flex: 2 }} />
+                  <input type="number" placeholder="결제일" value={fixedForm.day_of_month}
+                    onChange={e => setFixedForm(f => ({ ...f, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                </div>
+                <select value={fixedForm.category} onChange={e => setFixedForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
+                  <option value="">카테고리 선택</option>
+                  {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>저장</button>
+                  <button type="button" onClick={() => setFixedFormOpen(false)} style={{ padding: '9px 16px', borderRadius: 10, border: '1.5px solid #e8e0f8', background: 'white', color: '#aaa', fontWeight: 600, cursor: 'pointer' }}>취소</button>
+                </div>
+              </form>
+            )}
+
+            {fixed.length === 0 && !fixedFormOpen && (
+              <div style={{ textAlign: 'center', color: '#ccc', padding: '24px 0', fontSize: '0.88rem' }}>등록된 고정 지출이 없습니다</div>
+            )}
+
+            {fixed.map(f => (
+              <div key={f.id}>
+                {editFixed === f.id ? (
+                  <div style={{ background: '#faf8ff', borderRadius: 12, padding: 12, marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <input placeholder="항목명" value={editFixedForm.name}
+                      onChange={e => setEditFixedForm(x => ({ ...x, name: e.target.value }))} style={inputStyle} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input type="number" placeholder="금액" value={editFixedForm.amount}
+                        onChange={e => setEditFixedForm(x => ({ ...x, amount: e.target.value }))} style={{ ...inputStyle, flex: 2 }} />
+                      <input type="number" placeholder="결제일" value={editFixedForm.day_of_month || ''}
+                        onChange={e => setEditFixedForm(x => ({ ...x, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                    </div>
+                    <select value={editFixedForm.category || ''} onChange={e => setEditFixedForm(x => ({ ...x, category: e.target.value }))} style={inputStyle}>
+                      <option value="">카테고리 선택</option>
+                      {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
+                    </select>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={saveEditFixed} style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
+                      <button onClick={() => setEditFixed(null)} style={{ padding: '8px 14px', borderRadius: 10, border: '1.5px solid #e8e0f8', background: 'white', color: '#aaa', cursor: 'pointer' }}>취소</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid #f5f0ff' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{f.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>
+                        {f.category && <span style={{ marginRight: 8 }}>{f.category}</span>}
+                        {f.day_of_month && <span>매월 {f.day_of_month}일</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#333', marginRight: 8 }}>{fmt(f.amount)}원</div>
+                    <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category }) }}
+                      style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
+                    <button onClick={() => deleteFixed(f.id)}
+                      style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 실적 비교 탭 */}
+      {tab === 'compare' && (
+        <div>
+          <div style={{ fontSize: '0.78rem', color: '#aaa', marginBottom: 10, textAlign: 'center' }}>{monthLabel} 실제 지출 vs 계획</div>
+
+          {/* 고정 지출 비교 */}
+          {fixed.length > 0 && (
+            <div style={cardStyle}>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: '#555' }}>📌 고정 지출</div>
+              {fixed.map(f => {
+                const actualAmt = actual[f.category] || 0
+                return (
+                  <div key={f.id} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{f.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#aaa' }}>계획 {fmt(f.amount)}원</span>
+                    </div>
+                    <div style={{ height: 8, background: '#f0eaff', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ position: 'absolute', height: '100%', width: '100%', background: '#e8e0f8', borderRadius: 6 }} />
+                      <div style={{ position: 'absolute', height: '100%', width: `${Math.min(f.amount > 0 ? f.amount / f.amount * 100 : 0, 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 6 }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.72rem', marginTop: 3, color: '#b088f9' }}>계획: {fmt(f.amount)}원</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* 카테고리별 비교 */}
+          <div style={cardStyle}>
+            <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: '#555' }}>📊 카테고리별 예산 vs 실제</div>
+            {allocations.filter(a => a.percent > 0).length === 0 && Object.keys(actual).length === 0 && (
+              <div style={{ textAlign: 'center', color: '#ccc', padding: '20px 0', fontSize: '0.88rem' }}>예산 배분을 먼저 설정해주세요</div>
+            )}
+            {categories.filter(cat => getAllocPercent(cat.name) > 0 || actual[cat.name] > 0).map(cat => {
+              const pct = getAllocPercent(cat.name)
+              const planned = salaryAmt ? Math.round(salaryAmt * pct / 100) : 0
+              const actualAmt = actual[cat.name] || 0
+              const ratio = planned > 0 ? Math.min(actualAmt / planned * 100, 100) : 0
+              const over = actualAmt > planned && planned > 0
+              return (
+                <div key={cat.id} style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                    <div style={{ display: 'flex', gap: 8, fontSize: '0.75rem' }}>
+                      <span style={{ color: '#aaa' }}>계획 {fmt(planned)}원</span>
+                      <span style={{ fontWeight: 700, color: over ? '#ff3b30' : '#333' }}>실제 {fmt(actualAmt)}원</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 8, background: '#f0eaff', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${ratio}%`, background: over ? 'linear-gradient(90deg,#ff6b6b,#ff3b30)' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginTop: 3, color: over ? '#ff3b30' : '#aaa' }}>
+                    <span>{ratio.toFixed(0)}% 사용</span>
+                    {over && <span>⚠ {fmt(actualAmt - planned)}원 초과</span>}
+                    {!over && planned > 0 && <span>{fmt(planned - actualAmt)}원 남음</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 전체 요약 */}
+          {salaryAmt > 0 && (
+            <div style={{ ...cardStyle, background: 'linear-gradient(135deg,#f8f4ff,#f0f4ff)' }}>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: '#555' }}>💰 {monthLabel} 요약</div>
+              {[
+                { label: '월급', value: salaryAmt, color: '#34c759' },
+                { label: '고정 지출 계획', value: -fixedTotal, color: '#ff9f0a' },
+                { label: '변동 지출 계획', value: -(salaryAmt * totalAllocPct / 100), color: '#b088f9' },
+                { label: '실제 지출 합계', value: -Object.values(actual).reduce((s, v) => s + v, 0), color: '#ff3b30' },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(176,136,249,0.1)' }}>
+                  <span style={{ fontSize: '0.84rem', color: '#666' }}>{label}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color }}>{value >= 0 ? '+' : ''}{fmt(value)}원</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

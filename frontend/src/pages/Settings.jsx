@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
 
 
@@ -41,14 +42,14 @@ function buildPortfolioHTML(d, sections) {
     .sc{border:1px solid #e8e8e8;border-radius:10px;padding:14px 12px;text-align:center}
     .sc .l{font-size:10px;color:#555;margin-bottom:5px}
     .sc .v{font-size:15px;font-weight:700}
-    .ci{color:#198754}.ce{color:#dc3545}.cb{color:#0d6efd}.cn{color:#333}
+    .ci{color:#198754}.ce{color:#dc3545}.cb{color:#b088f9}.cn{color:#333}
     table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
     thead th{background:#f8f5ff;color:#555;font-weight:700;padding:8px 10px;text-align:left;border-bottom:2px solid #e8d5ff}
     tbody td{padding:8px 10px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
     tbody tr:last-child td{border-bottom:none}
     .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
     .be{background:#ffe0e0;color:#dc3545}.bi{background:#d4edda;color:#198754}
-    .by{background:#e8f4fd;color:#0d6efd}.bj{background:#f0e8fd;color:#b088f9}
+    .by{background:#f0e8fd;color:#b088f9}.bj{background:#f0e8fd;color:#b088f9}
     .cp{border:1px solid #e8e8e8;border-radius:12px;padding:16px;margin-bottom:10px}
     .cn2{font-size:14px;font-weight:700;margin-bottom:10px}
     .ig{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#eee;border-radius:8px;overflow:hidden;margin-bottom:12px}
@@ -121,11 +122,11 @@ function buildPortfolioHTML(d, sections) {
       <div class="ig">
         <div class="ic"><div class="l">현재 잔고</div><div class="v ${c.balance < 0 ? 'ce' : ''}">${f(c.balance)}원</div></div>
         <div class="ic"><div class="l">목표 금액</div><div class="v">${c.target ? f(c.target) + '원' : '-'}</div></div>
-        <div class="ic"><div class="l">달성률</div><div class="v" style="color:#5b8def">${c.percent || 0}%</div></div>
+        <div class="ic"><div class="l">달성률</div><div class="v" style="color:#b088f9">${c.percent || 0}%</div></div>
       </div>
       ${c.target ? `
       <div style="margin-top:4px">
-        <div class="pb"><div class="pf" style="width:${Math.min(c.percent||0,100)}%;background:linear-gradient(90deg,#7baff0,#5b8def)"></div></div>
+        <div class="pb"><div class="pf" style="width:${Math.min(c.percent||0,100)}%;background:linear-gradient(90deg,#b088f9,#7baff0)"></div></div>
         <div class="pl"><span>0원</span><span>${f(c.target)}원</span></div>
       </div>` : ''}
     </div>
@@ -285,6 +286,7 @@ ${sec.transactions !== false ? `<div class="sec">
 }
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [nicknameEdit, setNicknameEdit] = useState(false)
   const [nicknameVal, setNicknameVal] = useState('')
@@ -722,6 +724,18 @@ export default function Settings() {
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 카테고리 관리 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>카테고리</div>
+          <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: 12 }}>지출·수입 카테고리를 추가하거나 삭제합니다.</p>
+          <button onClick={() => navigate('/categories')}
+            style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+            카테고리 관리
+          </button>
         </div>
       </div>
 

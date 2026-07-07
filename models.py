@@ -72,6 +72,26 @@ class Notice(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
 
+class SalaryConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    pay_day = db.Column(db.Integer, nullable=True)
+
+class BudgetAllocation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    category_name = db.Column(db.String(50), nullable=False)
+    percent = db.Column(db.Float, nullable=False, default=0)
+
+class FixedExpense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    day_of_month = db.Column(db.Integer, nullable=True)
+    category = db.Column(db.String(50), nullable=True, default='')
+
 class HelpItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     icon = db.Column(db.String(10), nullable=False, default='')

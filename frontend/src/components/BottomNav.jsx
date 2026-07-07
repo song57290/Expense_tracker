@@ -5,7 +5,7 @@ const ITEMS = [
   { path: '/budget', icon: 'bi-wallet2', label: '예산' },
   { path: '/calendar', icon: 'bi-calendar3', label: '캘린더' },
   { path: '/stats', icon: 'bi-pie-chart', label: '통계' },
-  { path: '/categories', icon: 'bi-grid', label: '카테고리' },
+  { path: '/salary', icon: 'bi-cash-coin', label: '월급' },
   { path: '/settings', icon: 'bi-gear', label: '설정' },
 ]
 
