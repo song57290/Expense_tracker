@@ -627,17 +627,17 @@ function InvestmentItem({ item, onEdit, onDelete }) {
         </div>
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
-            <div style={{ fontSize: '0.72rem', color: '#888' }}>평가금액</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
-            {item.itype === '해외주식' && item.exchange_rate && (
-              <div style={{ fontSize: '0.68rem', color: '#aaa' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
-            )}
-          </div>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div style={{ fontSize: '0.72rem', color: '#888' }}>매수금액</div>
             <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(item.purchase_value)}원</div>
             {item.itype === '해외주식' && item.exchange_rate && (
               <div style={{ fontSize: '0.68rem', color: '#aaa' }}>(${(item.avg_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
+          </div>
+          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
+            <div style={{ fontSize: '0.72rem', color: '#888' }}>평가금액</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
+            {item.itype === '해외주식' && item.exchange_rate && (
+              <div style={{ fontSize: '0.68rem', color: '#aaa' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
           <div className="text-center flex-fill">
@@ -651,7 +651,16 @@ function InvestmentItem({ item, onEdit, onDelete }) {
           </div>
         </div>
         <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: '#aaa' }}>
-          <span>{item.itype === '해외주식' && item.exchange_rate ? `매수 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}</span>
+          <span>
+            {item.itype === '해외주식'
+              ? item.current_price
+                ? `평단가 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재가 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `평단가 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : item.current_price
+                ? `평단가 ${fmt(item.avg_price)}원 · 현재가 ${fmt(item.current_price)}원`
+                : item.avg_price ? `평단가 ${fmt(item.avg_price)}원` : ''
+            }
+          </span>
           <span style={{ color: isProfit ? '#198754' : '#dc3545', fontWeight: 600 }}>
             {isProfit ? '▲' : '▼'} {Math.abs(item.profit_pct).toFixed(2)}%
           </span>
@@ -708,13 +717,20 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
     }).catch(() => {})
   }, [itype])
 
-  // 환율 로드 후 수정 항목의 KRW → USD 변환
+  // 환율 로드 후 수정 항목 USD 가격 초기화
   useEffect(() => {
     if (!editItem || itype !== '해외주식' || !exchangeRate) return
-    if (!usdAvgPrice && editItem.avg_price)
-      setUsdAvgPrice((editItem.avg_price / exchangeRate).toFixed(2))
-    if (!usdCurrentPrice && editItem.current_price)
-      setUsdCurrentPrice((editItem.current_price / exchangeRate).toFixed(2))
+    if (!usdAvgPrice && editItem.avg_price) {
+      // exchange_rate가 저장된 항목은 avg_price가 이미 USD, 아니면 KRW → USD 변환
+      setUsdAvgPrice(editItem.exchange_rate
+        ? editItem.avg_price.toFixed(4)
+        : (editItem.avg_price / exchangeRate).toFixed(2))
+    }
+    if (!usdCurrentPrice && editItem.current_price) {
+      setUsdCurrentPrice(editItem.exchange_rate
+        ? editItem.current_price.toFixed(2)
+        : (editItem.current_price / exchangeRate).toFixed(2))
+    }
   }, [exchangeRate, editItem, itype])
 
   const ITYPES = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타']

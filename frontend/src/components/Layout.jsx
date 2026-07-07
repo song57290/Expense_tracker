@@ -5,7 +5,7 @@ import BottomNav from './BottomNav.jsx'
 import Sidebar from './Sidebar.jsx'
 import NotifySheet from './NotifySheet.jsx'
 
-const NAV_PATHS = ['/', '/budget', '/calendar', '/stats', '/categories', '/settings']
+const NAV_PATHS = ['/', '/budget', '/calendar', '/stats', '/salary', '/settings']
 
 export default function Layout({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)

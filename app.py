@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -1102,10 +1102,10 @@ def api_portfolio_pdf():
                 '<div class="ig">'
                 f'<div class="ic"><div class="l">월 예산</div><div class="v">{fmt(tgt)}원</div></div>'
                 f'<div class="ic"><div class="l">이달 실적</div><div class="v">{fmt(c["spent"])}원</div></div>'
-                f'<div class="ic"><div class="l">달성률</div><div class="v" style="color:#ffc107">{c["percent"]}%</div></div>'
+                f'<div class="ic"><div class="l">달성률</div><div class="v" style="color:#b088f9">{c["percent"]}%</div></div>'
                 '</div>'
                 '<div style="margin-top:4px">'
-                f'<div class="pb"><div class="pf" style="width:{pct_cap}%;background:#ffc107"></div></div>'
+                f'<div class="pb"><div class="pf" style="width:{pct_cap}%;background:linear-gradient(90deg,#b088f9,#7baff0)"></div></div>'
                 f'<div class="pl"><span>0원</span><span>{fmt(tgt)}원</span></div>'
                 '</div>'
             )
@@ -1268,14 +1268,14 @@ h2{font-size:14px;font-weight:700;color:#7c4fbf;background:#f0eaff;padding:12px 
 .sc{border:1px solid #e8e8e8;border-radius:10px;padding:14px 12px;text-align:center}
 .sc .l{font-size:10px;color:#555;margin-bottom:5px}
 .sc .v{font-size:15px;font-weight:700}
-.ci{color:#198754}.ce{color:#dc3545}.cb{color:#0d6efd}.cn{color:#333}
+.ci{color:#198754}.ce{color:#dc3545}.cb{color:#b088f9}.cn{color:#333}
 table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
 thead th{background:#f8f5ff;color:#555;font-weight:700;padding:8px 10px;text-align:left;border-bottom:2px solid #e8d5ff}
 tbody td{padding:8px 10px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
 .be{background:#ffe0e0;color:#dc3545}.bi{background:#d4edda;color:#198754}
-.by{background:#e8f4fd;color:#0d6efd}.bj{background:#f0e8fd;color:#b088f9}
+.by{background:#f0e8fd;color:#b088f9}.bj{background:#f0e8fd;color:#b088f9}
 .cp{border:1px solid #e8e8e8;border-radius:12px;padding:16px;margin-bottom:10px}
 .cn2{font-size:14px;font-weight:700;margin-bottom:10px}
 .ig{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#eee;border-radius:8px;overflow:hidden;margin-bottom:12px}
@@ -1606,6 +1606,76 @@ def api_notice(nid):
         return jsonify({'ok': False, 'error': '제목과 내용을 입력하세요'}), 400
     n.title = title
     n.content = content
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/salary', methods=['GET', 'PUT'])
+@login_required
+def api_salary():
+    uid = session['user_id']
+    if request.method == 'GET':
+        cfg = SalaryConfig.query.filter_by(user_id=uid).first()
+        allocs = BudgetAllocation.query.filter_by(user_id=uid).all()
+        fixed = FixedExpense.query.filter_by(user_id=uid).all()
+        current_month = datetime.now().strftime('%Y-%m')
+        txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
+        actual = {}
+        for tx in txs:
+            if tx.type == 'expense':
+                actual[tx.category] = actual.get(tx.category, 0) + tx.amount
+        return jsonify({
+            'salary': {'amount': cfg.amount if cfg else 0, 'pay_day': cfg.pay_day if cfg else None},
+            'allocations': [{'id': a.id, 'category_name': a.category_name, 'percent': a.percent} for a in allocs],
+            'fixed_expenses': [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category} for f in fixed],
+            'actual': actual,
+        })
+    data = request.get_json()
+    cfg = SalaryConfig.query.filter_by(user_id=uid).first()
+    if cfg:
+        cfg.amount = data.get('amount', cfg.amount)
+        cfg.pay_day = data.get('pay_day', cfg.pay_day)
+    else:
+        db.session.add(SalaryConfig(user_id=uid, amount=data.get('amount', 0), pay_day=data.get('pay_day')))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/salary/allocations', methods=['PUT'])
+@login_required
+def api_salary_allocations():
+    uid = session['user_id']
+    data = request.get_json()
+    BudgetAllocation.query.filter_by(user_id=uid).delete()
+    for a in data:
+        if a.get('percent', 0) > 0:
+            db.session.add(BudgetAllocation(user_id=uid, category_name=a['category_name'], percent=a['percent']))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/salary/fixed', methods=['POST'])
+@login_required
+def api_fixed_expenses_add():
+    uid = session['user_id']
+    data = request.get_json()
+    f = FixedExpense(user_id=uid, name=data['name'], amount=data['amount'],
+                     day_of_month=data.get('day_of_month'), category=data.get('category', ''))
+    db.session.add(f)
+    db.session.commit()
+    return jsonify({'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category})
+
+@app.route('/api/salary/fixed/<int:fid>', methods=['PUT', 'DELETE'])
+@login_required
+def api_fixed_expense(fid):
+    uid = session['user_id']
+    f = FixedExpense.query.filter_by(id=fid, user_id=uid).first_or_404()
+    if request.method == 'DELETE':
+        db.session.delete(f)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.get_json()
+    f.name = data.get('name', f.name)
+    f.amount = data.get('amount', f.amount)
+    f.day_of_month = data.get('day_of_month', f.day_of_month)
+    f.category = data.get('category', f.category)
     db.session.commit()
     return jsonify({'ok': True})
 
