@@ -9,6 +9,7 @@ import Categories from './pages/Categories.jsx'
 import Edit from './pages/Edit.jsx'
 import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
+import Salary from './pages/Salary.jsx'
 import UpdateNoticeModal from './components/UpdateNoticeModal.jsx'
 
 export default function App() {
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/budget" element={<Budget />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/salary" element={<Salary />} />
           <Route path="/edit/:id" element={<Edit />} />
         </Route>
       </Routes>

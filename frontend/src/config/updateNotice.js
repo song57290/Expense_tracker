@@ -2,10 +2,18 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.21'
+export const CURRENT_VERSION = 'ver 2.22'
 export const UPDATE_DATE = '2026년 7월 7일'
 
 export const UPDATES = [
+  {
+    section: '💰 예산 · 투자',
+    items: [
+      { tag: 'fix', title: '해외주식 평단가 · 현재가 달러 표시', desc: '입력한 달러 값을 그대로 $XX.XX 형식으로 표시 (원화 변환 없음)' },
+      { tag: 'imp', title: '투자 카드 항목 순서 변경', desc: '매수금액 → 평가금액 → 수익 순서로 재배치' },
+      { tag: 'new', title: '설정 탭에서 카테고리 관리', desc: '하단 내비에서 카테고리 탭을 제거하고 설정 → 카테고리 관리 버튼으로 이동' },
+    ],
+  },
   {
     section: '📊 통계',
     items: [
