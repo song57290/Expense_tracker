@@ -153,7 +153,7 @@ export default function Salary() {
 
       {/* 탭 */}
       <div style={{ display: 'flex', background: '#f0eaff', borderRadius: 12, padding: 4, marginBottom: 14 }}>
-        {[['plan', '📊 예산 배분'], ['fixed', '📌 고정 지출'], ['compare', '📈 실적 비교']].map(([key, label]) => (
+        {[['plan', '📊 예산 배분'], ['fixed', '📌 고정 지출'], ['compare', '📈 비교']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
               background: tab === key ? 'white' : 'transparent',
