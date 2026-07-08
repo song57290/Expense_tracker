@@ -186,6 +186,16 @@ with app.app_context():
             db.session.add(HelpItem(icon=icon, title=title, desc=desc, position=i))
         db.session.commit()
 
+    # one-time fix: reset price_updated_at for 해외주식 so auto-fetch re-runs
+    # (previous version stored current_price in KRW; new version stores in USD)
+    if AppConfig.query.get('fix_overseas_price_unit') is None:
+        from models import Investment as _Inv
+        _fixed = _Inv.query.filter_by(itype='해외주식').all()
+        for _inv in _fixed:
+            _inv.price_updated_at = None
+        db.session.add(AppConfig(key='fix_overseas_price_unit', value='done'))
+        db.session.commit()
+
     # seed update notice config
     if AppConfig.query.get('update_notice') is None:
         initial = {
@@ -505,28 +515,30 @@ def _auto_fetch_investment_prices(inv_list):
             elif market == 'US':
                 df = fdr.DataReader(t, start)
             else:
-                return inv.id, None
+                return inv.id, None, None
             if df.empty:
-                return inv.id, None
+                return inv.id, None, None
             price = float(df['Close'].iloc[-1])
-            if market == 'US':
-                price = price * usd_krw
-            return inv.id, price
+            # US stocks: store in USD (same unit as avg_price). KR stocks: store in KRW.
+            new_fx = usd_krw if market == 'US' else None
+            return inv.id, price, new_fx
         except Exception:
-            return inv.id, None
+            return inv.id, None, None
 
     id_map = {inv.id: inv for inv in todo}
     with ThreadPoolExecutor(max_workers=min(3, len(todo))) as ex:
         futures = {ex.submit(fetch_price, inv): inv.id for inv in todo}
         results = {}
         for f in as_completed(futures):
-            inv_id, price = f.result()
-            results[inv_id] = price
+            inv_id, price, new_fx = f.result()
+            results[inv_id] = (price, new_fx)
 
     changed = False
-    for inv_id, price in results.items():
+    for inv_id, (price, new_fx) in results.items():
         if price is not None:
             id_map[inv_id].current_price = price
+            if new_fx is not None:
+                id_map[inv_id].exchange_rate = new_fx
             id_map[inv_id].price_updated_at = datetime.utcnow()
             changed = True
     if changed:
