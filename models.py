@@ -65,6 +65,9 @@ class Savings(db.Model):
     start_date = db.Column(db.String(10), nullable=False)
     end_date = db.Column(db.String(10), nullable=False)
     notify_day = db.Column(db.Integer, nullable=True)
+    auto_tx = db.Column(db.Boolean, nullable=False, default=False)
+    auto_tx_day = db.Column(db.Integer, nullable=True)
+    auto_tx_card = db.Column(db.String(50), nullable=True, default='')
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)

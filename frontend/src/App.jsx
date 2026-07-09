@@ -93,15 +93,18 @@ export default function App() {
         const item = pendingRegisters[registerIdx]
         const dismiss = () => setRegisterIdx(i => i + 1)
         const confirm = () => {
-          fetch(`/api/salary/fixed/${item.id}/register`, { method: 'POST', credentials: 'same-origin' })
+          const url = item.item_type === 'savings'
+            ? `/api/savings/${item.id}/auto-register`
+            : `/api/salary/fixed/${item.id}/register`
+          fetch(url, { method: 'POST', credentials: 'same-origin' })
             .finally(() => setRegisterIdx(i => i + 1))
         }
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
             <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
               <div style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', padding: '16px 20px 12px' }}>
-                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>📅 정기 거래 알림</div>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'white' }}>오늘 {item.name} 등록할까요?</div>
+                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>{item.item_type === 'savings' ? '🏦 자동이체 알림' : '📅 정기 거래 알림'}</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'white' }}>오늘 {item.name} {item.item_type === 'savings' ? '자동이체' : '등록'}할까요?</div>
               </div>
               <div style={{ padding: '16px 20px', fontSize: '0.9rem', color: '#444' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
