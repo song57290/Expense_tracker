@@ -1723,13 +1723,17 @@ def api_salary():
                         'category': f.category, 'auto_register': bool(f.auto_register),
                         'tx_type': f.tx_type or 'expense', 'tx_card': f.tx_card or '',
                         'item_type': 'fixed'} for f in fixed]
-        savings_auto = Savings.query.filter_by(user_id=uid, auto_tx=True).all()
-        for s in savings_auto:
+        savings_all = Savings.query.filter_by(user_id=uid).all()
+        for s in savings_all:
             if s.stype not in ('적금', '청약'):
+                continue
+            auto_tx = bool(getattr(s, 'auto_tx', False))
+            # 청약은 무조건 포함, 적금은 auto_tx 설정된 것만
+            if s.stype == '적금' and not auto_tx:
                 continue
             fixed_list.append({'id': s.id, 'name': s.name, 'amount': s.amount,
                                 'day_of_month': getattr(s, 'auto_tx_day', None),
-                                'category': '저축', 'auto_register': True,
+                                'category': '저축', 'auto_register': auto_tx,
                                 'tx_type': 'expense', 'tx_card': getattr(s, 'auto_tx_card', '') or '',
                                 'item_type': 'savings', 'stype': s.stype})
         return jsonify({
