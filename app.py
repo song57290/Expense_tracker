@@ -133,6 +133,24 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN auto_tx BOOLEAN DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN auto_tx_day INTEGER"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN auto_tx_card VARCHAR(50) DEFAULT ''"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
             conn.commit()
     except Exception:
@@ -404,6 +422,9 @@ def _savings_stats(s, extra_deposit=0):
             'interest_after_tax': 0, 'maturity_after_tax': current_paid,
             'extra_deposit': extra_deposit,
             'notify_day': getattr(s, 'notify_day', None),
+            'auto_tx': bool(getattr(s, 'auto_tx', False)),
+            'auto_tx_day': getattr(s, 'auto_tx_day', None),
+            'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
         }
     try:
         start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
@@ -460,6 +481,10 @@ def _savings_stats(s, extra_deposit=0):
         'total_paid': total_paid, 'current_paid': current_paid,
         'interest': interest, 'maturity_amount': maturity_amount,
         'interest_after_tax': interest_after_tax, 'maturity_after_tax': maturity_after_tax,
+        'notify_day': getattr(s, 'notify_day', None),
+        'auto_tx': bool(getattr(s, 'auto_tx', False)),
+        'auto_tx_day': getattr(s, 'auto_tx_day', None),
+        'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
     }
 
 _KST = timezone(timedelta(hours=9))
@@ -1458,6 +1483,7 @@ def api_savings():
     if request.method == 'POST':
         data = request.json or {}
         nd = data.get('notify_day')
+        atd = data.get('auto_tx_day')
         db.session.add(Savings(
             user_id=uid,
             stype=data.get('stype', '예금'),
@@ -1470,6 +1496,9 @@ def api_savings():
             start_date=data['start_date'],
             end_date=data['end_date'],
             notify_day=int(nd) if nd else None,
+            auto_tx=bool(data.get('auto_tx', False)),
+            auto_tx_day=int(atd) if atd else None,
+            auto_tx_card=data.get('auto_tx_card', '') or '',
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -1498,6 +1527,13 @@ def api_saving(sid):
     if 'notify_day' in data:
         nd = data['notify_day']
         s.notify_day = int(nd) if nd else None
+    if 'auto_tx' in data:
+        s.auto_tx = bool(data['auto_tx'])
+    if 'auto_tx_day' in data:
+        atd = data['auto_tx_day']
+        s.auto_tx_day = int(atd) if atd else None
+    if 'auto_tx_card' in data:
+        s.auto_tx_card = data['auto_tx_card'] or ''
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1756,9 +1792,9 @@ def api_pending_registers():
     today = datetime.now()
     today_day = today.day
     current_month = today.strftime('%Y-%m')
-    fixed = FixedExpense.query.filter_by(user_id=uid, auto_register=True).all()
     pending = []
-    for f in fixed:
+    # 고정 지출
+    for f in FixedExpense.query.filter_by(user_id=uid, auto_register=True).all():
         if f.day_of_month != today_day:
             continue
         already = Transaction.query.filter_by(user_id=uid).filter(
@@ -1766,9 +1802,25 @@ def api_pending_registers():
             Transaction.description == f'[자동]{f.name}',
         ).first()
         if not already:
-            pending.append({'id': f.id, 'name': f.name, 'amount': f.amount,
+            pending.append({'item_type': 'fixed', 'id': f.id, 'name': f.name, 'amount': f.amount,
                             'category': f.category or '', 'tx_type': f.tx_type or 'expense',
                             'tx_card': f.tx_card or ''})
+    # 적금/청약 자동이체
+    for s in Savings.query.filter_by(user_id=uid, auto_tx=True).all():
+        if s.stype not in ('적금', '청약'):
+            continue
+        atd = getattr(s, 'auto_tx_day', None)
+        if not atd or atd != today_day:
+            continue
+        desc = f'[자동이체]{s.name}'
+        already = Transaction.query.filter_by(user_id=uid).filter(
+            Transaction.date.like(f'{current_month}%'),
+            Transaction.description == desc,
+        ).first()
+        if not already:
+            pending.append({'item_type': 'savings', 'id': s.id, 'name': s.name, 'amount': s.amount,
+                            'category': '저축', 'tx_type': 'expense',
+                            'tx_card': getattr(s, 'auto_tx_card', '') or ''})
     return jsonify(pending)
 
 @app.route('/api/salary/fixed/<int:fid>/register', methods=['POST'])
@@ -1780,6 +1832,19 @@ def api_fixed_register(fid):
     tx = Transaction(date=today, type=f.tx_type or 'expense',
                      category=f.category or '기타', description=f'[자동]{f.name}',
                      amount=f.amount, card=f.tx_card or None, user_id=uid)
+    db.session.add(tx)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/savings/<int:sid>/auto-register', methods=['POST'])
+@login_required
+def api_savings_auto_register(sid):
+    uid = session['user_id']
+    s = Savings.query.filter_by(id=sid, user_id=uid).first_or_404()
+    today = datetime.now().strftime('%Y-%m-%d')
+    tx = Transaction(date=today, type='expense',
+                     category='저축', description=f'[자동이체]{s.name}',
+                     amount=s.amount, card=getattr(s, 'auto_tx_card', '') or None, user_id=uid)
     db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True})
