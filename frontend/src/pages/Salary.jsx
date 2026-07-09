@@ -12,17 +12,20 @@ export default function Salary() {
 
   const [salaryEdit, setSalaryEdit] = useState(false)
   const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
+  const [salaryAmountDisplay, setSalaryAmountDisplay] = useState('')
 
-  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '' })
+  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, tx_type: 'expense', tx_card: '' })
   const [fixedFormOpen, setFixedFormOpen] = useState(false)
   const [editFixed, setEditFixed] = useState(null)
   const [editFixedForm, setEditFixedForm] = useState({})
+  const [cards, setCards] = useState([])
 
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
 
   useEffect(() => {
     load()
     api.get('/api/categories').then(d => setCategories((d || []).filter(c => c.cat_type === 'expense'))).catch(() => {})
+    api.get('/api/budget').then(d => setCards(d.card_stats || [])).catch(() => {})
   }, [])
 
   function load() {
@@ -71,8 +74,11 @@ export default function Salary() {
       amount: Number(fixedForm.amount) || 0,
       day_of_month: Number(fixedForm.day_of_month) || null,
       category: fixedForm.category,
+      auto_register: fixedForm.auto_register,
+      tx_type: fixedForm.tx_type,
+      tx_card: fixedForm.tx_card,
     })
-    setFixedForm({ name: '', amount: '', day_of_month: '', category: '' })
+    setFixedForm({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, tx_type: 'expense', tx_card: '' })
     setFixedFormOpen(false)
     load()
   }
@@ -88,6 +94,9 @@ export default function Salary() {
       amount: Number(editFixedForm.amount) || 0,
       day_of_month: Number(editFixedForm.day_of_month) || null,
       category: editFixedForm.category,
+      auto_register: editFixedForm.auto_register,
+      tx_type: editFixedForm.tx_type || 'expense',
+      tx_card: editFixedForm.tx_card || '',
     })
     setEditFixed(null)
     load()
@@ -113,17 +122,28 @@ export default function Salary() {
             </div>
             {salary.pay_day && <div style={{ fontSize: '0.75rem', color: '#bbb', marginTop: 2 }}>매월 {salary.pay_day}일 지급</div>}
           </div>
-          <button onClick={() => { setSalaryForm({ amount: salaryAmt, pay_day: salary.pay_day || '' }); setSalaryEdit(o => !o) }}
+          <button onClick={() => { setSalaryForm({ amount: salaryAmt, pay_day: salary.pay_day || '' }); setSalaryAmountDisplay(salaryAmt ? Number(salaryAmt).toLocaleString() : ''); setSalaryEdit(o => !o) }}
             style={{ background: '#f0eaff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
             {salaryEdit ? '취소' : '변경'}
           </button>
         </div>
         {salaryEdit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input type="number" placeholder="월급 금액" value={salaryForm.amount}
-              onChange={e => setSalaryForm(f => ({ ...f, amount: e.target.value }))} style={inputStyle} />
-            <input type="number" placeholder="지급일 (예: 25)" value={salaryForm.pay_day}
-              onChange={e => setSalaryForm(f => ({ ...f, pay_day: e.target.value }))} style={inputStyle} />
+            <div style={{ position: 'relative' }}>
+              <input type="text" inputMode="numeric" placeholder="월급 금액" value={salaryAmountDisplay}
+                onChange={e => {
+                  const raw = e.target.value.replace(/,/g, '')
+                  if (!/^\d*$/.test(raw)) return
+                  setSalaryAmountDisplay(raw ? Number(raw).toLocaleString() : '')
+                  setSalaryForm(f => ({ ...f, amount: raw }))
+                }} style={{ ...inputStyle, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#bbb', fontSize: '0.85rem', pointerEvents: 'none' }}>원</span>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <input type="number" placeholder="지급일 (예: 25)" value={salaryForm.pay_day}
+                onChange={e => setSalaryForm(f => ({ ...f, pay_day: e.target.value }))} style={{ ...inputStyle, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#bbb', fontSize: '0.85rem', pointerEvents: 'none' }}>일</span>
+            </div>
             <button onClick={saveSalary}
               style={{ padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
               저장
@@ -234,6 +254,22 @@ export default function Salary() {
                   <option value="">카테고리 선택</option>
                   {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
                 </select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: '#555', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={fixedForm.auto_register} onChange={e => setFixedForm(f => ({ ...f, auto_register: e.target.checked }))} />
+                  지정일에 자동 거래 등록
+                </label>
+                {fixedForm.auto_register && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select value={fixedForm.tx_type} onChange={e => setFixedForm(f => ({ ...f, tx_type: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
+                      <option value="expense">지출</option>
+                      <option value="income">수입</option>
+                    </select>
+                    <select value={fixedForm.tx_card} onChange={e => setFixedForm(f => ({ ...f, tx_card: e.target.value }))} style={{ ...inputStyle, flex: 2 }}>
+                      <option value="">카드/계좌 선택</option>
+                      {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button type="submit" style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>저장</button>
                   <button type="button" onClick={() => setFixedFormOpen(false)} style={{ padding: '9px 16px', borderRadius: 10, border: '1.5px solid #e8e0f8', background: 'white', color: '#aaa', fontWeight: 600, cursor: 'pointer' }}>취소</button>
@@ -261,6 +297,22 @@ export default function Salary() {
                       <option value="">카테고리 선택</option>
                       {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
                     </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: '#555', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!editFixedForm.auto_register} onChange={e => setEditFixedForm(x => ({ ...x, auto_register: e.target.checked }))} />
+                      지정일에 자동 거래 등록
+                    </label>
+                    {editFixedForm.auto_register && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <select value={editFixedForm.tx_type || 'expense'} onChange={e => setEditFixedForm(x => ({ ...x, tx_type: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
+                          <option value="expense">지출</option>
+                          <option value="income">수입</option>
+                        </select>
+                        <select value={editFixedForm.tx_card || ''} onChange={e => setEditFixedForm(x => ({ ...x, tx_card: e.target.value }))} style={{ ...inputStyle, flex: 2 }}>
+                          <option value="">카드/계좌 선택</option>
+                          {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={saveEditFixed} style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
                       <button onClick={() => setEditFixed(null)} style={{ padding: '8px 14px', borderRadius: 10, border: '1.5px solid #e8e0f8', background: 'white', color: '#aaa', cursor: 'pointer' }}>취소</button>
@@ -272,11 +324,12 @@ export default function Salary() {
                       <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{f.name}</div>
                       <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>
                         {f.category && <span style={{ marginRight: 8 }}>{f.category}</span>}
-                        {f.day_of_month && <span>매월 {f.day_of_month}일</span>}
+                        {f.day_of_month && <span style={{ marginRight: 6 }}>매월 {f.day_of_month}일</span>}
+                        {f.auto_register && <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동등록</span>}
                       </div>
                     </div>
                     <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#333', marginRight: 8 }}>{fmt(f.amount)}원</div>
-                    <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category }) }}
+                    <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
                       style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
                     <button onClick={() => deleteFixed(f.id)}
                       style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
