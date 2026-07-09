@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { CURRENT_VERSION, UPDATE_DATE, UPDATES } from '../config/updateNotice.js'
+import { CURRENT_VERSION, UPDATE_DATE, UPDATES, VERSION_HISTORY } from '../config/updateNotice.js'
 
 const TAG_STYLE = {
   new: { bg: '#ede8fb', color: '#8b5cf6', label: '신기능' },
@@ -13,6 +13,7 @@ const ADMIN_EMAIL = 'song57290@gmail.com'
 export default function UpdateNoticeModal() {
   const [visible, setVisible] = useState(false)
   const [config, setConfig] = useState({ version: CURRENT_VERSION, date: UPDATE_DATE, updates: UPDATES })
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [user, setUser] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ version: '', date: '', updates: '' })
@@ -28,7 +29,13 @@ export default function UpdateNoticeModal() {
   useEffect(() => {
     fetch('/api/update-notice-config', { credentials: 'same-origin' })
       .then(r => r.json())
-      .then(d => { if (d.version) setConfig(d) })
+      .then(d => {
+        if (d.version) {
+          setConfig(d)
+          const seen = localStorage.getItem('update_version_seen')
+          if (seen !== d.version) setVisible(true)
+        }
+      })
       .catch(() => {})
     fetch('/api/me', { credentials: 'same-origin' })
       .then(r => r.json())
@@ -199,6 +206,49 @@ export default function UpdateNoticeModal() {
               })}
             </div>
           ))}
+
+          {/* 이전 버전 기록 */}
+          {VERSION_HISTORY.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <button
+                onClick={() => setHistoryOpen(o => !o)}
+                style={{ width: '100%', padding: '9px 14px', background: 'none', border: '1.5px solid #ede8fb', borderRadius: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#9b90b8', fontSize: '0.78rem', fontWeight: 600 }}
+              >
+                <span>이전 버전 기록</span>
+                <span style={{ fontSize: '0.7rem', transition: 'transform 0.2s', transform: historyOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+              </button>
+              {historyOpen && VERSION_HISTORY.map(hist => (
+                <div key={hist.version} style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', marginBottom: 8 }}>
+                    <div style={{ background: '#f0eaff', color: '#b088f9', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{hist.version}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#c0b8d0' }}>{hist.date}</div>
+                  </div>
+                  {hist.updates.map(sec => (
+                    <div key={sec.section} style={{ background: '#fff', border: '1.5px solid #ede8fb', borderRadius: 14, marginBottom: 8, overflow: 'hidden', opacity: 0.85 }}>
+                      <div style={{ padding: '8px 14px', background: '#f9f7fe', borderBottom: '1px solid #ede8fb', fontSize: '0.68rem', fontWeight: 700, color: '#a098c0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                        {sec.section}
+                      </div>
+                      {sec.items.map((item, i) => {
+                        const t = TAG_STYLE[item.tag] || TAG_STYLE.imp
+                        return (
+                          <div key={i} style={{ padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 9, borderBottom: i < sec.items.length - 1 ? '1px solid #f4f0fd' : 'none' }}>
+                            <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd8ee', marginTop: 6, flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3a3050', lineHeight: 1.4 }}>{item.title}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#9b90b8', marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                            </div>
+                            <div style={{ background: t.bg, color: t.color, fontSize: '0.6rem', fontWeight: 700, padding: '2px 5px', borderRadius: 5, flexShrink: 0, marginTop: 2, opacity: 0.8 }}>
+                              {t.label}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 하단 버튼 */}
