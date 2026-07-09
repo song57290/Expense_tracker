@@ -2,10 +2,29 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.22'
-export const UPDATE_DATE = '2026년 7월 7일'
+export const CURRENT_VERSION = 'ver 2.23'
+export const UPDATE_DATE = '2026년 7월 9일'
 
 export const UPDATES = [
+  {
+    section: '💰 월급 관리',
+    items: [
+      { tag: 'new', title: '예산 배분 원화 직접 입력', desc: '% 대신 원화 금액으로 입력, 월급 대비 % 자동 표시' },
+      { tag: 'new', title: '예산 배분 카테고리 선택형', desc: '모든 카테고리 대신 예산 잡을 카테고리만 직접 선택해서 추가' },
+      { tag: 'new', title: '고정 지출 자동 거래 등록', desc: '지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록' },
+      { tag: 'imp', title: '월급 입력 UX 개선', desc: '금액 콤마 자동 삽입, 원·일 단위 suffix 표시' },
+    ],
+  },
+  {
+    section: '🏦 예금 · 적금 · 청약',
+    items: [
+      { tag: 'new', title: '청약 추가 입금', desc: '예산 탭 청약 카드에 추가 입금 내역 기록, 잔고 자동 합산' },
+      { tag: 'new', title: '적금 · 청약 자동이체 등록', desc: '이체일 설정 시 해당 날짜에 앱 열면 확인 팝업으로 거래 자동 기록' },
+      { tag: 'new', title: '청약 납입일 푸시 알림', desc: '설정한 날짜 오전 9시에 납입 알림 자동 발송 (알림 ON 필요)' },
+      { tag: 'new', title: '청약 이자 지원', desc: '청약도 연 이율 · 단리/복리 · 세금 종류 설정 가능' },
+      { tag: 'imp', title: '자동이체 고정 지출 연동', desc: '자동이체 설정한 적금·청약이 월급 탭 고정 지출에 자동 표시' },
+    ],
+  },
   {
     section: '💰 예산 · 투자',
     items: [
