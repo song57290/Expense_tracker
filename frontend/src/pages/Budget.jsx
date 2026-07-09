@@ -480,9 +480,14 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   const [startDate, setStartDate] = useState(today())
   const [endDate, setEndDate] = useState('')
   const [notifyDay, setNotifyDay] = useState('')
+  const [autoTx, setAutoTx] = useState(false)
+  const [autoTxDay, setAutoTxDay] = useState('')
+  const [autoTxCard, setAutoTxCard] = useState('')
+  const [cards, setCards] = useState([])
 
   useEffect(() => {
     if (!open) return
+    api.get('/api/budget').then(d => setCards(d.card_stats || [])).catch(() => {})
     if (editItem) {
       setStype(editItem.stype || '예금')
       setItype(editItem.interest_type || '단리')
@@ -494,8 +499,11 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setStartDate(editItem.start_date || today())
       setEndDate(editItem.end_date || '')
       setNotifyDay(editItem.notify_day ? String(editItem.notify_day) : '')
+      setAutoTx(!!editItem.auto_tx)
+      setAutoTxDay(editItem.auto_tx_day ? String(editItem.auto_tx_day) : '')
+      setAutoTxCard(editItem.auto_tx_card || '')
     } else {
-      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard('')
     }
   }, [open, editItem])
 
@@ -515,6 +523,9 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       start_date: startDate,
       end_date: isCheongYak ? '' : endDate,
       notify_day: isCheongYak && notifyDay ? parseInt(notifyDay) : null,
+      auto_tx: (isCheongYak || stype === '적금') ? autoTx : false,
+      auto_tx_day: autoTx && autoTxDay ? parseInt(autoTxDay) : null,
+      auto_tx_card: autoTx ? autoTxCard : '',
     }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
     else await api.post('/api/savings', payload)
@@ -613,6 +624,29 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
                 </div>
                 <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>입력 시 해당 날짜 오전 9시에 납입 알림을 받습니다. 알림을 받으려면 설정에서 알림을 켜주세요.</p>
+              </div>
+            )}
+            {(stype === '적금' || stype === '청약') && (
+              <div className="mb-3" style={{ background: '#faf8ff', borderRadius: 12, padding: '12px 14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', fontWeight: 600, color: '#555', cursor: 'pointer', marginBottom: autoTx ? 10 : 0 }}>
+                  <input type="checkbox" checked={autoTx} onChange={e => setAutoTx(e.target.checked)} />
+                  🔄 자동이체 등록 (앱 열 때 확인 팝업)
+                </label>
+                {autoTx && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ position: 'relative' }}>
+                      <input type="number" className="form-control" placeholder="이체일 (몇 일)" min="1" max="31"
+                        value={autoTxDay} onChange={e => setAutoTxDay(e.target.value)}
+                        style={{ borderRadius: 10, paddingRight: 36, fontSize: '0.88rem' }} />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
+                    </div>
+                    <select className="form-select" value={autoTxCard} onChange={e => setAutoTxCard(e.target.value)}
+                      style={{ borderRadius: 10, fontSize: '0.88rem' }}>
+                      <option value="">카드/계좌 선택 (선택사항)</option>
+                      {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </form>
