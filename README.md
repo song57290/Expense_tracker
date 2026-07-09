@@ -255,6 +255,18 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 108 | 투자 카드 항목 순서 변경 — 평가금액·매수금액·수익 → 매수금액·평가금액·수익 |
 | 109 | 설정 탭 카테고리 관리 버튼 추가 — BottomNav 제거로 접근 불가하던 카테고리 탭을 설정에서 진입 가능 |
 
+## 최근 변경 (2026-07-09)
+
+| # | 내용 |
+|---|------|
+| 110 | 청약 추가 입금 기능 — 예산 탭 청약 카드에 "추가 입금" 버튼, 날짜·금액·메모 입력, 입금 내역 표시, 잔고에 합산 |
+| 111 | DB 모델 추가 — `SavingsDeposit`(청약 추가 입금 내역), API `GET/POST /api/savings/<sid>/deposits`, `DELETE /api/savings/deposits/<did>` |
+| 112 | 고정 지출 자동 등록 — 월급 탭 고정 지출에 `auto_register` 토글·거래 유형·카드 설정, 지정일에 앱 열면 확인 팝업 표시 후 거래 자동 생성 |
+| 113 | DB 컬럼 추가 — `FixedExpense`에 `auto_register`, `tx_type`, `tx_card` 추가, API `GET /api/pending-registers`, `POST /api/salary/fixed/<id>/register` |
+| 114 | 월급 입력 UX 개선 — 금액 입력 시 1000단위 콤마 자동 삽입, 금액·일자 우측에 "원"·"일" 단위 suffix 표시 |
+| 115 | 청약 납입일 푸시 알림 — 청약 편집 폼에 "납입일 알림(몇 일)" 입력 추가, 매월 해당 날짜 오전 9시 KST에 APScheduler로 알림 자동 발송 |
+| 116 | DB 컬럼 추가 — `Savings`에 `notify_day(INT)` 추가, 구독 저장 시 user_id 함께 저장하여 사용자별 알림 타게팅 지원 |
+
 ## 최근 변경 (2026-07-06)
 
 | # | 내용 |

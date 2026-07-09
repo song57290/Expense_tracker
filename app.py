@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -127,6 +127,12 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN notify_day INTEGER"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
             conn.commit()
     except Exception:
@@ -168,6 +174,17 @@ with app.app_context():
                 conn.commit()
         except Exception:
             pass
+    for _sql in [
+        "ALTER TABLE fixed_expense ADD COLUMN auto_register BOOLEAN DEFAULT 0",
+        "ALTER TABLE fixed_expense ADD COLUMN tx_type VARCHAR(20) DEFAULT 'expense'",
+        "ALTER TABLE fixed_expense ADD COLUMN tx_card VARCHAR(50) DEFAULT ''",
+    ]:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(_sql)); conn.commit()
+        except Exception:
+            pass
+    db.create_all()
     # seed categories for user 1 (existing data owner)
     _seed_user_categories(1)
 
@@ -365,7 +382,7 @@ def api_delete_account():
 
 # ── Savings helper ───────────────────────────────────────────────────────────
 
-def _savings_stats(s):
+def _savings_stats(s, extra_deposit=0):
     from datetime import date as _date
     today = _date.today()
     if s.stype == '청약':
@@ -374,7 +391,7 @@ def _savings_stats(s):
         except Exception:
             start = today
         months_elapsed = max(0, (today.year - start.year) * 12 + (today.month - start.month))
-        current_paid = s.amount * months_elapsed
+        current_paid = s.amount * months_elapsed + extra_deposit
         return {
             'id': s.id, 'stype': s.stype, 'bank': s.bank, 'name': s.name,
             'amount': s.amount, 'interest_rate': 0, 'interest_type': '단리',
@@ -385,6 +402,8 @@ def _savings_stats(s):
             'total_paid': current_paid, 'current_paid': current_paid,
             'interest': 0, 'maturity_amount': current_paid,
             'interest_after_tax': 0, 'maturity_after_tax': current_paid,
+            'extra_deposit': extra_deposit,
+            'notify_day': getattr(s, 'notify_day', None),
         }
     try:
         start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
@@ -1420,12 +1439,15 @@ def api_budget():
     savings = Savings.query.filter_by(user_id=uid).all()
     investments = Investment.query.filter_by(user_id=uid).all()
     _auto_fetch_investment_prices(investments)
+    extra_deposits = {}
+    for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
+        extra_deposits[dep.savings_id] = extra_deposits.get(dep.savings_id, 0) + dep.amount
     return jsonify({
         'budget_amount': budget.amount if budget else 0,
         'expense_total': expense_total,
         'current_month': current_month,
         'card_stats': card_stats,
-        'savings': [_savings_stats(s) for s in savings],
+        'savings': [_savings_stats(s, extra_deposits.get(s.id, 0)) for s in savings],
         'investments': [_investment_stats(i) for i in investments],
     })
 
@@ -1435,6 +1457,7 @@ def api_savings():
     uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
+        nd = data.get('notify_day')
         db.session.add(Savings(
             user_id=uid,
             stype=data.get('stype', '예금'),
@@ -1446,6 +1469,7 @@ def api_savings():
             tax_type=data.get('tax_type', '일반과세'),
             start_date=data['start_date'],
             end_date=data['end_date'],
+            notify_day=int(nd) if nd else None,
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -1471,6 +1495,9 @@ def api_saving(sid):
     s.tax_type = data.get('tax_type', getattr(s, 'tax_type', '일반과세') or '일반과세')
     s.start_date = data.get('start_date', s.start_date)
     s.end_date = data.get('end_date', s.end_date)
+    if 'notify_day' in data:
+        nd = data['notify_day']
+        s.notify_day = int(nd) if nd else None
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1638,7 +1665,7 @@ def api_salary():
         return jsonify({
             'salary': {'amount': cfg.amount if cfg else 0, 'pay_day': cfg.pay_day if cfg else None},
             'allocations': [{'id': a.id, 'category_name': a.category_name, 'percent': a.percent} for a in allocs],
-            'fixed_expenses': [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category} for f in fixed],
+            'fixed_expenses': [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category, 'auto_register': bool(f.auto_register), 'tx_type': f.tx_type or 'expense', 'tx_card': f.tx_card or ''} for f in fixed],
             'actual': actual,
         })
     data = request.get_json()
@@ -1669,10 +1696,12 @@ def api_fixed_expenses_add():
     uid = session['user_id']
     data = request.get_json()
     f = FixedExpense(user_id=uid, name=data['name'], amount=data['amount'],
-                     day_of_month=data.get('day_of_month'), category=data.get('category', ''))
+                     day_of_month=data.get('day_of_month'), category=data.get('category', ''),
+                     auto_register=bool(data.get('auto_register', False)),
+                     tx_type=data.get('tx_type', 'expense'), tx_card=data.get('tx_card', ''))
     db.session.add(f)
     db.session.commit()
-    return jsonify({'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category})
+    return jsonify({'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category, 'auto_register': bool(f.auto_register), 'tx_type': f.tx_type, 'tx_card': f.tx_card})
 
 @app.route('/api/salary/fixed/<int:fid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -1688,6 +1717,70 @@ def api_fixed_expense(fid):
     f.amount = data.get('amount', f.amount)
     f.day_of_month = data.get('day_of_month', f.day_of_month)
     f.category = data.get('category', f.category)
+    f.auto_register = bool(data.get('auto_register', f.auto_register))
+    f.tx_type = data.get('tx_type', f.tx_type or 'expense')
+    f.tx_card = data.get('tx_card', f.tx_card or '')
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/savings/<int:sid>/deposits', methods=['GET', 'POST'])
+@login_required
+def api_savings_deposits(sid):
+    uid = session['user_id']
+    Savings.query.filter_by(id=sid, user_id=uid).first_or_404()
+    if request.method == 'POST':
+        data = request.get_json()
+        dep = SavingsDeposit(savings_id=sid, user_id=uid,
+                             amount=int(data.get('amount', 0)),
+                             date=data.get('date', datetime.now().strftime('%Y-%m-%d')),
+                             memo=data.get('memo', ''))
+        db.session.add(dep)
+        db.session.commit()
+        return jsonify({'id': dep.id, 'amount': dep.amount, 'date': dep.date, 'memo': dep.memo})
+    deps = SavingsDeposit.query.filter_by(savings_id=sid, user_id=uid).order_by(SavingsDeposit.date.desc()).all()
+    return jsonify([{'id': d.id, 'amount': d.amount, 'date': d.date, 'memo': d.memo} for d in deps])
+
+@app.route('/api/savings/deposits/<int:did>', methods=['DELETE'])
+@login_required
+def api_savings_deposit_delete(did):
+    uid = session['user_id']
+    dep = SavingsDeposit.query.filter_by(id=did, user_id=uid).first_or_404()
+    db.session.delete(dep)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/pending-registers', methods=['GET'])
+@login_required
+def api_pending_registers():
+    uid = session['user_id']
+    today = datetime.now()
+    today_day = today.day
+    current_month = today.strftime('%Y-%m')
+    fixed = FixedExpense.query.filter_by(user_id=uid, auto_register=True).all()
+    pending = []
+    for f in fixed:
+        if f.day_of_month != today_day:
+            continue
+        already = Transaction.query.filter_by(user_id=uid).filter(
+            Transaction.date.like(f'{current_month}%'),
+            Transaction.description == f'[자동]{f.name}',
+        ).first()
+        if not already:
+            pending.append({'id': f.id, 'name': f.name, 'amount': f.amount,
+                            'category': f.category or '', 'tx_type': f.tx_type or 'expense',
+                            'tx_card': f.tx_card or ''})
+    return jsonify(pending)
+
+@app.route('/api/salary/fixed/<int:fid>/register', methods=['POST'])
+@login_required
+def api_fixed_register(fid):
+    uid = session['user_id']
+    f = FixedExpense.query.filter_by(id=fid, user_id=uid).first_or_404()
+    today = datetime.now().strftime('%Y-%m-%d')
+    tx = Transaction(date=today, type=f.tx_type or 'expense',
+                     category=f.category or '기타', description=f'[자동]{f.name}',
+                     amount=f.amount, card=f.tx_card or None, user_id=uid)
+    db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -2404,6 +2497,9 @@ def vapid_public_key():
 @app.route('/api/subscribe', methods=['POST'])
 def push_subscribe():
     data = request.json or {}
+    uid = session.get('user_id')
+    if uid:
+        data['user_id'] = uid
     subs = [s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')]
     subs.append(data)
     _save_subs(subs)
@@ -2450,6 +2546,31 @@ def _send_push_notifications():
     except Exception as e:
         app.logger.error('Push scheduler error: %s', e)
 
+def _send_savings_notifications():
+    with app.app_context():
+        try:
+            from datetime import timezone, timedelta
+            KST = timezone(timedelta(hours=9))
+            now = datetime.now(KST)
+            today_day = now.day
+            savings_list = Savings.query.filter_by(stype='청약').all()
+            subs = _load_subs()
+            for s in savings_list:
+                nd = getattr(s, 'notify_day', None)
+                if nd and nd == today_day:
+                    user_subs = [sub for sub in subs if sub.get('user_id') == s.user_id]
+                    for sub in user_subs:
+                        try:
+                            _do_send_push(
+                                sub,
+                                title='🏠 청약 납입일 알림',
+                                body=f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.',
+                            )
+                        except Exception as e:
+                            app.logger.error('Savings push failed uid=%s: %s', s.user_id, e)
+        except Exception as e:
+            app.logger.error('Savings notification error: %s', e)
+
 @app.route('/api/test-notify', methods=['POST'])
 @login_required
 def test_notify():
@@ -2476,6 +2597,7 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         import atexit
         _scheduler = BackgroundScheduler()
         _scheduler.add_job(_send_push_notifications, 'cron', minute='*')
+        _scheduler.add_job(_send_savings_notifications, 'cron', hour=9, minute=0)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='mon-fri', hour=6, minute=35)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='tue-sat', hour=2, minute=15)
         _scheduler.start()

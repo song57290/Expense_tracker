@@ -275,13 +275,43 @@ function SwipeCard({ card, onEdit, onDelete }) {
   )
 }
 
-function SavingsItem({ item, onEdit, onDelete }) {
+function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
   const cardRef = useRef(null)
   const mouseDown = useRef(false)
+  const [depositOpen, setDepositOpen] = useState(false)
+  const [deposits, setDeposits] = useState([])
+  const [depForm, setDepForm] = useState({ amount: '', date: today(), memo: '' })
+  const [depLoading, setDepLoading] = useState(false)
+
+  async function loadDeposits() {
+    const res = await api.get(`/api/savings/${item.id}/deposits`)
+    setDeposits(res || [])
+  }
+
+  function toggleDeposit() {
+    if (!depositOpen) loadDeposits()
+    setDepositOpen(o => !o)
+  }
+
+  async function addDeposit(e) {
+    e.preventDefault()
+    setDepLoading(true)
+    await api.post(`/api/savings/${item.id}/deposits`, { amount: Number(depForm.amount) || 0, date: depForm.date, memo: depForm.memo })
+    setDepForm({ amount: '', date: today(), memo: '' })
+    await loadDeposits()
+    setDepLoading(false)
+    if (onDepositChange) onDepositChange()
+  }
+
+  async function deleteDeposit(did) {
+    await api.delete(`/api/savings/deposits/${did}`)
+    await loadDeposits()
+    if (onDepositChange) onDepositChange()
+  }
 
   const onDragStart = e => {
     if (e.touches) {
@@ -342,6 +372,7 @@ function SavingsItem({ item, onEdit, onDelete }) {
             <span className="fw-semibold">{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
             {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>}
+            {isCheongYak && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
         </div>
@@ -392,8 +423,45 @@ function SavingsItem({ item, onEdit, onDelete }) {
           </>
         )}
         {isCheongYak && (
-          <div className="mt-1">
+          <div className="mt-1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.7rem', color: '#aaa' }}>시작일 {item.start_date}</span>
+            <button onClick={e => { e.stopPropagation(); toggleDeposit() }}
+              style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: '#e8fdf0', color: '#198754', fontWeight: 700, cursor: 'pointer' }}>
+              {depositOpen ? '닫기' : '+ 추가 입금'}
+            </button>
+          </div>
+        )}
+        {isCheongYak && depositOpen && (
+          <div style={{ marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
+            <form onSubmit={addDeposit} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input type="number" placeholder="금액" value={depForm.amount}
+                onChange={e => setDepForm(f => ({ ...f, amount: e.target.value }))} required
+                style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
+              <input type="date" value={depForm.date}
+                onChange={e => setDepForm(f => ({ ...f, date: e.target.value }))}
+                style={{ flex: 2, padding: '6px 8px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
+              <button type="submit" disabled={depLoading}
+                style={{ flex: 1, borderRadius: 8, border: 'none', background: '#198754', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
+                등록
+              </button>
+            </form>
+            {deposits.length === 0
+              ? <div style={{ fontSize: '0.78rem', color: '#ccc', textAlign: 'center', padding: '6px 0' }}>추가 입금 내역 없음</div>
+              : deposits.map(d => (
+                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#888' }}>{d.date}</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#198754' }}>+{fmt(d.amount)}원</span>
+                  {d.memo && <span style={{ fontSize: '0.75rem', color: '#bbb' }}>{d.memo}</span>}
+                  <button onClick={() => deleteDeposit(d.id)}
+                    style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, border: 'none', background: '#fff0f0', color: '#dc3545', cursor: 'pointer' }}>삭제</button>
+                </div>
+              ))
+            }
+            {item.extra_deposit > 0 && (
+              <div style={{ fontSize: '0.78rem', color: '#198754', fontWeight: 600, marginTop: 6 }}>
+                추가 입금 합계: +{fmt(item.extra_deposit)}원
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -411,6 +479,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   const [rate, setRate] = useState('')
   const [startDate, setStartDate] = useState(today())
   const [endDate, setEndDate] = useState('')
+  const [notifyDay, setNotifyDay] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -424,8 +493,9 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setRate(String(editItem.interest_rate ?? ''))
       setStartDate(editItem.start_date || today())
       setEndDate(editItem.end_date || '')
+      setNotifyDay(editItem.notify_day ? String(editItem.notify_day) : '')
     } else {
-      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay('')
     }
   }, [open, editItem])
 
@@ -444,6 +514,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       interest_rate: isCheongYak ? 0 : parseFloat(rate) || 0,
       start_date: startDate,
       end_date: isCheongYak ? '' : endDate,
+      notify_day: isCheongYak && notifyDay ? parseInt(notifyDay) : null,
     }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
     else await api.post('/api/savings', payload)
@@ -531,6 +602,17 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                     {label}
                   </button>
                 ))}
+              </div>
+            )}
+            {stype === '청약' && (
+              <div className="mb-3">
+                <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🔔 납입일 알림 (매월 몇 일)</label>
+                <div style={{ position: 'relative' }}>
+                  <input type="number" className="form-control" placeholder="알림 없음" min="1" max="31"
+                    value={notifyDay} onChange={e => setNotifyDay(e.target.value)} style={{ borderRadius: 10, paddingRight: 36 }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
+                </div>
+                <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>입력 시 해당 날짜 오전 9시에 납입 알림을 받습니다. 알림을 받으려면 설정에서 알림을 켜주세요.</p>
               </div>
             )}
           </form>
@@ -1071,7 +1153,8 @@ export default function Budget() {
         (data.savings || []).map(item => (
           <SavingsItem key={item.id} item={item}
             onEdit={() => openSavingsEdit(item)}
-            onDelete={() => setConfirmSavings(item)} />
+            onDelete={() => setConfirmSavings(item)}
+            onDepositChange={load} />
         ))
       )}
 
