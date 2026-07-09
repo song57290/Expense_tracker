@@ -25,7 +25,7 @@ export default function Salary() {
 
   useEffect(() => {
     load()
-    api.get('/api/categories').then(d => setCategories((d || []).filter(c => c.cat_type === 'expense'))).catch(() => {})
+    api.get('/api/categories').then(d => setCategories(d?.expense || [])).catch(() => {})
     api.get('/api/budget').then(d => setCards(d.card_stats || [])).catch(() => {})
   }, [])
 
