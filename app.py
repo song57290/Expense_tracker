@@ -1728,8 +1728,7 @@ def api_salary():
             if s.stype not in ('적금', '청약'):
                 continue
             auto_tx = bool(getattr(s, 'auto_tx', False))
-            # 청약은 무조건 포함, 적금은 auto_tx 설정된 것만
-            if s.stype == '적금' and not auto_tx:
+            if not auto_tx:
                 continue
             fixed_list.append({'id': s.id, 'name': s.name, 'amount': s.amount,
                                 'day_of_month': getattr(s, 'auto_tx_day', None),
