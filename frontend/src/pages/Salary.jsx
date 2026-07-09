@@ -419,14 +419,18 @@ export default function Salary() {
                       <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>
                         {f.category && <span style={{ marginRight: 8 }}>{f.category}</span>}
                         {f.day_of_month && <span style={{ marginRight: 6 }}>매월 {f.day_of_month}일</span>}
-                        {f.auto_register && <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동등록</span>}
+                        {f.item_type === 'savings'
+                          ? <span style={{ fontSize: '0.68rem', background: '#e8fdf0', color: '#198754', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>{f.stype} 자동이체</span>
+                          : f.auto_register && <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동등록</span>}
                       </div>
                     </div>
                     <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#333', marginRight: 8 }}>{fmt(f.amount)}원</div>
-                    <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
-                      style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
-                    <button onClick={() => deleteFixed(f.id)}
-                      style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
+                    {f.item_type !== 'savings' && <>
+                      <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
+                        style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
+                      <button onClick={() => deleteFixed(f.id)}
+                        style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
+                    </>}
                   </div>
                 )}
               </div>

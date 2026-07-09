@@ -1698,10 +1698,23 @@ def api_salary():
         for tx in txs:
             if tx.type == 'expense':
                 actual[tx.category] = actual.get(tx.category, 0) + tx.amount
+        fixed_list = [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month,
+                        'category': f.category, 'auto_register': bool(f.auto_register),
+                        'tx_type': f.tx_type or 'expense', 'tx_card': f.tx_card or '',
+                        'item_type': 'fixed'} for f in fixed]
+        savings_auto = Savings.query.filter_by(user_id=uid, auto_tx=True).all()
+        for s in savings_auto:
+            if s.stype not in ('적금', '청약'):
+                continue
+            fixed_list.append({'id': s.id, 'name': s.name, 'amount': s.amount,
+                                'day_of_month': getattr(s, 'auto_tx_day', None),
+                                'category': '저축', 'auto_register': True,
+                                'tx_type': 'expense', 'tx_card': getattr(s, 'auto_tx_card', '') or '',
+                                'item_type': 'savings', 'stype': s.stype})
         return jsonify({
             'salary': {'amount': cfg.amount if cfg else 0, 'pay_day': cfg.pay_day if cfg else None},
             'allocations': [{'id': a.id, 'category_name': a.category_name, 'percent': a.percent} for a in allocs],
-            'fixed_expenses': [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category, 'auto_register': bool(f.auto_register), 'tx_type': f.tx_type or 'expense', 'tx_card': f.tx_card or ''} for f in fixed],
+            'fixed_expenses': fixed_list,
             'actual': actual,
         })
     data = request.get_json()
