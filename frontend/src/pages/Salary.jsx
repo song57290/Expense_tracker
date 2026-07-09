@@ -20,6 +20,8 @@ export default function Salary() {
   const [editFixedForm, setEditFixedForm] = useState({})
   const [cards, setCards] = useState([])
   const [wonInputs, setWonInputs] = useState({})
+  const [selectedCats, setSelectedCats] = useState([])
+  const [catPickerOpen, setCatPickerOpen] = useState(false)
 
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
 
@@ -65,9 +67,14 @@ export default function Salary() {
 
   const salaryAmt = salary.amount || 0
 
-  // wonInputs 초기화: allocations가 API에서 로드될 때 한 번만 세팅
+  // wonInputs + selectedCats 초기화: allocations가 API에서 로드될 때 한 번만 세팅
   useEffect(() => {
     if (!allocations.length) return
+    const withBudget = allocations.filter(a => a.percent > 0).map(a => a.category_name)
+    setSelectedCats(prev => {
+      const merged = [...new Set([...prev, ...withBudget])]
+      return merged
+    })
     setWonInputs(prev => {
       const next = { ...prev }
       allocations.forEach(a => {
@@ -79,6 +86,17 @@ export default function Salary() {
       return next
     })
   }, [allocations]) // eslint-disable-line
+
+  function addCat(catName) {
+    setSelectedCats(prev => prev.includes(catName) ? prev : [...prev, catName])
+    setCatPickerOpen(false)
+  }
+
+  function removeCat(catName) {
+    setSelectedCats(prev => prev.filter(n => n !== catName))
+    setWonInputs(prev => { const next = { ...prev }; delete next[catName]; return next })
+    setAllocations(prev => prev.map(a => a.category_name === catName ? { ...a, percent: 0 } : a))
+  }
 
   function handleWonInput(catName, raw) {
     const digits = raw.replace(/[^0-9]/g, '')
@@ -220,7 +238,7 @@ export default function Salary() {
       {/* 예산 배분 탭 */}
       {tab === 'plan' && (
         <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
             {salaryAmt > 0 && (
               <div style={{ fontSize: '0.75rem', color: totalAllocWon > salaryAmt ? '#ff3b30' : '#aaa' }}>
@@ -228,55 +246,73 @@ export default function Salary() {
               </div>
             )}
           </div>
-          <p style={{ fontSize: '0.75rem', color: '#bbb', marginBottom: 14 }}>
-            카테고리마다 이번 달 쓸 금액을 입력하세요.
-            카테고리 추가·삭제는 <span style={{ color: '#b088f9', fontWeight: 600 }}>설정 → 카테고리 관리</span>에서 할 수 있습니다.
-          </p>
+
           {!salaryAmt && (
             <div style={{ textAlign: 'center', padding: '20px 0', color: '#bbb', fontSize: '0.85rem' }}>
               먼저 상단에서 월급 금액을 입력해 주세요.
             </div>
           )}
-          {salaryAmt > 0 && categories.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '20px 0', color: '#bbb', fontSize: '0.85rem' }}>
-              등록된 카테고리가 없습니다.<br />
-              <span style={{ color: '#b088f9' }}>설정 → 카테고리 관리</span>에서 추가해 주세요.
-            </div>
-          )}
-          {salaryAmt > 0 && categories.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {categories.map(cat => {
-                const wonStr = wonInputs[cat.name] || ''
-                const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
-                const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
-                return (
-                  <div key={cat.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                      <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
-                      <div style={{ position: 'relative', width: 130 }}>
-                        <input
-                          type="text" inputMode="numeric"
-                          value={wonStr}
-                          placeholder="0"
-                          onChange={e => handleWonInput(cat.name, e.target.value)}
-                          style={{ width: '100%', padding: '5px 30px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }}
-                        />
-                        <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+
+          {salaryAmt > 0 && (
+            <>
+              {/* 선택된 카테고리 목록 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: selectedCats.length ? 14 : 0 }}>
+                {selectedCats.map(catName => {
+                  const cat = categories.find(c => c.name === catName)
+                  if (!cat) return null
+                  const wonStr = wonInputs[catName] || ''
+                  const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
+                  const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
+                  return (
+                    <div key={catName}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button onClick={() => removeCat(catName)}
+                            style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                        </div>
+                        <div style={{ position: 'relative', width: 130 }}>
+                          <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
+                            onChange={e => handleWonInput(catName, e.target.value)}
+                            style={{ width: '100%', padding: '5px 30px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }} />
+                          <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                        </div>
+                      </div>
+                      <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
                       </div>
                     </div>
-                    <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
+                  )
+                })}
+              </div>
+
+              {/* 카테고리 추가 버튼 */}
+              {categories.filter(c => !selectedCats.includes(c.name)).length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setCatPickerOpen(o => !o)}
+                    style={{ width: '100%', padding: '9px', borderRadius: 10, border: '1.5px dashed #d8c8f8', background: 'white', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                    + 카테고리 추가
+                  </button>
+                  {catPickerOpen && (
+                    <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, background: 'white', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', padding: 12, zIndex: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {categories.filter(c => !selectedCats.includes(c.name)).map(cat => (
+                        <button key={cat.id} onClick={() => addCat(cat.name)}
+                          style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid #e8e0f8', background: '#faf8ff', color: '#555', fontSize: '0.85rem', cursor: 'pointer' }}>
+                          {cat.icon} {cat.name}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {salaryAmt > 0 && categories.length > 0 && (
-            <button onClick={() => saveAllocations(allocations)}
-              style={{ width: '100%', marginTop: 18, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-              저장
-            </button>
+                  )}
+                </div>
+              )}
+
+              {selectedCats.length > 0 && (
+                <button onClick={() => saveAllocations(allocations)}
+                  style={{ width: '100%', marginTop: 14, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  저장
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
