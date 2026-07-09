@@ -410,16 +410,37 @@ def _savings_stats(s, extra_deposit=0):
             start = today
         months_elapsed = max(0, (today.year - start.year) * 12 + (today.month - start.month))
         current_paid = s.amount * months_elapsed + extra_deposit
+        rate = s.interest_rate or 0
+        itype = getattr(s, 'interest_type', '단리') or '단리'
+        tax_type = getattr(s, 'tax_type', '비과세') or '비과세'
+        n = max(1, months_elapsed)
+        r_m = rate / 100 / 12
+        if rate > 0:
+            if itype == '복리' and r_m > 0:
+                interest = int(s.amount * (1 + r_m) * ((1 + r_m) ** n - 1) / r_m) - current_paid
+            else:
+                interest = int(s.amount * r_m * n * (n + 1) / 2)
+        else:
+            interest = 0
+        if tax_type == '비과세':
+            tax = 0
+        elif tax_type in ('세금우대', 'ISA'):
+            income_tax = (int(interest * 0.09) // 10) * 10
+            tax = income_tax + (int(income_tax * 0.1) // 10) * 10
+        else:
+            income_tax = (int(interest * 0.14) // 10) * 10
+            tax = income_tax + (int(income_tax * 0.1) // 10) * 10
+        interest_after_tax = interest - tax
         return {
             'id': s.id, 'stype': s.stype, 'bank': s.bank, 'name': s.name,
-            'amount': s.amount, 'interest_rate': 0, 'interest_type': '단리',
-            'tax_type': '비과세',
+            'amount': s.amount, 'interest_rate': rate, 'interest_type': itype,
+            'tax_type': tax_type,
             'start_date': s.start_date, 'end_date': '',
             'months_total': None, 'months_elapsed': months_elapsed,
             'progress': 0, 'd_day': None,
             'total_paid': current_paid, 'current_paid': current_paid,
-            'interest': 0, 'maturity_amount': current_paid,
-            'interest_after_tax': 0, 'maturity_after_tax': current_paid,
+            'interest': interest, 'maturity_amount': current_paid + interest_after_tax,
+            'interest_after_tax': interest_after_tax, 'maturity_after_tax': current_paid + interest_after_tax,
             'extra_deposit': extra_deposit,
             'notify_day': getattr(s, 'notify_day', None),
             'auto_tx': bool(getattr(s, 'auto_tx', False)),

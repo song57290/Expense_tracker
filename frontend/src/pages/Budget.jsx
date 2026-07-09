@@ -514,12 +514,12 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
     const isCheongYak = stype === '청약'
     const payload = {
       stype,
-      interest_type: isCheongYak ? '단리' : itype,
-      tax_type: isCheongYak ? '비과세' : taxType,
+      interest_type: itype,
+      tax_type: taxType,
       bank: selected,
       name: name.trim(),
       amount: parseInt(amount.replace(/,/g, '')) || 0,
-      interest_rate: isCheongYak ? 0 : parseFloat(rate) || 0,
+      interest_rate: parseFloat(rate) || 0,
       start_date: startDate,
       end_date: isCheongYak ? '' : endDate,
       notify_day: isCheongYak && notifyDay ? parseInt(notifyDay) : null,
@@ -552,7 +552,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
           <form id="savings-form" onSubmit={handleSubmit}>
             <div className="d-flex gap-2 mb-3">
               {['예금', '적금', '청약'].map(t => (
-                <button key={t} type="button" onClick={() => setStype(t)}
+                <button key={t} type="button" onClick={() => { setStype(t); if (t === '청약') setTaxType('비과세') }}
                   style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${stype === t ? '#b088f9' : '#eee'}`, background: stype === t ? 'rgba(176,136,249,0.1)' : 'white', color: stype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                   {t}
                 </button>
@@ -571,32 +571,28 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
-            {stype !== '청약' && (
-              <div className="d-flex gap-2 mb-2">
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <input type="text" inputMode="decimal" className="form-control" placeholder="연 이율"
-                    value={rate} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) setRate(v) }} required
-                    style={{ borderRadius: 10, paddingRight: 28 }} />
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#aaa', fontSize: '0.85rem', pointerEvents: 'none' }}>%</span>
-                </div>
-                {['단리', '복리'].map(t => (
-                  <button key={t} type="button" onClick={() => setItype(t)}
-                    style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
-                    {t}
-                  </button>
-                ))}
+            <div className="d-flex gap-2 mb-2">
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input type="text" inputMode="decimal" className="form-control" placeholder="연 이율 (없으면 0)"
+                  value={rate} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) setRate(v) }}
+                  style={{ borderRadius: 10, paddingRight: 28 }} />
+                <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#aaa', fontSize: '0.85rem', pointerEvents: 'none' }}>%</span>
               </div>
-            )}
-            {stype !== '청약' && (
-              <div className="d-flex gap-2 mb-3">
-                {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
-                  <button key={t} type="button" onClick={() => setTaxType(t)}
-                    style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-                    {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+              {['단리', '복리'].map(t => (
+                <button key={t} type="button" onClick={() => setItype(t)}
+                  style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="d-flex gap-2 mb-3">
+              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
+                <button key={t} type="button" onClick={() => setTaxType(t)}
+                  style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
+                </button>
+              ))}
+            </div>
             <div className="d-flex gap-2 mb-2">
               <div className="flex-fill">
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>시작일</label>
