@@ -19,6 +19,7 @@ export default function Salary() {
   const [editFixed, setEditFixed] = useState(null)
   const [editFixedForm, setEditFixedForm] = useState({})
   const [cards, setCards] = useState([])
+  const [wonInputs, setWonInputs] = useState({})
 
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
 
@@ -62,10 +63,42 @@ export default function Salary() {
     return allocations.find(a => a.category_name === catName)?.percent || 0
   }
 
+  const salaryAmt = salary.amount || 0
+
+  // wonInputs 초기화: allocations가 API에서 로드될 때 한 번만 세팅
+  useEffect(() => {
+    if (!allocations.length) return
+    setWonInputs(prev => {
+      const next = { ...prev }
+      allocations.forEach(a => {
+        if (next[a.category_name] === undefined) {
+          const won = salaryAmt > 0 ? Math.round(salaryAmt * a.percent / 100) : 0
+          next[a.category_name] = won > 0 ? won.toLocaleString('ko-KR') : ''
+        }
+      })
+      return next
+    })
+  }, [allocations]) // eslint-disable-line
+
+  function handleWonInput(catName, raw) {
+    const digits = raw.replace(/[^0-9]/g, '')
+    const won = parseInt(digits) || 0
+    setWonInputs(prev => ({ ...prev, [catName]: won > 0 ? won.toLocaleString('ko-KR') : '' }))
+    const pct = salaryAmt > 0 ? (won / salaryAmt * 100) : 0
+    setAllocations(prev => {
+      const exists = prev.find(a => a.category_name === catName)
+      if (exists) return prev.map(a => a.category_name === catName ? { ...a, percent: pct } : a)
+      return [...prev, { category_name: catName, percent: pct }]
+    })
+  }
+
+  const totalAllocWon = categories.reduce((s, cat) => {
+    const raw = wonInputs[cat.name] || ''
+    return s + (parseInt(raw.replace(/,/g, '')) || 0)
+  }, 0)
   const totalAllocPct = allocations.reduce((s, a) => s + (a.percent || 0), 0)
   const fixedTotal = fixed.reduce((s, f) => s + f.amount, 0)
-  const salaryAmt = salary.amount || 0
-  const remaining = salaryAmt - fixedTotal - (salaryAmt * totalAllocPct / 100)
+  const remaining = salaryAmt - fixedTotal - totalAllocWon
 
   async function addFixed(e) {
     e.preventDefault()
@@ -155,12 +188,12 @@ export default function Salary() {
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#aaa', marginBottom: 4 }}>
               <span>고정지출 {fmt(fixedTotal)}원</span>
-              <span>예산배분 {totalAllocPct.toFixed(0)}%</span>
+              <span>예산배분 {fmt(totalAllocWon)}원</span>
               <span style={{ color: remaining >= 0 ? '#34c759' : '#ff3b30', fontWeight: 700 }}>잔여 {fmt(Math.abs(remaining))}원{remaining < 0 ? ' 초과' : ''}</span>
             </div>
             <div style={{ height: 8, background: '#f0eaff', borderRadius: 8, overflow: 'hidden', display: 'flex' }}>
               <div style={{ width: `${Math.min(fixedTotal / salaryAmt * 100, 100)}%`, background: '#ff9f0a', borderRadius: '8px 0 0 8px' }} />
-              <div style={{ width: `${Math.min(totalAllocPct, 100 - fixedTotal / salaryAmt * 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)' }} />
+              <div style={{ width: `${Math.min(totalAllocWon / salaryAmt * 100, 100 - fixedTotal / salaryAmt * 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)' }} />
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.68rem' }}>
               <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#ff9f0a', marginRight: 3 }} />고정지출</span>
@@ -187,44 +220,64 @@ export default function Salary() {
       {/* 예산 배분 탭 */}
       {tab === 'plan' && (
         <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
-            <div style={{ fontSize: '0.75rem', color: totalAllocPct > 100 ? '#ff3b30' : '#aaa' }}>
-              총 {totalAllocPct.toFixed(0)}% / 100%
-            </div>
+            {salaryAmt > 0 && (
+              <div style={{ fontSize: '0.75rem', color: totalAllocWon > salaryAmt ? '#ff3b30' : '#aaa' }}>
+                {fmt(totalAllocWon)}원 / {fmt(salaryAmt)}원
+              </div>
+            )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {categories.map(cat => {
-              const pct = getAllocPercent(cat.name)
-              const allocAmt = salaryAmt ? Math.round(salaryAmt * pct / 100) : 0
-              const actualAmt = actual[cat.name] || 0
-              return (
-                <div key={cat.id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {salaryAmt > 0 && pct > 0 && <span style={{ fontSize: '0.75rem', color: '#aaa' }}>{fmt(allocAmt)}원</span>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <input type="number" value={pct || ''} placeholder="0"
-                          onChange={e => setAllocPercent(cat.name, e.target.value)}
-                          style={{ width: 52, padding: '4px 8px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right' }} />
-                        <span style={{ fontSize: '0.8rem', color: '#aaa' }}>%</span>
+          <p style={{ fontSize: '0.75rem', color: '#bbb', marginBottom: 14 }}>
+            카테고리마다 이번 달 쓸 금액을 입력하세요.
+            카테고리 추가·삭제는 <span style={{ color: '#b088f9', fontWeight: 600 }}>설정 → 카테고리 관리</span>에서 할 수 있습니다.
+          </p>
+          {!salaryAmt && (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#bbb', fontSize: '0.85rem' }}>
+              먼저 상단에서 월급 금액을 입력해 주세요.
+            </div>
+          )}
+          {salaryAmt > 0 && categories.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#bbb', fontSize: '0.85rem' }}>
+              등록된 카테고리가 없습니다.<br />
+              <span style={{ color: '#b088f9' }}>설정 → 카테고리 관리</span>에서 추가해 주세요.
+            </div>
+          )}
+          {salaryAmt > 0 && categories.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {categories.map(cat => {
+                const wonStr = wonInputs[cat.name] || ''
+                const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
+                const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
+                return (
+                  <div key={cat.id}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                      <div style={{ position: 'relative', width: 130 }}>
+                        <input
+                          type="text" inputMode="numeric"
+                          value={wonStr}
+                          placeholder="0"
+                          onChange={e => handleWonInput(cat.name, e.target.value)}
+                          style={{ width: '100%', padding: '5px 30px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }}
+                        />
+                        <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
                       </div>
                     </div>
-                  </div>
-                  {pct > 0 && (
-                    <div style={{ height: 5, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
+                    <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <button onClick={() => saveAllocations(allocations)}
-            style={{ width: '100%', marginTop: 18, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-            저장
-          </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {salaryAmt > 0 && categories.length > 0 && (
+            <button onClick={() => saveAllocations(allocations)}
+              style={{ width: '100%', marginTop: 18, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+              저장
+            </button>
+          )}
         </div>
       )}
 
