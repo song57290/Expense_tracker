@@ -573,8 +573,12 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             </div>
             {stype !== '청약' && (
               <div className="d-flex gap-2 mb-2">
-                <input type="number" className="form-control" placeholder="연 이율 (%)" step="0.01" min="0" max="100"
-                  value={rate} onChange={e => setRate(e.target.value)} required style={{ borderRadius: 10 }} />
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input type="text" inputMode="decimal" className="form-control" placeholder="연 이율"
+                    value={rate} onChange={e => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v)) setRate(v) }} required
+                    style={{ borderRadius: 10, paddingRight: 28 }} />
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#aaa', fontSize: '0.85rem', pointerEvents: 'none' }}>%</span>
+                </div>
                 {['단리', '복리'].map(t => (
                   <button key={t} type="button" onClick={() => setItype(t)}
                     style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, border: `2px solid ${itype === t ? '#b088f9' : '#eee'}`, background: itype === t ? 'rgba(176,136,249,0.1)' : 'white', color: itype === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
@@ -630,7 +634,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               <div className="mb-3" style={{ background: '#faf8ff', borderRadius: 12, padding: '12px 14px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.88rem', fontWeight: 600, color: '#555', cursor: 'pointer', marginBottom: autoTx ? 10 : 0 }}>
                   <input type="checkbox" checked={autoTx} onChange={e => setAutoTx(e.target.checked)} />
-                  🔄 자동이체 등록 (앱 열 때 확인 팝업)
+                  🔄 자동이체 등록
                 </label>
                 {autoTx && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
