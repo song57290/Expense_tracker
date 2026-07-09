@@ -606,7 +606,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             )}
             {stype === '청약' && (
               <div className="mb-3">
-                <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🔔 납입일 알림 (매월 몇 일)</label>
+                <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🔔 납입일 알림</label>
                 <div style={{ position: 'relative' }}>
                   <input type="number" className="form-control" placeholder="알림 없음" min="1" max="31"
                     value={notifyDay} onChange={e => setNotifyDay(e.target.value)} style={{ borderRadius: 10, paddingRight: 36 }} />
