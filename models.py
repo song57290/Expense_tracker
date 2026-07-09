@@ -64,6 +64,7 @@ class Savings(db.Model):
     tax_type = db.Column(db.String(10), nullable=False, default='일반과세')
     start_date = db.Column(db.String(10), nullable=False)
     end_date = db.Column(db.String(10), nullable=False)
+    notify_day = db.Column(db.Integer, nullable=True)
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -91,6 +92,17 @@ class FixedExpense(db.Model):
     amount = db.Column(db.Integer, nullable=False, default=0)
     day_of_month = db.Column(db.Integer, nullable=True)
     category = db.Column(db.String(50), nullable=True, default='')
+    auto_register = db.Column(db.Boolean, nullable=False, default=False)
+    tx_type = db.Column(db.String(20), nullable=False, default='expense')
+    tx_card = db.Column(db.String(50), nullable=True, default='')
+
+class SavingsDeposit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    savings_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    date = db.Column(db.String(10), nullable=False)
+    memo = db.Column(db.String(100), nullable=True, default='')
 
 class HelpItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
