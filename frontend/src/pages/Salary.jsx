@@ -216,7 +216,7 @@ export default function Salary() {
             <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.68rem' }}>
               <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#ff9f0a', marginRight: 3 }} />고정지출</span>
               <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#b088f9', marginRight: 3 }} />예산배분</span>
-              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#e8e0f8', marginRight: 3 }} />미배분</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#e8e0f8', marginRight: 3 }} />미지정</span>
             </div>
           </div>
         )}
@@ -271,11 +271,16 @@ export default function Salary() {
                             style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
                           <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
                         </div>
-                        <div style={{ position: 'relative', width: 130 }}>
-                          <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
-                            onChange={e => handleWonInput(catName, e.target.value)}
-                            style={{ width: '100%', padding: '5px 30px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }} />
-                          <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {won > 0 && salaryAmt > 0 && (
+                            <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct.toFixed(1)}%</span>
+                          )}
+                          <div style={{ position: 'relative', width: 120 }}>
+                            <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
+                              onChange={e => handleWonInput(catName, e.target.value)}
+                              style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }} />
+                            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                          </div>
                         </div>
                       </div>
                       <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
