@@ -2,7 +2,7 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.24'
+export const CURRENT_VERSION = 'ver 2.24b'
 export const UPDATE_DATE = '2026년 7월 10일'
 
 export const UPDATES = [
@@ -36,6 +36,14 @@ export const UPDATES = [
     items: [
       { tag: 'new', title: '계좌 종류 선택', desc: '투자 종목 등록 시 일반 / ISA / 연금저축 / IRP 중 계좌 종류 선택 가능' },
       { tag: 'imp', title: '계좌 종류 배지', desc: '일반 외 계좌(ISA·연금저축·IRP)는 종목 카드에 색상 배지로 표시' },
+    ],
+  },
+  {
+    section: '🔗 연결 계좌 (카드 공유 잔고)',
+    items: [
+      { tag: 'new', title: '계좌-카드 연결 기능', desc: '자산 추가 시 "연결 계좌" 선택 가능 — 하나의 은행 계좌 잔고를 여러 카드가 공유하면서, 실적·목표는 카드별로 분리 관리' },
+      { tag: 'imp', title: '연결 카드 들여쓰기 표시', desc: '연결된 카드는 계좌 아래 들여쓰기로 그룹 표시, 🔗 배지로 어느 계좌에 연결됐는지 구분' },
+      { tag: 'imp', title: '잔고 이중 계산 방지', desc: '자산별 잔고 종합에서 연결 카드는 잔고 합산에서 제외 — 계좌에서 이미 합산되어 이중 계산 방지' },
     ],
   },
   {

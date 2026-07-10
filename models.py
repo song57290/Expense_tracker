@@ -53,6 +53,7 @@ class Card(db.Model):
     tier3 = db.Column(db.Integer, nullable=True, server_default='80')
     account_balance = db.Column(db.Integer, nullable=False, default=0)
     user_id = db.Column(db.Integer, nullable=True)
+    linked_account_id = db.Column(db.Integer, nullable=True)
 
 class Savings(db.Model):
     id = db.Column(db.Integer, primary_key=True)

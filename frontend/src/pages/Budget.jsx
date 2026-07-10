@@ -41,7 +41,7 @@ function BankBtn({ bankName, logo, label, selected, onPick }) {
   )
 }
 
-function AddSheet({ open, visible, onClose, onSaved }) {
+function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   const [assetType, setAssetType] = useState('card')
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
@@ -52,6 +52,7 @@ function AddSheet({ open, visible, onClose, onSaved }) {
   const [tier2, setTier2] = useState(50)
   const [tier3, setTier3] = useState(80)
   const [tierOpen, setTierOpen] = useState(false)
+  const [linkedAccountId, setLinkedAccountId] = useState('')
 
   function pick(cardName) { setSelected(cardName); setName(cardName) }
 
@@ -59,15 +60,19 @@ function AddSheet({ open, visible, onClose, onSaved }) {
     setAssetType(t)
     setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
     setInitialBalance(t === 'loan' ? '-' : '')
+    setLinkedAccountId('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     const t = parseInt(target.replace(/,/g, '')) || 0
     const ib = parseInt(initialBalance.replace(/,/g, '')) || 0
-    await api.post('/api/cards', { name, target: t, url, tier1, tier2, tier3, account_balance: ib })
+    await api.post('/api/cards', {
+      name, target: t, url, tier1, tier2, tier3, account_balance: ib,
+      linked_account_id: linkedAccountId ? Number(linkedAccountId) : null,
+    })
     setAssetType('card'); setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
-    setTier1(20); setTier2(50); setTier3(80); setTierOpen(false)
+    setTier1(20); setTier2(50); setTier3(80); setTierOpen(false); setLinkedAccountId('')
     onSaved(); onClose()
   }
 
@@ -107,6 +112,21 @@ function AddSheet({ open, visible, onClose, onSaved }) {
               </div>
             </>)}
 
+            {assetType === 'card' && cards.filter(c => !c.linked_account_id && !c.is_loan).length > 0 && (
+              <div className="mb-2">
+                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>연결 계좌 (선택)</p>
+                <select className="form-select" style={{ borderRadius: 10, fontSize: '0.9rem' }}
+                  value={linkedAccountId} onChange={e => setLinkedAccountId(e.target.value)}>
+                  <option value="">독립 계좌 (연결 없음)</option>
+                  {cards.filter(c => !c.linked_account_id && !c.is_loan).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {linkedAccountId && (
+                  <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>잔고는 선택한 계좌와 공유되며, 실적/목표는 이 카드에만 적용됩니다.</p>
+                )}
+              </div>
+            )}
             <input type="text" className="form-control mb-2"
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
@@ -160,7 +180,7 @@ function AddSheet({ open, visible, onClose, onSaved }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete }) {
+function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -236,6 +256,9 @@ function SwipeCard({ card, onEdit, onDelete }) {
             {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💵</span>}
             {isLoan && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💸</span>}
             <span className="fw-semibold">{card.name}</span>
+            {linkedAccountName && (
+              <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f0e8ff', color: '#b088f9' }}>🔗 {linkedAccountName}</span>
+            )}
             {card.url && (
               <a href={card.url} target="_blank" rel="noreferrer"
                 style={{ display: 'inline-flex', alignItems: 'center', color: '#b088f9', fontSize: '0.75rem', textDecoration: 'underline', lineHeight: 1, fontWeight: 600 }}>
@@ -250,30 +273,41 @@ function SwipeCard({ card, onEdit, onDelete }) {
             </div>
           </div>
         </div>
-        <div className="d-flex mb-3" style={{ gap: 1 }}>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
-            <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: card.initial_balance < 0 ? '#dc3545' : '#555' }}>{fmt(card.initial_balance)}</div>
+        {!isLoan && (
+          <div className="d-flex mb-3" style={{ gap: 1 }}>
+            <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(card.initial_balance)}</div>
+            </div>
+            <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
+              <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
+            </div>
+            <div className="text-center flex-fill">
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
+              <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
+            </div>
           </div>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
-            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
-            <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
-          </div>
-          <div className="text-center flex-fill">
-            <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
-            <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
-          </div>
-        </div>
+        )}
         <div className="border-top pt-2">
-          <div className="d-flex justify-content-between align-items-center mb-1">
-            <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 실적</span>
-            <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(card.spent)} / {fmt(card.target)}원</span>
-          </div>
-          <div className="progress" style={{ height: 7, borderRadius: 4 }}>
-            <div className={`progress-bar ${tierClass(card.percent, card.tier1, card.tier2, card.tier3)}`}
-              style={{ width: `${card.percent}%`, borderRadius: 4 }} />
-          </div>
-          <div className="text-end mt-1" style={{ fontSize: '0.72rem', color: '#aaa' }}>{card.percent}%</div>
+          {isLoan ? (
+            <div className="d-flex justify-content-between align-items-center">
+              <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_expense)}원</span>
+            </div>
+          ) : (
+            <>
+              <div className="d-flex justify-content-between align-items-center mb-1">
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 실적</span>
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(card.spent)} / {fmt(card.target)}원</span>
+              </div>
+              <div className="progress" style={{ height: 7, borderRadius: 4 }}>
+                <div className={`progress-bar ${tierClass(card.percent, card.tier1, card.tier2, card.tier3)}`}
+                  style={{ width: `${card.percent}%`, borderRadius: 4 }} />
+              </div>
+              <div className="text-end mt-1" style={{ fontSize: '0.72rem', color: '#aaa' }}>{card.percent}%</div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1166,7 +1200,7 @@ export default function Budget() {
   return (
     <div>
       <div className="d-flex align-items-center justify-content-between mb-3 px-1">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>자산별 잔고</span>
+        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>은행별 잔고</span>
         <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
           <i className="bi bi-plus-lg me-1" />자산 추가
         </button>
@@ -1180,17 +1214,54 @@ export default function Budget() {
             <button onClick={openAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>자산 추가 →</button>
           </div>
         </div>
-      ) : (
-        data.card_stats.map(card => (
-          <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
-        ))
-      )}
+      ) : (() => {
+        const allNormalCards = data.card_stats.filter(c => c.initial_balance >= 0)
+        const loanCards = data.card_stats.filter(c => c.initial_balance < 0)
+        const accountCards = allNormalCards.filter(c => !c.linked_account_id)
+        const linkedByAccount = {}
+        allNormalCards.filter(c => c.linked_account_id).forEach(c => {
+          if (!linkedByAccount[c.linked_account_id]) linkedByAccount[c.linked_account_id] = []
+          linkedByAccount[c.linked_account_id].push(c)
+        })
+        return (
+          <>
+            {accountCards.map(card => (
+              <div key={card.id}>
+                <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
+                {(linkedByAccount[card.id] || []).map(lc => (
+                  <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
+                    <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
+                    <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} />
+                  </div>
+                ))}
+              </div>
+            ))}
+            {loanCards.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 12px' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc3545' }}>💸 대출 / 빚</span>
+                  <div style={{ flex: 1, height: 1, background: '#fde8e8' }} />
+                </div>
+                {loanCards.map(card => (
+                  <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
+                ))}
+              </>
+            )}
+          </>
+        )
+      })()}
 
       {/* 자산별 잔고 종합 */}
       {data.card_stats.length > 0 && (() => {
-        const totalBalance = data.card_stats.reduce((s, c) => s + c.balance, 0)
-        const totalSpent = data.card_stats.reduce((s, c) => s + c.spent, 0)
-        const totalTarget = data.card_stats.reduce((s, c) => s + c.target, 0)
+        const allNormalCards = data.card_stats.filter(c => c.initial_balance >= 0)
+        const loanCards = data.card_stats.filter(c => c.initial_balance < 0)
+        // exclude linked cards from balance sum to avoid double-counting
+        const accountCards = allNormalCards.filter(c => !c.linked_account_id)
+        const totalBalance = accountCards.reduce((s, c) => s + c.balance, 0)
+        const totalSpent = allNormalCards.reduce((s, c) => s + c.spent, 0)
+        const totalTarget = allNormalCards.reduce((s, c) => s + c.target, 0)
+        const totalLoan = loanCards.reduce((s, c) => s + Math.abs(c.balance), 0)
+        const totalRepaid = loanCards.reduce((s, c) => s + c.total_expense, 0)
         return (
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid #f0e8fd' }}>
             <div className="card-body py-3">
@@ -1207,6 +1278,20 @@ export default function Budget() {
                   </div>
                 ))}
               </div>
+              {loanCards.length > 0 && (
+                <div className="d-flex gap-2 mt-2">
+                  {[
+                    { label: '총 부채', val: totalLoan, color: '#dc3545' },
+                    { label: '이달 상환', val: totalRepaid, color: '#198754' },
+                    { label: '순자산', val: totalBalance - totalLoan, color: (totalBalance - totalLoan) >= 0 ? '#198754' : '#dc3545' },
+                  ].map(({ label, val, color }) => (
+                    <div key={label} style={{ flex: 1, background: '#fff5f5', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )
@@ -1321,7 +1406,7 @@ export default function Budget() {
 
       <div className="d-lg-none" style={{ height: 90 }} />
 
-      <AddSheet open={addSheetOpen} visible={addSheetVisible} onClose={closeAdd} onSaved={load} />
+      <AddSheet open={addSheetOpen} visible={addSheetVisible} onClose={closeAdd} onSaved={load} cards={data?.card_stats || []} />
 
       <SavingsSheet open={savingsSheetOpen} visible={savingsSheetVisible} onClose={closeSavingsSheet} onSaved={load} editItem={editSavings} />
 

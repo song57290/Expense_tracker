@@ -325,7 +325,7 @@ export default function Home() {
                       style={cardError ? { borderColor: '#dc3545' } : {}}
                       onChange={e => { setForm(f => ({ ...f, card: e.target.value })); setCardError(false) }}>
                       <option value="">카드 선택</option>
-                      {data.card_list.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      {data.card_list.filter(c => !c.is_loan).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                     {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
                   </>
