@@ -199,6 +199,7 @@ with app.app_context():
         'ALTER TABLE "transaction" ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE category ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE investment ADD COLUMN account_type VARCHAR(20) NOT NULL DEFAULT '일반'",
+        "ALTER TABLE card ADD COLUMN linked_account_id INTEGER",
     ]:
         try:
             with db.engine.connect() as conn:
@@ -210,10 +211,10 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.24'
+    _help_version = 'ver2.24b'
     _help_defaults = [
         ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
-        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
+        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
         ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동'),
         ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 통장잔고·현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출/빚 차감 후 순자산\n  - 대출/빚 계좌가 있으면 목록 하단에 빨간��으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
         ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
@@ -243,7 +244,7 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.24'
+    _notice_v = 'ver 2.24b'
     _notice = {
         'version': _notice_v,
         'date': '2026년 7월 10일',
@@ -267,6 +268,11 @@ with app.app_context():
             {'section': '📈 투자 계좌 종류', 'items': [
                 {'tag': 'new', 'title': '계좌 종류 선택', 'desc': '투자 종목 등록 시 일반 / ISA / 연금저축 / IRP 중 계좌 종류 선택 가능'},
                 {'tag': 'imp', 'title': '계좌 종류 배지', 'desc': '일반 외 계좌(ISA·연금저축·IRP)는 종목 카드에 색상 배지로 표시'},
+            ]},
+            {'section': '🔗 연결 계좌 (카드 공유 잔고)', 'items': [
+                {'tag': 'new', 'title': '계좌-카드 연결 기능', 'desc': '자산 추가 시 "연결 계좌" 선택 가능 — 하나의 은행 계좌 잔고를 여러 카드가 공유하면서, 실적·목표는 카드별로 분리 관리'},
+                {'tag': 'imp', 'title': '연결 카드 들여쓰기 표시', 'desc': '연결된 카드는 계좌 아래 들여쓰기로 그룹 표시, 🔗 배지로 어느 계좌에 연결됐는지 구분'},
+                {'tag': 'imp', 'title': '잔고 이중 계산 방지', 'desc': '자산별 잔고 종합에서 연결 카드는 잔고 합산에서 제외 — 계좌에서 이미 합산되어 이중 계산 방지'},
             ]},
             {'section': '🔧 버그 수정', 'items': [
                 {'tag': 'fix', 'title': '포트폴리오 해외주식 금액 오류 수정', 'desc': '재무 포트폴리오 PDF 및 화면에서 해외주식 평가금액이 환율 미적용 달러 그대로 표시되던 문제 수정 — 원화로 올바르게 환산'},
@@ -722,7 +728,7 @@ def api_home():
         'budget_amount': budget_amount,
         'remaining': budget_amount - expense_total,
         'card_stats': card_stats,
-        'card_list': [{'id': c.id, 'name': c.name} for c in cards],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in cards],
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'emoji_map': emoji_map,
@@ -775,7 +781,7 @@ def api_transaction(tx_id):
                         'exclude_perf': bool(tx.exclude_perf)},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
-        'card_list': [{'id': c.id, 'name': c.name} for c in Card.query.filter_by(user_id=uid).all()],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in Card.query.filter_by(user_id=uid).all()],
     })
 
 @app.route('/api/cards', methods=['GET', 'POST'])
@@ -790,6 +796,7 @@ def api_cards():
             account_balance=int(data.get('account_balance', 0)),
             url=data.get('url') or None,
             user_id=uid,
+            linked_account_id=data.get('linked_account_id') or None,
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -808,7 +815,8 @@ def api_cards():
         }
     return jsonify({
         'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target, 'url': c.url or '',
-                   'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80} for c in cards],
+                   'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80,
+                   'account_balance': c.account_balance or 0, 'linked_account_id': c.linked_account_id} for c in cards],
         'stats': stats,
     })
 
@@ -831,6 +839,8 @@ def api_card(card_id):
         card.account_balance = int(data['account_balance'])
     if 'url' in data:
         card.url = data['url'] or None
+    if 'linked_account_id' in data:
+        card.linked_account_id = data['linked_account_id'] or None
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1534,25 +1544,59 @@ def api_budget():
 
     cards = Card.query.filter_by(user_id=uid).all()
     excl_cats_budget = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
+    card_by_id = {c.id: c for c in cards}
+    # linked_names[account_id] = [card_name, ...]
+    linked_names = {}
+    for c in cards:
+        if c.linked_account_id:
+            linked_names.setdefault(c.linked_account_id, []).append(c.name)
+
     card_stats = []
     for card in cards:
-        card_txs = [tx for tx in all_txs if tx.card == card.name]
-        month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
-        month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
-        perf_spent = sum(tx.amount for tx in card_txs
-                         if tx.type == 'expense' and tx.date.startswith(current_month)
-                         and not tx.exclude_perf and tx.category not in excl_cats_budget)
         initial_balance = card.account_balance or 0
-        balance = initial_balance + month_income - month_expense
-        percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
-        card_stats.append({
-            'id': card.id, 'name': card.name,
-            'initial_balance': initial_balance, 'total_income': month_income,
-            'total_expense': month_expense, 'balance': balance,
-            'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
-            'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
-            'url': card.url or '',
-        })
+        is_loan = initial_balance < 0
+        linked_account_id = card.linked_account_id
+        if is_loan:
+            card_stats.append({
+                'id': card.id, 'name': card.name,
+                'initial_balance': initial_balance, 'total_income': 0,
+                'total_expense': 0, 'balance': initial_balance,
+                'spent': 0, 'target': card.monthly_target or 0, 'percent': 0,
+                'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
+                'url': card.url or '', 'is_loan': True, 'linked_account_id': linked_account_id,
+            })
+        else:
+            card_txs = [tx for tx in all_txs if tx.card == card.name]
+            month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
+            month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+            perf_spent = sum(tx.amount for tx in card_txs
+                             if tx.type == 'expense' and tx.date.startswith(current_month)
+                             and not tx.exclude_perf and tx.category not in excl_cats_budget)
+            # account card: balance includes all linked cards' transactions
+            if card.id in linked_names:
+                for lname in linked_names[card.id]:
+                    ltxs = [tx for tx in all_txs if tx.card == lname]
+                    month_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month))
+                    month_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month))
+            # linked card: show account card's balance
+            if linked_account_id and linked_account_id in card_by_id:
+                acc = card_by_id[linked_account_id]
+                acc_initial = acc.account_balance or 0
+                acc_txs_names = [acc.name] + linked_names.get(linked_account_id, [])
+                acc_inc = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and tx.date.startswith(current_month))
+                acc_exp = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and tx.date.startswith(current_month))
+                balance = acc_initial + acc_inc - acc_exp
+            else:
+                balance = initial_balance + month_income - month_expense
+            percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+            card_stats.append({
+                'id': card.id, 'name': card.name,
+                'initial_balance': initial_balance, 'total_income': month_income,
+                'total_expense': month_expense, 'balance': balance,
+                'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
+                'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
+                'url': card.url or '', 'is_loan': False, 'linked_account_id': linked_account_id,
+            })
 
     savings = Savings.query.filter_by(user_id=uid).all()
     investments = Investment.query.filter_by(user_id=uid).all()

@@ -84,7 +84,7 @@ export default function Edit() {
               <label className="form-label fw-semibold">카드</label>
               <select className="form-select" value={form.card} onChange={e => setForm(f => ({ ...f, card: e.target.value }))}>
                 <option value="">카드 없음</option>
-                {data.card_list.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                {data.card_list.filter(c => !c.is_loan).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             {form.type === 'expense' && (
