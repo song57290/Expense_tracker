@@ -26,6 +26,7 @@ class Transaction(db.Model):
     amount = db.Column(db.Integer, nullable=False)
     card = db.Column(db.String(50), nullable=True)
     user_id = db.Column(db.Integer, nullable=True)
+    exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,6 +41,7 @@ class Category(db.Model):
     position = db.Column(db.Integer, nullable=False, default=0)
     cat_type = db.Column(db.String(10), nullable=False, default='expense')
     user_id = db.Column(db.Integer, nullable=True)
+    exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
 
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -130,3 +132,4 @@ class Investment(db.Model):
     exchange_rate = db.Column(db.Float, nullable=True)
     memo = db.Column(db.String(200), nullable=True, default='')
     price_updated_at = db.Column(db.DateTime, nullable=True)
+    account_type = db.Column(db.String(20), nullable=False, default='일반')

@@ -447,10 +447,14 @@ export default function Stats() {
             </div>
             {portfolioOpen && (() => {
               const PF_COLORS = ['#b088f9', '#7baff0', '#4BC0C0', '#FF6384', '#FF9F40', '#FFCE56', '#9966FF', '#C9CBCF']
-              const items = [...(data.portfolio_breakdown || [])].sort((a, b) => b.value - a.value)
-              const total = data.total_assets ?? items.reduce((s, i) => s + i.value, 0)
-              const labels = items.map(i => i.label)
-              const values = items.map(i => i.value)
+              const allItems = [...(data.portfolio_breakdown || [])]
+              const assetItems = allItems.filter(i => i.value >= 0).sort((a, b) => b.value - a.value)
+              const debtItems = allItems.filter(i => i.value < 0)
+              const assetTotal = assetItems.reduce((s, i) => s + i.value, 0)
+              const debtTotal = debtItems.reduce((s, i) => s + i.value, 0)
+              const netTotal = data.total_assets ?? (assetTotal + debtTotal)
+              const labels = assetItems.map(i => i.label)
+              const values = assetItems.map(i => i.value)
               const pfCenter = {
                 id: 'pfCenter',
                 afterDraw(chart) {
@@ -461,10 +465,10 @@ export default function Stats() {
                   ctx.fillStyle = '#333'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'middle'
-                  ctx.fillText(total >= 100000000 ? (total / 100000000).toFixed(1) + '억원' : (total / 10000).toFixed(0) + '만원', cx, cy - 10)
+                  ctx.fillText(netTotal >= 100000000 ? (netTotal / 100000000).toFixed(1) + '억원' : (netTotal / 10000).toFixed(0) + '만원', cx, cy - 10)
                   ctx.font = '12px sans-serif'
                   ctx.fillStyle = '#888'
-                  ctx.fillText('총 자산', cx, cy + 14)
+                  ctx.fillText('순자산', cx, cy + 14)
                   ctx.restore()
                 }
               }
@@ -478,14 +482,14 @@ export default function Stats() {
                         plugins: {
                           legend: { display: false },
                           datalabels: { display: false },
-                          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}원 (${(ctx.parsed / total * 100).toFixed(1)}%)` } }
+                          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)` } }
                         }
                       }}
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {items.map((item, i) => {
-                      const pct = total ? (item.value / total * 100).toFixed(1) : 0
+                    {assetItems.map((item, i) => {
+                      const pct = assetTotal ? (item.value / assetTotal * 100).toFixed(1) : 0
                       return (
                         <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -502,6 +506,26 @@ export default function Stats() {
                         </div>
                       )
                     })}
+                    {debtItems.length > 0 && (
+                      <>
+                        <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 4 }} />
+                        {debtItems.map(item => (
+                          <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 12, height: 12, borderRadius: 3, background: '#ff6b6b', flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
+                                <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{assetTotal ? (Math.abs(item.value) / assetTotal * 100).toFixed(1) : 0}%</span>
+                              </div>
+                            </div>
+                            <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
+                              <div style={{ width: `${assetTotal ? Math.min(100, Math.abs(item.value) / assetTotal * 100) : 0}%`, height: '100%', background: '#ff6b6b', borderRadius: 6 }} />
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )
@@ -587,7 +611,7 @@ export default function Stats() {
               <div className="mt-3">
                 <div className="d-flex gap-3 mb-2">
                   <div style={{ flex: 1, background: '#f8f5ff', borderRadius: 12, padding: '10px 14px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#888', marginBottom: 3 }}>현재 총 자산</div>
+                    <div style={{ fontSize: '0.72rem', color: '#888', marginBottom: 3 }}>현재 순자산</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#b088f9' }}>{fmt(latest)}원</div>
                   </div>
                   <div style={{ flex: 1, background: diff >= 0 ? '#f0faf4' : '#fff0f0', borderRadius: 12, padding: '10px 14px' }}>
@@ -663,7 +687,7 @@ export default function Stats() {
                         {/* 요약 카드 */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
                           {[
-                            { label: '현재 총 자산', val: fmt(latest) + '원', color: '#b088f9', bg: '#f8f5ff' },
+                            { label: '현재 순자산', val: fmt(latest) + '원', color: '#b088f9', bg: '#f8f5ff' },
                             { label: '전월 대비', val: (diff >= 0 ? '+' : '') + fmt(diff) + '원', color: diff >= 0 ? '#198754' : '#dc3545', bg: diff >= 0 ? '#f0faf4' : '#fff0f0' },
                             { label: '6개월 성장', val: (() => { const first = tData[0]; return first ? (((latest - first) / Math.abs(first)) * 100).toFixed(1) + '%' : '—' })(), color: (latest - tData[0]) >= 0 ? '#198754' : '#dc3545', bg: (latest - tData[0]) >= 0 ? '#f0faf4' : '#fff0f0' },
                           ].map(s => (
