@@ -101,6 +101,7 @@ function SortableItem({ cat, onEdit, onDelete, isEditing }) {
         </div>
         <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
         <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600, color: isEditing ? '#b088f9' : '#1c1c1e' }}>{cat.name}</span>
+        {cat.exclude_perf && <span style={{ fontSize: '0.65rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 6 }}>실적제외</span>}
         {isEditing && <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem', color: '#b088f9', marginRight: 4 }} />}
       </div>
     </div>
@@ -112,7 +113,7 @@ export default function Categories() {
   const [tab, setTab] = useState('expense')
   const [editCat, setEditCat] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [form, setForm] = useState({ name: '', icon: '', type: 'expense' })
+  const [form, setForm] = useState({ name: '', icon: '', type: 'expense', exclude_perf: false })
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -139,9 +140,9 @@ export default function Categories() {
 
   async function handleSave() {
     if (!form.name.trim()) return
-    if (editCat) await api.put(`/api/categories/${editCat.id}`, { name: form.name, icon: form.icon })
-    else await api.post('/api/categories', { name: form.name, icon: form.icon, type: form.type || tab })
-    setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }); load()
+    if (editCat) await api.put(`/api/categories/${editCat.id}`, { name: form.name, icon: form.icon, exclude_perf: form.exclude_perf })
+    else await api.post('/api/categories', { name: form.name, icon: form.icon, type: form.type || tab, exclude_perf: form.exclude_perf })
+    setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab, exclude_perf: false }); load()
   }
 
   async function handleDelete(id) {
@@ -158,14 +159,25 @@ export default function Categories() {
           <input className="form-control text-center" placeholder="🙂" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} style={{ fontSize: '1.3rem', width: 48, flexShrink: 0, padding: '0 4px', height: 38 }} />
           <input className="form-control" placeholder="카테고리 이름" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1, height: 38 }} />
           {!editCat && (
-            <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={{ width: 74, flexShrink: 0, height: 38, padding: '0 8px' }}>
+            <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, exclude_perf: false }))} style={{ width: 74, flexShrink: 0, height: 38, padding: '0 8px' }}>
               <option value="expense">지출</option>
               <option value="income">수입</option>
             </select>
           )}
           <button className="btn btn-sm" onClick={handleSave} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>저장</button>
-          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab }) }} style={{ borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>취소</button>
+          <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab, exclude_perf: false }) }} style={{ borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>취소</button>
         </div>
+        {(form.type === 'expense' || (editCat && editCat.type === 'expense')) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f0f0f0' }}>
+            <label style={{ flex: 1, fontSize: '0.88rem', color: '#555', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+              💱 카드 실적에서 제외
+            </label>
+            <div className="ios-toggle" onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+              <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
+              <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -199,7 +211,7 @@ export default function Categories() {
               <SortableContext items={cats.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 {cats.map((cat, i) => (
                   <div key={cat.id} style={{ borderBottom: i < cats.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
-                    <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
+                    <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type, exclude_perf: c.exclude_perf || false }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
                   </div>
                 ))}
               </SortableContext>

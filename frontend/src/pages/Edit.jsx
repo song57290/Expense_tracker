@@ -12,7 +12,7 @@ export default function Edit() {
   useEffect(() => {
     api.get(`/api/transactions/${id}`).then(d => {
       setData(d)
-      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: d.transaction.description || '', card: d.transaction.card || '' })
+      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: d.transaction.description || '', card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false })
       setAmountDisplay(Number(d.transaction.amount).toLocaleString('ko-KR'))
     }).catch(console.error)
   }, [id])
@@ -56,7 +56,7 @@ export default function Edit() {
               <select className="form-select" value={form.type} onChange={e => {
                 const newType = e.target.value
                 const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
-                setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '' }))
+                setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false }))
               }}>
                 <option value="expense">지출</option>
                 <option value="income">수입</option>
@@ -80,13 +80,24 @@ export default function Edit() {
               <label className="form-label fw-semibold">항목 설명</label>
               <input className="form-control" placeholder="항목 설명 (선택)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
-            <div className="mb-4">
+            <div className="mb-3">
               <label className="form-label fw-semibold">카드</label>
               <select className="form-select" value={form.card} onChange={e => setForm(f => ({ ...f, card: e.target.value }))}>
                 <option value="">카드 없음</option>
                 {data.card_list.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
+            {form.type === 'expense' && (
+              <div className="mb-4">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+                  <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
+                  <div className="ios-toggle">
+                    <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
+                    <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="d-flex justify-content-between gap-2">
               <button type="button" className="btn btn-outline-danger" onClick={handleDelete}>삭제</button>
               <div className="d-flex gap-2">

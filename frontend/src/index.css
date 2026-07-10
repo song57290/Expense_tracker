@@ -74,6 +74,8 @@ html, body {
   z-index: 1000;
 }
 body.sheet-open .bottom-nav { display: none !important; }
+body.sheet-open .bot-fade,
+body.sheet-open .top-fade { display: none !important; }
 .bottom-nav a {
   color: white;
   text-decoration: none;

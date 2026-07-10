@@ -58,6 +58,7 @@ function AddSheet({ open, visible, onClose, onSaved }) {
   function switchType(t) {
     setAssetType(t)
     setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
+    setInitialBalance(t === 'loan' ? '-' : '')
   }
 
   async function handleSubmit(e) {
@@ -83,15 +84,15 @@ function AddSheet({ open, visible, onClose, onSaved }) {
           <form id="add-card-form" onSubmit={handleSubmit}>
             {/* 자산 유형 선택 */}
             <div className="d-flex gap-2 mb-3">
-              {[['card', '💳 카드 / 은행'], ['cash', '💵 현금']].map(([t, label]) => (
+              {[['card', '💳 카드 / 은행'], ['cash', '💵 현금'], ['loan', '💸 대출']].map(([t, label]) => (
                 <button key={t} type="button" onClick={() => switchType(t)}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? '#b088f9' : '#eee'}`, background: assetType === t ? 'rgba(176,136,249,0.1)' : 'white', color: assetType === t ? '#b088f9' : '#888', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : '#eee'}`, background: assetType === t ? (t === 'loan' ? 'rgba(220,53,69,0.08)' : 'rgba(176,136,249,0.1)') : 'white', color: assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : '#888', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                   {label}
                 </button>
               ))}
             </div>
 
-            {assetType === 'card' && (<>
+            {(assetType === 'card' || assetType === 'loan') && (<>
               <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
               <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
                 {BANKS.map(([bname, logo, label]) => (
@@ -107,18 +108,20 @@ function AddSheet({ open, visible, onClose, onSaved }) {
             </>)}
 
             <input type="text" className="form-control mb-2"
-              placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
+              placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder="초기 잔고 (현재 보유 금액, 선택)" inputMode="numeric"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '초기 잔고 (음수 입력 시 -부터, 선택)'} inputMode="text"
                 value={initialBalance} onChange={e => {
+                  const neg = e.target.value.startsWith('-')
                   const raw = e.target.value.replace(/[^0-9]/g, '')
-                  setInitialBalance(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+                  if (!raw) { setInitialBalance(neg ? '-' : ''); return }
+                  setInitialBalance((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
                 }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '월 상환 목표 (선택)' : assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
                 value={target} onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, '')
                   setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
@@ -212,6 +215,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
 
   const logo = bankLogo(card.name)
   const isCash = !logo && (card.name.includes('현금') || card.name.includes('지갑'))
+  const isLoan = !logo && !isCash && card.initial_balance < 0
   const deleteWidth = Math.max(0, -offsetX)
   const editWidth = Math.max(0, offsetX)
 
@@ -230,6 +234,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
           <div className="d-flex align-items-center gap-2">
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
             {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💵</span>}
+            {isLoan && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💸</span>}
             <span className="fw-semibold">{card.name}</span>
             {card.url && (
               <a href={card.url} target="_blank" rel="noreferrer"
@@ -248,7 +253,7 @@ function SwipeCard({ card, onEdit, onDelete }) {
         <div className="d-flex mb-3" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#555' }}>{fmt(card.initial_balance)}</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: card.initial_balance < 0 ? '#dc3545' : '#555' }}>{fmt(card.initial_balance)}</div>
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid #eee' }}>
             <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
@@ -491,7 +496,8 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
     if (editItem) {
       setStype(editItem.stype || '예금')
       setItype(editItem.interest_type || '단리')
-      setTaxType(editItem.tax_type || '일반과세')
+      const _tt = editItem.tax_type || '일반과세'
+      setTaxType(['ISA', 'ISA(신탁형)', 'ISA(중개형)', 'ISA(일임형)'].includes(_tt) ? 'ISA(일반형)' : _tt)
       setSelected(editItem.bank || '')
       setName(editItem.name || '')
       setAmount((editItem.amount || 0).toLocaleString('ko-KR'))
@@ -585,14 +591,35 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 </button>
               ))}
             </div>
-            <div className="d-flex gap-2 mb-3">
-              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => (
-                <button key={t} type="button" onClick={() => setTaxType(t)}
-                  style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${taxType === t ? '#7baff0' : '#eee'}`, background: taxType === t ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === t ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-                  {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
-                </button>
-              ))}
+            <div className="d-flex gap-2 mb-2">
+              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => {
+                const isISA = t === 'ISA'
+                const active = isISA ? taxType.startsWith('ISA') : taxType === t
+                return (
+                  <button key={t} type="button" onClick={() => setTaxType(isISA ? (taxType.startsWith('ISA') ? taxType : 'ISA(신탁형)') : t)}
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${active ? '#7baff0' : '#eee'}`, background: active ? 'rgba(123,175,240,0.1)' : 'white', color: active ? '#5a9fd4' : '#888', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                    {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
+                  </button>
+                )
+              })}
             </div>
+            {taxType.startsWith('ISA') && (
+              <div className="mb-3">
+                <div className="d-flex gap-2 mb-2">
+                  {[['일반형', '비과세 200만원'], ['서민형', '비과세 400만원']].map(([sub, desc]) => (
+                    <button key={sub} type="button" onClick={() => setTaxType(`ISA(${sub})`)}
+                      style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: `2px solid ${taxType === `ISA(${sub})` ? '#7baff0' : '#eee'}`, background: taxType === `ISA(${sub})` ? 'rgba(123,175,240,0.1)' : 'white', color: taxType === `ISA(${sub})` ? '#5a9fd4' : '#aaa', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                      {sub}<br /><span style={{ fontSize: '0.66rem', fontWeight: 400 }}>{desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#888', lineHeight: 1.6, padding: '8px 10px', background: '#f8f8ff', borderRadius: 8 }}>
+                  <span style={{ fontWeight: 600, color: '#5a9fd4' }}>ISA 계좌 내 예금·적금</span>은 <span style={{ fontWeight: 600 }}>신탁형 ISA</span>에서만 가입 가능<br />
+                  (중개형·일임형은 주식·ETF·펀드만 가능, 예금·적금 불가)<br />
+                  비과세 한도 초과분에만 9.9% 분리과세 적용
+                </div>
+              </div>
+            )}
             <div className="d-flex gap-2 mb-2">
               <div className="flex-fill">
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>시작일</label>
@@ -737,6 +764,10 @@ function InvestmentItem({ item, onEdit, onDelete }) {
             <span style={{ fontSize: '1.1rem' }}>{icon}</span>
             <span className="fw-semibold" style={{ fontSize: '0.95rem' }}>{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: tc.bg, color: tc.color }}>{item.itype}</span>
+            {item.account_type && item.account_type !== '일반' && (() => {
+              const atColor = { ISA: '#5a9fd4', '연금저축': '#8b5cf6', IRP: '#e87000' }[item.account_type] || '#888'
+              return <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: `${atColor}18`, color: atColor }}>{item.account_type}</span>
+            })()}
             <span style={{ fontSize: '0.72rem', color: '#aaa' }}>(수량 {item.quantity})</span>
           </div>
           <span style={{ fontSize: '0.8rem', color: '#aaa' }}>{item.ticker || ''}</span>
@@ -794,6 +825,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
 
 function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const [itype, setItype] = useState('국내주식')
+  const [accountType, setAccountType] = useState('일반')
   const [name, setName] = useState('')
   const [ticker, setTicker] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -810,6 +842,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
     if (!open) return
     if (editItem) {
       setItype(editItem.itype || '국내주식')
+      setAccountType(editItem.account_type || '일반')
       setName(editItem.name || '')
       setTicker(editItem.ticker || '')
       setQuantity(String(editItem.quantity ?? ''))
@@ -817,7 +850,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
       setCurrentPrice(editItem.current_price != null ? Math.round(editItem.current_price).toLocaleString('ko-KR') : '')
       setMemo(editItem.memo || '')
     } else {
-      setItype('국내주식'); setName(''); setTicker(''); setQuantity(''); setAvgPrice(''); setCurrentPrice(''); setMemo('')
+      setItype('국내주식'); setAccountType('일반'); setName(''); setTicker(''); setQuantity(''); setAvgPrice(''); setCurrentPrice(''); setMemo('')
     }
     setUsdAvgPrice(''); setUsdCurrentPrice(''); setExchangeRate(null)
     setFetchResult(null)
@@ -877,7 +910,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
     e.preventDefault()
     const isUsd = itype === '해외주식'
     const payload = {
-      itype, name: name.trim(), ticker: ticker.trim(),
+      itype, account_type: accountType, name: name.trim(), ticker: ticker.trim(),
       quantity: parseFloat(quantity) || 0,
       avg_price: isUsd ? (parseFloat(usdAvgPrice) || 0) : (parseFloat(avgPrice.replace(/,/g, '')) || 0),
       current_price: isUsd
@@ -905,7 +938,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
         <div style={{ overflowY: 'auto', flex: 1 }}>
           <form id="investment-form" onSubmit={handleSubmit}>
             {/* 유형 선택 */}
-            <div data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-3" style={{ scrollbarWidth: 'none' }}>
+            <div data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
               {ITYPES.map(t => {
                 const tc = ITYPE_COLORS[t] || ITYPE_COLORS['기타']
                 return (
@@ -915,6 +948,15 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                   </button>
                 )
               })}
+            </div>
+            {/* 계좌 종류 */}
+            <div className="d-flex gap-2 mb-3">
+              {[['일반', null], ['ISA', '#5a9fd4'], ['연금저축', '#8b5cf6'], ['IRP', '#e87000']].map(([at, color]) => (
+                <button key={at} type="button" onClick={() => setAccountType(at)}
+                  style={{ flex: 1, padding: '5px 0', borderRadius: 10, border: `2px solid ${accountType === at ? (color || '#888') : '#eee'}`, background: accountType === at ? `${color || '#888'}18` : 'white', color: accountType === at ? (color || '#555') : '#aaa', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>
+                  {at}
+                </button>
+              ))}
             </div>
 
             <input type="text" placeholder="종목명" value={name} onChange={e => setName(e.target.value)} required style={{ ...inp, marginBottom: 10 }} />
@@ -1112,9 +1154,11 @@ export default function Budget() {
     setConfirmInv(null); load()
   }
 
-  function fmtInput(val, setter) {
+  function fmtInput(val, setter, allowNeg = false) {
+    const neg = allowNeg && val.startsWith('-')
     const raw = val.replace(/[^0-9]/g, '')
-    setter(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+    if (!raw) { setter(neg ? '-' : ''); return }
+    setter((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
   }
 
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
@@ -1332,8 +1376,8 @@ export default function Budget() {
                 <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (앱 사용 시작 전 계좌 잔액)</label>
                   <div style={{ position: 'relative' }}>
-                    <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
-                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial)} />
+                    <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
+                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true)} />
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                   </div>
                 </div>
