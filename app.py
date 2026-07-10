@@ -196,6 +196,9 @@ with app.app_context():
         "ALTER TABLE fixed_expense ADD COLUMN auto_register BOOLEAN DEFAULT 0",
         "ALTER TABLE fixed_expense ADD COLUMN tx_type VARCHAR(20) DEFAULT 'expense'",
         "ALTER TABLE fixed_expense ADD COLUMN tx_card VARCHAR(50) DEFAULT ''",
+        'ALTER TABLE "transaction" ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0',
+        "ALTER TABLE category ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE investment ADD COLUMN account_type VARCHAR(20) NOT NULL DEFAULT '일반'",
     ]:
         try:
             with db.engine.connect() as conn:
@@ -207,16 +210,16 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.23'
+    _help_version = 'ver2.24'
     _help_defaults = [
-        ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
-        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시'),
+        ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
+        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
         ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동'),
-        ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
+        ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 통장잔고·현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출/빚 차감 후 순자산\n  - 대출/빚 계좌가 있으면 목록 하단에 빨간��으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
         ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
-        ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다.\n(설정 탭 → 카테고리 관리 버튼으로 접근)\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리'),
+        ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다.\n(설정 탭 → 카테고리 관리 버튼으로 접근)\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리\n\n💱 카드 실적 제외\n• 지출 카테고리에 "카드 실적에서 제외" 설정 가능\n• 설정 시 해당 카테고리의 모든 거래가 카드 실적 집계에서 제외됨\n• 계좌이체·대출 상환 전용 카테고리 등에 활용\n• 실적 제외 카테고리는 목록에 "실적제외" 배지로 표시'),
         ('⚙️', '설정', '앱 환경을 설정합니다.\n\n• 🆕 업데이트 내역: 최근 업데이트 내용을 언제든 다시 확인 (이전 버전 기록도 열람 가능)\n• 공지사항: 앱 업데이트 및 안내 확인\n• 🏷️ 카테고리 관리: 지출·수입 카테고리 추가·수정·삭제·순서 변경\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴'),
-        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 예금·적금·투자만 포함 (카드잔고 제외)\n• 금액 큰 순서대로 정렬\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
+        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 통장잔고·현금·예금·적금/청약·투자 항목 포함, 금액 큰 순서대로 정렬\n• 대출/빚 계좌가 있으면 구분선 아래 빨간색으로 별도 표시\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
     ]
     _help_v_cfg = AppConfig.query.get('help_version')
     if _help_v_cfg is None or _help_v_cfg.value != _help_version:
@@ -240,28 +243,33 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.23'
+    _notice_v = 'ver 2.24'
     _notice = {
         'version': _notice_v,
-        'date': '2026년 7월 9일',
+        'date': '2026년 7월 10일',
         'updates': [
-            {'section': '💰 월급 관리', 'items': [
-                {'tag': 'new', 'title': '예산 배분 원화 직접 입력', 'desc': '% 대신 원화 금액으로 입력, 월급 대비 % 자동 표시'},
-                {'tag': 'new', 'title': '예산 배분 카테고리 선택형', 'desc': '모든 카테고리 대신 예산 잡을 카테고리만 직접 선택해서 추가'},
-                {'tag': 'new', 'title': '고정 지출 자동 거래 등록', 'desc': '지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록'},
-                {'tag': 'imp', 'title': '월급 입력 UX 개선', 'desc': '금액 콤마 자동 삽입, 원·일 단위 suffix 표시'},
+            {'section': '💱 카드 실적 제외', 'items': [
+                {'tag': 'new', 'title': '거래별 실적 제외 토글', 'desc': '홈 탭 내역 추가·수정 시 "카드 실적에서 제외" 토글 제공 — 계좌이체·대출 상환 등 실적 미포함 거래에 사용'},
+                {'tag': 'new', 'title': '카테고리별 실적 제외 설정', 'desc': '카테고리 관리에서 지출 카테고리에 실적 제외 설정 가능 — 설정된 카테고리의 거래 추가 시 토글이 자동으로 켜짐'},
+                {'tag': 'imp', 'title': '실적 제외 배지 표시', 'desc': '실적 제외된 거래와 카테고리에 "실적제외" 배지 표시'},
             ]},
-            {'section': '🏦 예금 · 적금 · 청약', 'items': [
-                {'tag': 'new', 'title': '청약 추가 입금', 'desc': '예산 탭 청약 카드에 추가 입금 내역 기록, 잔고 자동 합산'},
-                {'tag': 'new', 'title': '적금 · 청약 자동이체 등록', 'desc': '이체일 설정 시 해당 날짜에 앱 열면 확인 팝업으로 거래 자동 기록'},
-                {'tag': 'new', 'title': '청약 납입일 푸시 알림', 'desc': '설정한 날짜 오전 9시에 납입 알림 자동 발송 (알림 ON 필요)'},
-                {'tag': 'new', 'title': '청약 이자 지원', 'desc': '청약도 연 이율 · 단리/복리 · 세금 종류 설정 가능'},
-                {'tag': 'imp', 'title': '자동이체 고정 지출 연동', 'desc': '자동이체 설정한 적금·청약이 월급 탭 고정 지출에 자동 표시'},
+            {'section': '💸 대출 · 빚 지원', 'items': [
+                {'tag': 'new', 'title': '음수 잔고 지원', 'desc': '예산 탭 자산 등록 시 초기 잔고에 음수(-) 입력 가능 — 대출·빚 계좌를 잔고 음수로 등록해 부채도 함께 관리'},
+                {'tag': 'imp', 'title': '통계 탭 자산 구성에 대출 표시', 'desc': '통계 탭 자산 구성 차트에 대출/빚 항목이 빨간색으로 별도 표시 — 도넛 중앙은 대출 차감 후 순자산으로 변경'},
+                {'tag': 'imp', 'title': '통계 탭 현금 표시', 'desc': '통계 탭 자산 구성에 현금(지갑) 계좌 잔고도 포함'},
+                {'tag': 'imp', 'title': '포트폴리오 자산 구성 개선', 'desc': '포트폴리오 PDF의 자산 구성 항목에 통장잔고·현금·대출/빚 별도 표시, 청약 납입금도 포함'},
             ]},
-            {'section': '💰 예산 · 투자', 'items': [
-                {'tag': 'fix', 'title': '해외주식 평단가 · 현재가 달러 표시', 'desc': '입력한 달러 값을 그대로 $XX.XX 형식으로 표시'},
-                {'tag': 'imp', 'title': '투자 카드 항목 순서 변경', 'desc': '매수금액 → 평가금액 → 수익 순서로 재배치'},
-                {'tag': 'new', 'title': '설정 탭에서 카테고리 관리', 'desc': '설정 → 카테고리 관리 버튼으로 접근'},
+            {'section': '🏦 ISA 세금 개선', 'items': [
+                {'tag': 'new', 'title': 'ISA 일반형 · 서민형 구분', 'desc': '예적금 ISA 세금 종류를 일반형(비과세 200만원)과 서민형(비과세 400만원)으로 선택 가능'},
+                {'tag': 'fix', 'title': 'ISA 이자 세금 계산 정확도 개선', 'desc': '비과세 한도 초과분에만 9.9% 분리과세 적용 — 기존에는 전액 과세되던 오류 수정'},
+                {'tag': 'imp', 'title': 'ISA 예금 · 적금 안내', 'desc': 'ISA 내 예금·적금 가입은 신탁형에서만 가능하다는 안내 문구 추가'},
+            ]},
+            {'section': '📈 투자 계좌 종류', 'items': [
+                {'tag': 'new', 'title': '계좌 종류 선택', 'desc': '투자 종목 등록 시 일반 / ISA / 연금저축 / IRP 중 계좌 종류 선택 가능'},
+                {'tag': 'imp', 'title': '계좌 종류 배지', 'desc': '일반 외 계좌(ISA·연금저축·IRP)는 종목 카드에 색상 배지로 표시'},
+            ]},
+            {'section': '🔧 버그 수정', 'items': [
+                {'tag': 'fix', 'title': '포트폴리오 해외주식 금액 오류 수정', 'desc': '재무 포트폴리오 PDF 및 화면에서 해외주식 평가금액이 환율 미적용 달러 그대로 표시되던 문제 수정 — 원화로 올바르게 환산'},
             ]},
         ]
     }
@@ -441,8 +449,13 @@ def _savings_stats(s, extra_deposit=0):
             interest = 0
         if tax_type == '비과세':
             tax = 0
-        elif tax_type in ('세금우대', 'ISA'):
+        elif tax_type == '세금우대':
             income_tax = (int(interest * 0.09) // 10) * 10
+            tax = income_tax + (int(income_tax * 0.1) // 10) * 10
+        elif tax_type.startswith('ISA') or tax_type == 'ISA':
+            threshold = 4_000_000 if tax_type == 'ISA(서민형)' else 2_000_000
+            taxable = max(0, interest - threshold)
+            income_tax = (int(taxable * 0.09) // 10) * 10
             tax = income_tax + (int(income_tax * 0.1) // 10) * 10
         else:
             income_tax = (int(interest * 0.14) // 10) * 10
@@ -500,8 +513,13 @@ def _savings_stats(s, extra_deposit=0):
     # 세금: 이자소득세(14%) 원 미만 절사 → 지방소득세 = 이자소득세의 10% 원 미만 절사
     if tax_type == '비과세':
         tax = 0
-    elif tax_type in ('세금우대', 'ISA'):
+    elif tax_type == '세금우대':
         income_tax = (int(interest * 0.09) // 10) * 10
+        tax = income_tax + (int(income_tax * 0.1) // 10) * 10
+    elif tax_type.startswith('ISA') or tax_type == 'ISA':
+        threshold = 4_000_000 if tax_type == 'ISA(서민형)' else 2_000_000
+        taxable = max(0, interest - threshold)
+        income_tax = (int(taxable * 0.09) // 10) * 10
         tax = income_tax + (int(income_tax * 0.1) // 10) * 10
     else:
         income_tax = (int(interest * 0.14) // 10) * 10
@@ -650,6 +668,7 @@ def _investment_stats(inv):
         'purchase_value': purchase_value, 'current_value': current_value,
         'profit': profit, 'profit_pct': profit_pct,
         'memo': inv.memo or '',
+        'account_type': getattr(inv, 'account_type', '일반') or '일반',
         'price_updated_at': updated_at,
     }
 
@@ -670,9 +689,14 @@ def api_home():
     budget_amount = budget.amount if budget else 0
 
     cards = Card.query.filter_by(user_id=uid).all()
+    expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
+    income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
+    excl_cats = {c.name for c in expense_cats if c.exclude_perf}
     card_stats = []
     for card in cards:
-        spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
+        spent = sum(tx.amount for tx in month_txs
+                    if tx.type == 'expense' and tx.card == card.name
+                    and not tx.exclude_perf and tx.category not in excl_cats)
         card_stats.append({
             'name': card.name,
             'target': card.monthly_target,
@@ -680,9 +704,6 @@ def api_home():
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
         })
-
-    expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
-    income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in expense_cats + income_cats}
 
     category_totals = defaultdict(int)
@@ -693,7 +714,8 @@ def api_home():
 
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
-                          'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''} for tx in month_txs],
+                          'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
+                          'exclude_perf': bool(tx.exclude_perf)} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
         'balance': income_total - expense_total,
@@ -705,6 +727,7 @@ def api_home():
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'emoji_map': emoji_map,
         'category_totals': category_totals,
+        'excl_cat_names': list(excl_cats),
     })
 
 @app.route('/api/transactions', methods=['POST'])
@@ -716,6 +739,7 @@ def api_add_transaction():
         date=data['date'], type=data['type'], category=data['category'],
         description=data.get('description', ''), amount=int(data['amount']),
         card=data.get('card') or None,
+        exclude_perf=bool(data.get('exclude_perf', False)),
         user_id=uid,
     )
     db.session.add(tx)
@@ -739,13 +763,16 @@ def api_transaction(tx_id):
         tx.description = data.get('description', tx.description)
         tx.amount = int(data.get('amount', tx.amount))
         tx.card = data.get('card') or None
+        if 'exclude_perf' in data:
+            tx.exclude_perf = bool(data['exclude_perf'])
         db.session.commit()
         return jsonify({'ok': True})
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     return jsonify({
         'transaction': {'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
-                        'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''},
+                        'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
+                        'exclude_perf': bool(tx.exclude_perf)},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'card_list': [{'id': c.id, 'name': c.name} for c in Card.query.filter_by(user_id=uid).all()],
@@ -769,9 +796,12 @@ def api_cards():
     current_month = datetime.now().strftime('%Y-%m')
     month_txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
     cards = Card.query.filter_by(user_id=uid).all()
+    excl_cats_cards = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
     stats = {}
     for card in cards:
-        spent = sum(tx.amount for tx in month_txs if tx.type == 'expense' and tx.card == card.name)
+        spent = sum(tx.amount for tx in month_txs
+                    if tx.type == 'expense' and tx.card == card.name
+                    and not tx.exclude_perf and tx.category not in excl_cats_cards)
         stats[card.id] = {
             'spent': spent,
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
@@ -880,23 +910,26 @@ def api_stats():
         monthly.append({'month': mo, 'expense': sum(t.amount for t in e), 'income': sum(t.amount for t in inc)})
 
     cards = Card.query.filter_by(user_id=uid).all()
+    excl_cats_stats = {c.name for c in cats if c.exclude_perf}
     card_monthly_trend = {}
     for card in cards:
         trend = []
         for mo in bar_months:
-            amt = sum(
-                tx.amount for tx in Transaction.query.filter_by(user_id=uid).filter(
-                    Transaction.type == 'expense',
-                    Transaction.date.like(f'{mo}%'),
-                    Transaction.card == card.name,
-                ).all()
-            )
+            mo_txs = Transaction.query.filter_by(user_id=uid).filter(
+                Transaction.type == 'expense',
+                Transaction.date.like(f'{mo}%'),
+                Transaction.card == card.name,
+            ).all()
+            amt = sum(tx.amount for tx in mo_txs
+                      if not tx.exclude_perf and tx.category not in excl_cats_stats)
             trend.append(amt)
         card_monthly_trend[card.name] = trend
 
     card_monthly = []
     for card in cards:
-        spent = sum(tx.amount for tx in expense_txs if tx.card == card.name)
+        spent = sum(tx.amount for tx in expense_txs
+                    if tx.card == card.name
+                    and not tx.exclude_perf and tx.category not in excl_cats_stats)
         if spent > 0:
             card_monthly.append({'name': card.name, 'spent': spent})
     card_monthly.sort(key=lambda x: x['spent'], reverse=True)
@@ -936,15 +969,23 @@ def api_stats():
         inv_by_type[inv.itype] = inv_by_type.get(inv.itype, 0) + val
     inv_total_now = sum(inv_by_type.values())
 
-    # 포트폴리오 구성 (현재 스냅샷) — asset_trend 현재 월과 동일한 값 사용
-    card_balance_now = sum(c.account_balance or 0 for c in cards)
+    # 포트폴리오 구성 (현재 스냅샷) — 현금 카드 제외
+    def _is_cash_card(c):
+        return '현금' in c.name or '지갑' in c.name
+    card_pos = sum(c.account_balance or 0 for c in cards if not _is_cash_card(c) and (c.account_balance or 0) > 0)
+    loan_total = sum(c.account_balance or 0 for c in cards if not _is_cash_card(c) and (c.account_balance or 0) < 0)
+    cash_total = sum(c.account_balance or 0 for c in cards if _is_cash_card(c) and (c.account_balance or 0) > 0)
+    card_balance_now = card_pos + loan_total  # 순 통장잔고 (대출 차감)
+    card_balance_all = sum(c.account_balance or 0 for c in cards)  # 자산 추이용 (현금 포함)
     deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
     installment_total = sum(_savings_stats(s)['current_paid'] for s in savings_list if s.stype in ('적금', '청약'))
-    total_assets_now = card_balance_now + deposit_total + installment_total + inv_total_now
+    total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + inv_total_now  # 순자산 (현금·대출 반영)
 
     portfolio_breakdown = []
-    if card_balance_now > 0:
-        portfolio_breakdown.append({'label': '통장잔고', 'value': card_balance_now})
+    if card_pos > 0:
+        portfolio_breakdown.append({'label': '통장잔고', 'value': card_pos})
+    if cash_total > 0:
+        portfolio_breakdown.append({'label': '현금', 'value': cash_total})
     if deposit_total > 0:
         portfolio_breakdown.append({'label': '예금', 'value': deposit_total})
     if installment_total > 0:
@@ -952,15 +993,20 @@ def api_stats():
     for k, v in inv_by_type.items():
         if v > 0:
             portfolio_breakdown.append({'label': k, 'value': v})
+    if loan_total < 0:
+        portfolio_breakdown.append({'label': '대출/빚', 'value': loan_total})
 
-    card_initial = card_balance_now
+    card_initial = card_balance_all
     asset_trend = []
     cy, cm = tf_y, tf_m
     while (cy, cm) <= (tt_y, tt_m):
         if (cy, cm) == (tt_y, tt_m):
-            bd = {'통장잔고': card_balance_now, '예금': deposit_total, '적금/청약': installment_total}
+            bd = {'통장잔고': card_pos, '현금': cash_total, '예금': deposit_total, '적금/청약': installment_total}
             bd.update({k: v for k, v in inv_by_type.items()})
-            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': total_assets_now, 'breakdown': bd})
+            if loan_total < 0:
+                bd['대출/빚'] = loan_total
+            trend_total = card_balance_all + deposit_total + installment_total + inv_total_now
+            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': trend_total, 'breakdown': bd})
         else:
             last_day = _cal.monthrange(cy, cm)[1]
             mo_end = f'{cy}-{cm:02d}-{last_day:02d}'
@@ -1028,6 +1074,7 @@ def api_portfolio_pdf():
     savings_list = Savings.query.filter_by(user_id=uid).all()
     inv_list = Investment.query.filter_by(user_id=uid).all()
 
+    excl_cats_report = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
@@ -1035,28 +1082,21 @@ def api_portfolio_pdf():
         c_exp = sum(tx.amount for tx in card_txs if tx.type == 'expense')
         initial = card.account_balance or 0
         balance = initial + c_inc - c_exp
-        spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        spent = sum(tx.amount for tx in card_txs
+                    if tx.type == 'expense' and tx.date.startswith(current_month)
+                    and not tx.exclude_perf and tx.category not in excl_cats_report)
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'balance': balance,
                            'spent': spent, 'target': card.monthly_target, 'percent': percent})
 
     sav_stats = [_savings_stats(s) for s in savings_list]
-    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in sav_stats)
-
-    investments = []
-    for inv in inv_list:
-        avg = inv.avg_price or 0
-        cur = inv.current_price if inv.current_price is not None else avg
-        qty = inv.quantity or 0
-        val = int(qty * (cur or 0))
-        gain = val - int(qty * avg)
-        investments.append({'itype': inv.itype, 'name': inv.name, 'ticker': inv.ticker or '',
-                            'quantity': qty, 'avg_price': avg, 'current_price': cur or 0,
-                            'value': val, 'gain': gain})
-    inv_total = sum(i['value'] for i in investments)
-    inv_gain_total = sum(i['gain'] for i in investments)
-    inv_cost_total = sum(int(i['quantity'] * i['avg_price']) for i in investments)
+    _auto_fetch_investment_prices(inv_list)
+    investments = [_investment_stats(i) for i in inv_list]
+    inv_total = sum(i['current_value'] for i in investments)
+    inv_gain_total = sum(i['profit'] for i in investments)
+    inv_cost_total = sum(i['purchase_value'] for i in investments)
     inv_return_rate = round(inv_gain_total / inv_cost_total * 100, 2) if inv_cost_total else 0
+    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in sav_stats) + inv_total
 
     card_bal_total = sum(c['balance'] for c in card_stats)
     deposit_total = sum(s['amount'] for s in sav_stats if s['stype'] == '예금')
@@ -1067,7 +1107,7 @@ def api_portfolio_pdf():
     if install_total > 0: portfolio.append(('적금', install_total))
     inv_by_type = {}
     for inv in investments:
-        inv_by_type[inv['itype']] = inv_by_type.get(inv['itype'], 0) + inv['value']
+        inv_by_type[inv['itype']] = inv_by_type.get(inv['itype'], 0) + inv['current_value']
     for k, v in inv_by_type.items():
         if v > 0: portfolio.append((k, v))
     total_assets = sum(v for _, v in portfolio)
@@ -1182,7 +1222,12 @@ def api_portfolio_pdf():
         return ''
 
     def dday(end_str):
-        diff = (_date(*map(int, end_str.split('-'))) - today).days
+        if not end_str:
+            return '—'
+        try:
+            diff = (_date(*map(int, end_str.split('-'))) - today).days
+        except Exception:
+            return '—'
         if diff < 0: return f'D+{abs(diff)}'
         if diff == 0: return 'D-Day'
         return f'D-{diff}'
@@ -1291,20 +1336,26 @@ def api_portfolio_pdf():
         )
 
     def inv_row(i):
-        gc = '#dc3545' if i['gain'] >= 0 else '#0d6efd'
-        gs = '+' if i['gain'] >= 0 else ''
-        cost = int(i['quantity'] * i['avg_price'])
-        gp = (i['gain'] / cost * 100) if cost else 0
+        gain = i['profit']
+        gc = '#dc3545' if gain >= 0 else '#0d6efd'
+        gs = '+' if gain >= 0 else ''
+        gp = i['profit_pct']
         ticker_str = f' ({i["ticker"]})' if i['ticker'] else ''
+        fx = i.get('exchange_rate') or None
+        is_usd = i['itype'] == '해외주식' and fx
+        avg_krw = int(i['avg_price'] * fx) if is_usd else i['avg_price']
+        cur_krw = int(i['current_price'] * fx) if is_usd else i['current_price']
+        usd_note = lambda p: f'<br><span style="font-size:10px;color:#aaa">${p:.2f}</span>' if is_usd else ''
+        qty_unit = '개' if i['itype'] == '코인' else '주'
         return (
             '<tr>'
             f'<td><span class="badge bj">{i["itype"]}</span></td>'
             f'<td>{i["name"]}{ticker_str}</td>'
-            f'<td style="text-align:right">{i["quantity"]:g}주</td>'
-            f'<td style="text-align:right">{fmt(i["avg_price"])}원</td>'
-            f'<td style="text-align:right">{fmt(i["current_price"])}원</td>'
-            f'<td style="text-align:right;font-weight:700">{fmt(i["value"])}원</td>'
-            f'<td style="text-align:right;color:{gc}">{gs}{fmt(i["gain"])}원<br><span style="font-size:11px">({gs}{gp:.1f}%)</span></td>'
+            f'<td style="text-align:right">{i["quantity"]:g}{qty_unit}</td>'
+            f'<td style="text-align:right">{fmt(avg_krw)}원{usd_note(i["avg_price"])}</td>'
+            f'<td style="text-align:right">{fmt(cur_krw)}원{usd_note(i["current_price"])}</td>'
+            f'<td style="text-align:right;font-weight:700">{fmt(i["current_value"])}원</td>'
+            f'<td style="text-align:right;color:{gc}">{gs}{fmt(gain)}원<br><span style="font-size:11px">({gs}{gp:.1f}%)</span></td>'
             '</tr>'
         )
 
@@ -1402,7 +1453,7 @@ tbody tr:last-child td{border-bottom:none}
 <button class="pdfbtn" onclick="window.print()">⬇ PDF 저장</button>
 <div class="hdr">
   <h1>재무 포트폴리오</h1>
-  <div class="meta">계정: {name_display} &nbsp;|&nbsp; 추출일: {date_str}</div>
+  <div class="meta">계정: {name_display} &nbsp;|&nbsp; 출력일: {date_str}</div>
 </div>
 
 <div class="sec">
@@ -1482,19 +1533,23 @@ def api_budget():
     expense_total = sum(tx.amount for tx in all_txs if tx.type == 'expense' and tx.date.startswith(current_month))
 
     cards = Card.query.filter_by(user_id=uid).all()
+    excl_cats_budget = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
         month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        perf_spent = sum(tx.amount for tx in card_txs
+                         if tx.type == 'expense' and tx.date.startswith(current_month)
+                         and not tx.exclude_perf and tx.category not in excl_cats_budget)
         initial_balance = card.account_balance or 0
         balance = initial_balance + month_income - month_expense
-        percent = min(int(month_expense / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({
             'id': card.id, 'name': card.name,
             'initial_balance': initial_balance, 'total_income': month_income,
             'total_expense': month_expense, 'balance': balance,
-            'spent': month_expense, 'target': card.monthly_target, 'percent': percent,
+            'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
             'url': card.url or '',
         })
@@ -1604,6 +1659,7 @@ def api_investments():
             current_price=float(data['current_price']) if data.get('current_price') not in (None, '') else None,
             exchange_rate=float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else None,
             memo=data.get('memo', ''),
+            account_type=data.get('account_type', '일반'),
         )
         db.session.add(inv)
         db.session.commit()
@@ -1629,6 +1685,8 @@ def api_investment(iid):
     inv.current_price = float(data['current_price']) if data.get('current_price') not in (None, '') else None
     inv.exchange_rate = float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else inv.exchange_rate
     inv.memo = data.get('memo', inv.memo)
+    if 'account_type' in data:
+        inv.account_type = data['account_type']
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1970,23 +2028,13 @@ def api_portfolio():
     savings_list = Savings.query.filter_by(user_id=uid).all()
     savings_stats = [_savings_stats(s) for s in savings_list]
     inv_list = Investment.query.filter_by(user_id=uid).all()
+    _auto_fetch_investment_prices(inv_list)
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
-    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in savings_stats)
-    investments = []
-    for inv in inv_list:
-        avg = inv.avg_price or 0
-        cur = inv.current_price if inv.current_price is not None else avg
-        qty = inv.quantity or 0
-        val = int(qty * (cur or 0))
-        gain = val - int(qty * avg)
-        investments.append({
-            'id': inv.id, 'itype': inv.itype, 'name': inv.name, 'ticker': inv.ticker or '',
-            'quantity': qty, 'avg_price': avg, 'current_price': cur or 0,
-            'value': val, 'gain': gain, 'memo': inv.memo or '',
-        })
-    inv_total = sum(i['value'] for i in investments)
-    inv_gain_total = sum(i['gain'] for i in investments)
-    inv_cost_total = sum(int(i['quantity'] * i['avg_price']) for i in investments)
+    investments = [_investment_stats(i) for i in inv_list]
+    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in savings_stats) + sum(i['current_value'] for i in investments)
+    inv_total = sum(i['current_value'] for i in investments)
+    inv_gain_total = sum(i['profit'] for i in investments)
+    inv_cost_total = sum(i['purchase_value'] for i in investments)
     inv_return_rate = round(inv_gain_total / inv_cost_total * 100, 2) if inv_cost_total else 0
     return jsonify({
         'user': {'email': user.email, 'nickname': user.nickname},
@@ -2002,7 +2050,7 @@ def api_portfolio():
             'total_maturity': sum(s['maturity_amount'] for s in savings_stats),
         },
         'investments': investments,
-        'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments), 'return_rate': inv_return_rate},
+        'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments), 'return_rate': inv_return_rate, 'total_cost': inv_cost_total},
         'budget': budget.amount if budget else 0,
         'transactions': [{'date': tx.date, 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''}
@@ -2026,8 +2074,8 @@ def api_categories():
     expense = Category.query.filter_by(cat_type='expense', user_id=uid).order_by(Category.position, Category.id).all()
     income = Category.query.filter_by(cat_type='income', user_id=uid).order_by(Category.position, Category.id).all()
     return jsonify({
-        'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in expense],
-        'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type} for c in income],
+        'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf)} for c in expense],
+        'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf)} for c in income],
     })
 
 @app.route('/api/categories/reorder', methods=['POST'])
@@ -2054,6 +2102,8 @@ def api_category(cat_id):
     data = request.json or {}
     cat.name = data.get('name', cat.name).strip()
     cat.icon = data.get('icon', cat.icon).strip()
+    if 'exclude_perf' in data:
+        cat.exclude_perf = bool(data['exclude_perf'])
     db.session.commit()
     return jsonify({'ok': True})
 

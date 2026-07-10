@@ -23,7 +23,10 @@ export default function Salary() {
   const [selectedCats, setSelectedCats] = useState([])
   const [catPickerOpen, setCatPickerOpen] = useState(false)
 
+  const TAB_ORDER = ['plan', 'fixed', 'compare']
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
+  const tabIdx = TAB_ORDER.indexOf(tab)
+  const [compareOnlyPlanned, setCompareOnlyPlanned] = useState(false)
 
   useEffect(() => {
     load()
@@ -223,20 +226,33 @@ export default function Salary() {
       </div>
 
       {/* 탭 */}
-      <div style={{ display: 'flex', background: '#f0eaff', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+      <div style={{ position: 'relative', display: 'flex', background: '#f0eaff', borderRadius: 12, padding: 4, marginBottom: 14 }}>
+        <div style={{
+          position: 'absolute', top: 4, bottom: 4, left: 4,
+          width: 'calc((100% - 8px) / 3)',
+          background: 'white', borderRadius: 9,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          transform: `translateX(${tabIdx * 100}%)`,
+          transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+          pointerEvents: 'none',
+        }} />
         {[['plan', '📊 예산 배분'], ['fixed', '📌 고정 지출'], ['compare', '📈 비교']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
-              background: tab === key ? 'white' : 'transparent',
+              background: 'transparent',
               color: tab === key ? '#b088f9' : '#9b8ec0',
-              boxShadow: tab === key ? '0 2px 8px rgba(0,0,0,0.08)' : 'none' }}>
+              position: 'relative', zIndex: 1 }}>
             {label}
           </button>
         ))}
       </div>
 
+      {/* 탭 콘텐츠 슬라이더 */}
+      <div style={{ overflowX: 'clip' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', transform: `translateX(${-tabIdx * 100}%)`, transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)', willChange: 'transform' }}>
+
       {/* 예산 배분 탭 */}
-      {tab === 'plan' && (
+      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
@@ -320,12 +336,11 @@ export default function Salary() {
             </>
           )}
         </div>
-      )}
+      </div>
 
       {/* 고정 지출 탭 */}
-      {tab === 'fixed' && (
-        <div>
-          <div style={cardStyle}>
+      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+        <div style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>고정 지출 <span style={{ color: '#b088f9' }}>{fmt(fixedTotal)}원</span></div>
               <button onClick={() => setFixedFormOpen(o => !o)}
@@ -436,13 +451,36 @@ export default function Salary() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+      </div>
 
       {/* 실적 비교 탭 */}
-      {tab === 'compare' && (
-        <div>
-          <div style={{ fontSize: '0.78rem', color: '#aaa', marginBottom: 10, textAlign: 'center' }}>{monthLabel} 실제 지출 vs 계획</div>
+      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: '0.78rem', color: '#aaa' }}>{monthLabel} 실제 지출 vs 계획</div>
+            <div style={{ position: 'relative', display: 'flex', background: '#f0eaff', borderRadius: 16, padding: 2 }}>
+              <div style={{
+                position: 'absolute', top: 2, bottom: 2, left: 2,
+                width: 'calc((100% - 4px) / 2)',
+                background: 'linear-gradient(135deg,#b088f9,#7baff0)',
+                borderRadius: 14,
+                transform: `translateX(${compareOnlyPlanned ? 100 : 0}%)`,
+                transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+                pointerEvents: 'none',
+              }} />
+              {[['전체', false], ['계획만', true]].map(([label, val]) => (
+                <button key={label} onClick={() => setCompareOnlyPlanned(val)}
+                  style={{
+                    padding: '4px 10px', borderRadius: 14, border: 'none', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer',
+                    background: 'transparent',
+                    color: compareOnlyPlanned === val ? 'white' : '#b088f9',
+                    position: 'relative', zIndex: 1,
+                    transition: 'color 0.28s',
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* 고정 지출 비교 */}
           {fixed.length > 0 && (
@@ -469,11 +507,14 @@ export default function Salary() {
 
           {/* 카테고리별 비교 */}
           <div style={cardStyle}>
-            <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: '#555' }}>📊 카테고리별 예산 vs 실제</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: '#555', textAlign: 'center' }}>📊 카테고리별 예산 vs 실제</div>
             {allocations.filter(a => a.percent > 0).length === 0 && Object.keys(actual).length === 0 && (
               <div style={{ textAlign: 'center', color: '#ccc', padding: '20px 0', fontSize: '0.88rem' }}>예산 배분을 먼저 설정해주세요</div>
             )}
-            {categories.filter(cat => getAllocPercent(cat.name) > 0 || actual[cat.name] > 0).map(cat => {
+            {categories.filter(cat => compareOnlyPlanned
+                ? selectedCats.includes(cat.name)
+                : getAllocPercent(cat.name) > 0 || actual[cat.name] > 0
+              ).map(cat => {
               const pct = getAllocPercent(cat.name)
               const planned = salaryAmt ? Math.round(salaryAmt * pct / 100) : 0
               const actualAmt = actual[cat.name] || 0
@@ -518,8 +559,9 @@ export default function Salary() {
               ))}
             </div>
           )}
+      </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

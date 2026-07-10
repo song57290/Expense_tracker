@@ -184,16 +184,24 @@ function buildPortfolioHTML(d, sections) {
     <table>
       <thead><tr><th>유형</th><th>종목</th><th style="text-align:right">수량</th><th style="text-align:right">평균단가</th><th style="text-align:right">현재가</th><th style="text-align:right">평가금액</th><th style="text-align:right">손익</th></tr></thead>
       <tbody>
-        ${investments.map(i => `
+        ${investments.map(i => {
+          const fx = i.exchange_rate || 1
+          const isUsd = i.itype === '해외주식' && i.exchange_rate
+          const avgKrw = isUsd ? Math.round(i.avg_price * fx) : i.avg_price
+          const curKrw = isUsd ? Math.round(i.current_price * fx) : i.current_price
+          const gain = i.profit || 0
+          const gainPct = i.profit_pct || 0
+          return `
         <tr>
           <td><span class="badge bj">${i.itype}</span></td>
           <td>${i.name}${i.ticker ? ` (${i.ticker})` : ''}</td>
-          <td style="text-align:right">${i.quantity}주</td>
-          <td style="text-align:right">${f(i.avg_price)}원</td>
-          <td style="text-align:right">${f(i.current_price)}원</td>
-          <td style="text-align:right;font-weight:700">${f(i.value)}원</td>
-          <td style="text-align:right;color:${i.gain >= 0 ? '#dc3545' : '#0d6efd'}">${i.gain >= 0 ? '+' : ''}${f(i.gain)}원<br><span style="font-size:11px">(${i.gain >= 0 ? '+' : ''}${((i.avg_price && i.quantity) ? (i.gain / (i.avg_price * i.quantity) * 100).toFixed(1) : 0)}%)</span></td>
-        </tr>`).join('')}
+          <td style="text-align:right">${i.quantity}${i.itype === '코인' ? '개' : '주'}</td>
+          <td style="text-align:right">${f(avgKrw)}원${isUsd ? `<br><span style="font-size:10px;color:#aaa">$${i.avg_price.toFixed(2)}</span>` : ''}</td>
+          <td style="text-align:right">${f(curKrw)}원${isUsd ? `<br><span style="font-size:10px;color:#aaa">$${i.current_price.toFixed(2)}</span>` : ''}</td>
+          <td style="text-align:right;font-weight:700">${f(i.current_value)}원</td>
+          <td style="text-align:right;color:${gain >= 0 ? '#dc3545' : '#0d6efd'}">${gain >= 0 ? '+' : ''}${f(gain)}원<br><span style="font-size:11px">(${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)</span></td>
+        </tr>`
+        }).join('')}
       </tbody>
     </table>
     ${investments.length > 0 ? `<div class="sg" style="margin-top:12px">
@@ -205,35 +213,57 @@ function buildPortfolioHTML(d, sections) {
 
   // 자산 구성 도넛
   const netWorth = d.net_worth || 0
-  const cardTotal = cards.reduce((s, c) => s + (c.balance || 0), 0)
+  const isCashCard = name => name.includes('현금') || name.includes('지갑')
+  const cashCards = cards.filter(c => isCashCard(c.name))
+  const nonCashCards = cards.filter(c => !isCashCard(c.name))
+  const cardPos = nonCashCards.filter(c => (c.balance || 0) > 0).reduce((s, c) => s + (c.balance || 0), 0)
+  const loanTotal = nonCashCards.filter(c => (c.balance || 0) < 0).reduce((s, c) => s + (c.balance || 0), 0)
+  const cashTotal = cashCards.filter(c => (c.balance || 0) > 0).reduce((s, c) => s + (c.balance || 0), 0)
   const depositTotal = savings.filter(s => s.stype === '예금').reduce((s, v) => s + (v.amount || 0), 0)
-  const installTotal = savings.filter(s => s.stype === '적금').reduce((s, v) => s + (v.current_paid || 0), 0)
-  const portfolioItems = []
-if (depositTotal > 0) portfolioItems.push(['예금', depositTotal])
-  if (installTotal > 0) portfolioItems.push(['적금', installTotal])
+  const installTotal = savings.filter(s => s.stype === '적금' || s.stype === '청약').reduce((s, v) => s + (v.current_paid || 0), 0)
+  const assetItems = []
+  if (cardPos > 0) assetItems.push(['통장잔고', cardPos])
+  if (cashTotal > 0) assetItems.push(['현금', cashTotal])
+  if (depositTotal > 0) assetItems.push(['예금', depositTotal])
+  if (installTotal > 0) assetItems.push(['적금/청약', installTotal])
   const invByType = {}
-  investments.forEach(i => { invByType[i.itype] = (invByType[i.itype] || 0) + i.value })
-  Object.entries(invByType).forEach(([k, v]) => { if (v > 0) portfolioItems.push([k, v]) })
-  portfolioItems.sort((a, b) => b[1] - a[1])
-  const donutSvg = makeSvgDonut(portfolioItems, COLORS)
-  const total2 = portfolioItems.reduce((s, x) => s + x[1], 0)
-  const legendHtml = portfolioItems.map(([label, value], i) => {
-    const pct = total2 ? (value / total2 * 100).toFixed(1) : 0
-    const color = COLORS[i % COLORS.length]
-    return (
-      `<div style="margin-bottom:10px">` +
+  investments.forEach(i => { invByType[i.itype] = (invByType[i.itype] || 0) + (i.current_value || 0) })
+  Object.entries(invByType).forEach(([k, v]) => { if (v > 0) assetItems.push([k, v]) })
+  assetItems.sort((a, b) => b[1] - a[1])
+  const assetTotal2 = assetItems.reduce((s, x) => s + x[1], 0)
+  const donutSvg = makeSvgDonut(assetItems, COLORS)
+  const legendHtml = [
+    ...assetItems.map(([label, value], i) => {
+      const pct = assetTotal2 ? (value / assetTotal2 * 100).toFixed(1) : 0
+      const color = COLORS[i % COLORS.length]
+      return (
+        `<div style="margin-bottom:10px">` +
+        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">` +
+        `<svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><rect width="12" height="12" rx="3" fill="${color}"/></svg>` +
+        `<span style="flex:1;font-size:12px">${label}</span>` +
+        `<span style="font-size:12px;font-weight:700">${f(value)}원</span>` +
+        `<span style="font-size:11px;color:#aaa;width:38px;text-align:right">${pct}%</span>` +
+        `</div>` +
+        `<svg width="100%" height="8" style="display:block;border-radius:4px;overflow:hidden">` +
+        `<rect width="100%" height="8" rx="4" fill="#f0f0f0"/>` +
+        `<rect width="${pct}%" height="8" rx="4" fill="${color}"/>` +
+        `</svg></div>`
+      )
+    }),
+    ...(loanTotal < 0 ? [(
+      `<div style="margin-bottom:10px;border-top:1px solid #f0f0f0;padding-top:10px">` +
       `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">` +
-      `<svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><rect width="12" height="12" rx="3" fill="${color}"/></svg>` +
-      `<span style="flex:1;font-size:12px">${label}</span>` +
-      `<span style="font-size:12px;font-weight:700">${f(value)}원</span>` +
-      `<span style="font-size:11px;color:#aaa;width:38px;text-align:right">${pct}%</span>` +
+      `<svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><rect width="12" height="12" rx="3" fill="#ff6b6b"/></svg>` +
+      `<span style="flex:1;font-size:12px;color:#e05555">대출/빚</span>` +
+      `<span style="font-size:12px;font-weight:700;color:#e05555">-${f(Math.abs(loanTotal))}원</span>` +
+      `<span style="font-size:11px;color:#aaa;width:38px;text-align:right">${assetTotal2 ? (Math.abs(loanTotal) / assetTotal2 * 100).toFixed(1) : 0}%</span>` +
       `</div>` +
       `<svg width="100%" height="8" style="display:block;border-radius:4px;overflow:hidden">` +
       `<rect width="100%" height="8" rx="4" fill="#f0f0f0"/>` +
-      `<rect width="${pct}%" height="8" rx="4" fill="${color}"/>` +
+      `<rect width="${assetTotal2 ? Math.min(100, Math.abs(loanTotal) / assetTotal2 * 100).toFixed(1) : 0}%" height="8" rx="4" fill="#ff6b6b"/>` +
       `</svg></div>`
-    )
-  }).join('')
+    )] : []),
+  ].join('')
   const assetCompositionHtml = `<div style="display:flex;flex-direction:column;align-items:center;gap:16px">${donutSvg}<div style="width:100%">${legendHtml}</div></div>`
 
   const sec = sections || {}
@@ -245,7 +275,7 @@ if (depositTotal > 0) portfolioItems.push(['예금', depositTotal])
 <button class="pdfbtn" onclick="window.print()">⬇ PDF 저장</button>
 <div class="hdr">
   <h1>재무 포트폴리오</h1>
-  <div class="meta">계정: ${d.user?.email || ''} &nbsp;|&nbsp; 추출일: ${dateStr}</div>
+  <div class="meta">계정: ${d.user?.email || ''} &nbsp;|&nbsp; 출력일: ${dateStr}</div>
 </div>
 
 ${sec.summary !== false ? `<div class="sec">
@@ -258,7 +288,7 @@ ${sec.summary !== false ? `<div class="sec">
   </div></div>
 </div>` : ''}
 
-${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성 (카드 잔고 제외)</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
+${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
 
 ${sec.cards !== false ? `<div class="sec">
   <h2>카드 / 계좌 (${cards.length}개)</h2>
@@ -436,7 +466,7 @@ export default function Settings() {
 
   const SECTION_LIST = [
     { key: 'summary', label: '순자산 요약' },
-    { key: 'asset_composition', label: '자산 구성 (도넛 차트)' },
+    { key: 'asset_composition', label: '자산 구성' },
     { key: 'cards', label: '카드 / 계좌' },
     { key: 'savings', label: '예적금' },
     { key: 'investments', label: '투자 종목' },
