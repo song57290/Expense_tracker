@@ -151,6 +151,18 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN manual_count INTEGER"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN is_paused BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
             conn.commit()
     except Exception:
@@ -448,7 +460,9 @@ def _savings_stats(s, extra_deposit=0):
             start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
         except Exception:
             start = today
-        months_elapsed = max(0, (today.year - start.year) * 12 + (today.month - start.month))
+        months_elapsed_auto = max(0, (today.year - start.year) * 12 + (today.month - start.month))
+        manual_count = getattr(s, 'manual_count', None)
+        months_elapsed = manual_count if manual_count is not None else months_elapsed_auto
         current_paid = s.amount * months_elapsed + extra_deposit
         rate = s.interest_rate or 0
         itype = getattr(s, 'interest_type', '단리') or '단리'
@@ -482,6 +496,7 @@ def _savings_stats(s, extra_deposit=0):
             'tax_type': tax_type,
             'start_date': s.start_date, 'end_date': '',
             'months_total': None, 'months_elapsed': months_elapsed,
+            'months_elapsed_auto': months_elapsed_auto,
             'progress': 0, 'd_day': None,
             'total_paid': current_paid, 'current_paid': current_paid,
             'interest': interest, 'maturity_amount': current_paid + interest_after_tax,
@@ -491,6 +506,8 @@ def _savings_stats(s, extra_deposit=0):
             'auto_tx': bool(getattr(s, 'auto_tx', False)),
             'auto_tx_day': getattr(s, 'auto_tx_day', None),
             'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
+            'manual_count': manual_count,
+            'is_paused': bool(getattr(s, 'is_paused', False)),
         }
     try:
         start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
@@ -1692,6 +1709,11 @@ def api_saving(sid):
         s.auto_tx_day = int(atd) if atd else None
     if 'auto_tx_card' in data:
         s.auto_tx_card = data['auto_tx_card'] or ''
+    if 'manual_count' in data:
+        mc = data['manual_count']
+        s.manual_count = int(mc) if mc is not None else None
+    if 'is_paused' in data:
+        s.is_paused = bool(data['is_paused'])
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1868,7 +1890,7 @@ def api_salary():
             if s.stype not in ('적금', '청약'):
                 continue
             auto_tx = bool(getattr(s, 'auto_tx', False))
-            if not auto_tx:
+            if not auto_tx or bool(getattr(s, 'is_paused', False)):
                 continue
             fixed_list.append({'id': s.id, 'name': s.name, 'amount': s.amount,
                                 'day_of_month': getattr(s, 'auto_tx_day', None),
@@ -1985,6 +2007,8 @@ def api_pending_registers():
     # 적금/청약 자동이체
     for s in Savings.query.filter_by(user_id=uid, auto_tx=True).all():
         if s.stype not in ('적금', '청약'):
+            continue
+        if bool(getattr(s, 'is_paused', False)):
             continue
         atd = getattr(s, 'auto_tx_day', None)
         if not atd or atd != today_day:

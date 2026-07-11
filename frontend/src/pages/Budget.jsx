@@ -325,6 +325,8 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   const [deposits, setDeposits] = useState([])
   const [depForm, setDepForm] = useState({ amount: '', date: today(), memo: '' })
   const [depLoading, setDepLoading] = useState(false)
+  const [countEditOpen, setCountEditOpen] = useState(false)
+  const [countEditVal, setCountEditVal] = useState('')
 
   async function loadDeposits() {
     const res = await api.get(`/api/savings/${item.id}/deposits`)
@@ -349,6 +351,32 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   async function deleteDeposit(did) {
     await api.delete(`/api/savings/deposits/${did}`)
     await loadDeposits()
+    if (onDepositChange) onDepositChange()
+  }
+
+  async function handlePauseToggle(e) {
+    e.stopPropagation()
+    if (item.is_paused) {
+      await api.put(`/api/savings/${item.id}`, { is_paused: false, manual_count: null })
+    } else {
+      await api.put(`/api/savings/${item.id}`, { is_paused: true, manual_count: item.months_elapsed })
+    }
+    if (onDepositChange) onDepositChange()
+  }
+
+  async function handleCountSave(e) {
+    e.stopPropagation()
+    const n = parseInt(countEditVal)
+    if (isNaN(n) || n < 0) return
+    await api.put(`/api/savings/${item.id}`, { manual_count: n })
+    setCountEditOpen(false)
+    if (onDepositChange) onDepositChange()
+  }
+
+  async function handleCountAuto(e) {
+    e.stopPropagation()
+    await api.put(`/api/savings/${item.id}`, { manual_count: null })
+    setCountEditOpen(false)
     if (onDepositChange) onDepositChange()
   }
 
@@ -412,6 +440,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
             {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>}
             {isCheongYak && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
+            {isCheongYak && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a' }}>⏸ 일시정지</span>}
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
         </div>
@@ -437,10 +466,27 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
             <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
-        {isCheongYak && (
-          <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
-            <span>{item.months_elapsed}회차 납입 중</span>
+        {isCheongYak && !countEditOpen && (
+          <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {item.months_elapsed}회차 납입 중
+              {item.manual_count != null && <span style={{ fontSize: '0.62rem', color: '#b088f9', fontWeight: 700 }}>수동</span>}
+              <button onClick={e => { e.stopPropagation(); setCountEditVal(String(item.months_elapsed)); setCountEditOpen(true) }}
+                style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 6, border: 'none', background: '#f0eaff', color: '#b088f9', fontWeight: 700, cursor: 'pointer', marginLeft: 2 }}>✏ 수정</button>
+            </span>
             <span>납입액 {fmt(item.current_paid)}원</span>
+          </div>
+        )}
+        {isCheongYak && countEditOpen && (
+          <div className="d-flex align-items-center mb-1" style={{ gap: 6, fontSize: '0.8rem' }} onClick={e => e.stopPropagation()}>
+            <input type="number" min="0" value={countEditVal} onChange={e => setCountEditVal(e.target.value)}
+              style={{ width: 64, padding: '3px 8px', borderRadius: 8, border: '1.5px solid #b088f9', fontSize: '0.85rem', textAlign: 'center' }} />
+            <span style={{ color: '#888', fontSize: '0.75rem' }}>회</span>
+            <button onClick={handleCountSave} style={{ padding: '3px 10px', borderRadius: 8, border: 'none', background: '#b088f9', color: 'white', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>저장</button>
+            {item.manual_count != null && (
+              <button onClick={handleCountAuto} style={{ padding: '3px 8px', borderRadius: 8, border: 'none', background: '#f0f0f0', color: '#888', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}>자동</button>
+            )}
+            <button onClick={e => { e.stopPropagation(); setCountEditOpen(false) }} style={{ padding: '3px 8px', borderRadius: 8, border: 'none', background: '#f5f5f5', color: '#aaa', fontSize: '0.75rem', cursor: 'pointer' }}>취소</button>
           </div>
         )}
         {item.stype === '예금' && (
@@ -464,10 +510,16 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
         {isCheongYak && (
           <div className="mt-1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.7rem', color: '#aaa' }}>시작일 {item.start_date}</span>
-            <button onClick={e => { e.stopPropagation(); toggleDeposit() }}
-              style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: '#e8fdf0', color: '#198754', fontWeight: 700, cursor: 'pointer' }}>
-              {depositOpen ? '닫기' : '+ 추가 입금'}
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={handlePauseToggle}
+                style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: item.is_paused ? '#fff0e0' : '#f5f5f5', color: item.is_paused ? '#c8630a' : '#888', fontWeight: 700, cursor: 'pointer' }}>
+                {item.is_paused ? '▶ 재개' : '⏸ 일시정지'}
+              </button>
+              <button onClick={e => { e.stopPropagation(); toggleDeposit() }}
+                style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: '#e8fdf0', color: '#198754', fontWeight: 700, cursor: 'pointer' }}>
+                {depositOpen ? '닫기' : '+ 추가 입금'}
+              </button>
+            </div>
           </div>
         )}
         {isCheongYak && depositOpen && (
