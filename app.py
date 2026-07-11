@@ -437,6 +437,14 @@ def api_delete_account():
     session.pop('user_id', None)
     return jsonify({'ok': True})
 
+# ── Transaction filter helpers ───────────────────────────────────────────────
+
+def _is_stats_tx(tx, excl_cats=frozenset()):
+    return not tx.exclude_stats and tx.category not in excl_cats
+
+def _is_perf_tx(tx, excl_cats=frozenset()):
+    return not tx.exclude_perf and tx.category not in excl_cats
+
 # ── Savings helper ───────────────────────────────────────────────────────────
 
 def _savings_stats(s, extra_deposit=0):
@@ -712,8 +720,8 @@ def api_home():
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
 
-    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and not tx.exclude_stats)
-    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and not tx.exclude_stats)
+    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and _is_stats_tx(tx))
+    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and _is_stats_tx(tx))
 
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     budget_amount = budget.amount if budget else 0
@@ -727,7 +735,7 @@ def api_home():
     for card in cards:
         spent = sum(tx.amount for tx in month_txs
                     if tx.type == 'expense' and tx.card == card.name
-                    and not tx.exclude_perf and tx.category not in excl_cats)
+                    and _is_perf_tx(tx, excl_cats))
         card_stats.append({
             'name': card.name,
             'target': card.monthly_target,
@@ -740,7 +748,7 @@ def api_home():
 
     category_totals = defaultdict(int)
     for tx in month_txs:
-        if tx.type == 'expense' and not tx.exclude_stats and tx.category not in excl_stat_cats:
+        if tx.type == 'expense' and _is_stats_tx(tx, excl_stat_cats):
             category_totals[tx.category] += tx.amount
     category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
@@ -838,7 +846,7 @@ def api_cards():
     for card in cards:
         spent = sum(tx.amount for tx in month_txs
                     if tx.type == 'expense' and tx.card == card.name
-                    and not tx.exclude_perf and tx.category not in excl_cats_cards)
+                    and _is_perf_tx(tx, excl_cats_cards))
         stats[card.id] = {
             'spent': spent,
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
@@ -919,8 +927,8 @@ def api_stats():
     income_txs_all = Transaction.query.filter_by(user_id=uid).filter(
         Transaction.type == 'income', Transaction.date.like(f'{month}%')).all()
     excl_stat_cats_stats = {c.name for c in cats if c.exclude_stats}
-    expense_txs = [tx for tx in expense_txs_all if not tx.exclude_stats and tx.category not in excl_stat_cats_stats]
-    income_txs = [tx for tx in income_txs_all if not tx.exclude_stats and tx.category not in excl_stat_cats_stats]
+    expense_txs = [tx for tx in expense_txs_all if _is_stats_tx(tx, excl_stat_cats_stats)]
+    income_txs = [tx for tx in income_txs_all if _is_stats_tx(tx, excl_stat_cats_stats)]
 
     def cat_totals(txs):
         totals = defaultdict(int)
@@ -953,8 +961,8 @@ def api_stats():
             Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
         monthly.append({
             'month': mo,
-            'expense': sum(t.amount for t in e if not t.exclude_stats and t.category not in excl_stat_cats_stats),
-            'income': sum(t.amount for t in inc if not t.exclude_stats and t.category not in excl_stat_cats_stats),
+            'expense': sum(t.amount for t in e if _is_stats_tx(t, excl_stat_cats_stats)),
+            'income': sum(t.amount for t in inc if _is_stats_tx(t, excl_stat_cats_stats)),
         })
 
     cards = Card.query.filter_by(user_id=uid).all()
@@ -968,16 +976,14 @@ def api_stats():
                 Transaction.date.like(f'{mo}%'),
                 Transaction.card == card.name,
             ).all()
-            amt = sum(tx.amount for tx in mo_txs
-                      if not tx.exclude_perf and tx.category not in excl_cats_stats)
+            amt = sum(tx.amount for tx in mo_txs if _is_perf_tx(tx, excl_cats_stats))
             trend.append(amt)
         card_monthly_trend[card.name] = trend
 
     card_monthly = []
     for card in cards:
         spent = sum(tx.amount for tx in expense_txs
-                    if tx.card == card.name
-                    and not tx.exclude_perf and tx.category not in excl_cats_stats)
+                    if tx.card == card.name and _is_perf_tx(tx, excl_cats_stats))
         if spent > 0:
             card_monthly.append({'name': card.name, 'spent': spent})
     card_monthly.sort(key=lambda x: x['spent'], reverse=True)
@@ -1139,8 +1145,7 @@ def api_portfolio_pdf():
         balance = initial + c_inc - c_exp
         spent = sum(tx.amount for tx in card_txs
                     if tx.type == 'expense' and tx.date.startswith(current_month)
-                    and not tx.exclude_perf and not tx.exclude_stats
-                    and tx.category not in excl_cats_report and tx.category not in excl_stat_cats_report)
+                    and _is_perf_tx(tx, excl_cats_report) and _is_stats_tx(tx, excl_stat_cats_report))
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'balance': balance,
                            'spent': spent, 'target': card.monthly_target, 'percent': percent})
@@ -1620,7 +1625,7 @@ def api_budget():
             month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
             perf_spent = sum(tx.amount for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
-                             and not tx.exclude_perf and tx.category not in excl_cats_budget)
+                             and _is_perf_tx(tx, excl_cats_budget))
             # account card: balance includes all linked cards' transactions
             if card.id in linked_names:
                 for lname in linked_names[card.id]:
@@ -2118,8 +2123,8 @@ def api_portfolio():
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
     excl_stat_cats_port = {c.name for c in Category.query.filter_by(user_id=uid, exclude_stats=True).all()}
-    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
-    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
+    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and _is_stats_tx(tx, excl_stat_cats_port))
+    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and _is_stats_tx(tx, excl_stat_cats_port))
     cards = Card.query.filter_by(user_id=uid).all()
     card_stats = []
     for card in cards:
@@ -2128,7 +2133,7 @@ def api_portfolio():
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
         spent = sum(tx.amount for tx in card_txs
                     if tx.type == 'expense' and tx.date.startswith(current_month)
-                    and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
+                    and _is_stats_tx(tx, excl_stat_cats_port))
         initial_balance = current_balance - month_income + spent
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial_balance,
