@@ -27,6 +27,7 @@ class Transaction(db.Model):
     card = db.Column(db.String(50), nullable=True)
     user_id = db.Column(db.Integer, nullable=True)
     exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
+    exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -42,6 +43,7 @@ class Category(db.Model):
     cat_type = db.Column(db.String(10), nullable=False, default='expense')
     user_id = db.Column(db.Integer, nullable=True)
     exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
+    exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
 
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)

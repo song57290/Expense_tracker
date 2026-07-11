@@ -117,7 +117,7 @@ export default function Home() {
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
-  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false })
+  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
   const navigate = useNavigate()
@@ -138,7 +138,8 @@ export default function Home() {
       if (cats.length && !cats.find(c => c[0] === form.category)) {
         const defaultCat = cats[0][0]
         const autoExcl = form.type === 'expense' && (data.excl_cat_names || []).includes(defaultCat)
-        setForm(f => ({ ...f, category: defaultCat, exclude_perf: autoExcl }))
+        const autoExclStats = (data.excl_stat_cat_names || []).includes(defaultCat)
+        setForm(f => ({ ...f, category: defaultCat, exclude_perf: autoExcl, exclude_stats: autoExclStats }))
       }
     }
   }, [form.type, data])
@@ -286,7 +287,7 @@ export default function Home() {
                 <input type="date" className="form-control" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
               </div>
               <div className="col-6 col-lg-2">
-                <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, exclude_perf: false }))}>
+                <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, exclude_perf: false, exclude_stats: false }))}>
                   <option value="expense">지출</option>
                   <option value="income">수입</option>
                 </select>
@@ -295,7 +296,8 @@ export default function Home() {
                 <select className="form-select" value={form.category} onChange={e => {
                   const cat = e.target.value
                   const autoExcl = form.type === 'expense' && (data.excl_cat_names || []).includes(cat)
-                  setForm(f => ({ ...f, category: cat, exclude_perf: autoExcl }))
+                  const autoExclStats = (data.excl_stat_cat_names || []).includes(cat)
+                  setForm(f => ({ ...f, category: cat, exclude_perf: autoExcl, exclude_stats: autoExclStats }))
                 }}>
                   {cats.map(([name, icon]) => <option key={name} value={name}>{icon} {name}</option>)}
                 </select>
@@ -342,6 +344,15 @@ export default function Home() {
                   </div>
                 </div>
               )}
+              <div className="col-12">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+                  <label style={{ flex: 1, fontSize: '0.85rem', color: '#555', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                  <div className="ios-toggle">
+                    <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
+                    <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
+                  </div>
+                </div>
+              </div>
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem' }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
@@ -349,7 +360,7 @@ export default function Home() {
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn"
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); setForm(f => ({ ...f, exclude_perf: false })) }}>취소</button>
+                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false })) }}>취소</button>
                 </div>
               </div>
             </form>
@@ -386,6 +397,7 @@ export default function Home() {
                         {tx.card && (() => { const bc = bankColor(tx.card); return <span className="ms-1 badge" style={{ fontSize: '0.65rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
                         <span className={`ms-1 badge ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.68rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
                         {tx.exclude_perf && <span className="ms-1 badge" style={{ fontSize: '0.62rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span>}
+                        {tx.exclude_stats && <span className="ms-1 badge" style={{ fontSize: '0.62rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span>}
                         <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
                         <span className="ms-1" style={{ fontSize: '0.85rem' }}>{tx.category}</span>
                         {tx.description && <>

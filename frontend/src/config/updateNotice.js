@@ -2,10 +2,19 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.24b'
-export const UPDATE_DATE = '2026년 7월 10일'
+export const CURRENT_VERSION = 'ver 2.25'
+export const UPDATE_DATE = '2026년 7월 11일'
 
 export const UPDATES = [
+  {
+    section: '📊 통계 제외 기능',
+    items: [
+      { tag: 'new', title: '거래별 통계 제외 토글', desc: '홈·수정 탭에서 수입·지출 모두 "통계에서 제외" 토글 제공 — 계좌이체 등 통계 수치를 왜곡하는 거래에 사용' },
+      { tag: 'new', title: '카테고리별 통계 제외 설정', desc: '카테고리 관리에서 지출·수입 카테고리 모두 통계 제외 설정 가능 — 설정된 카테고리 거래 추가 시 토글 자동 켜짐' },
+      { tag: 'imp', title: '통계 탭 자동 필터링', desc: '제외 설정된 거래·카테고리는 도넛 차트, 월별 추이, 지출/수입 합계에서 자동으로 제외' },
+      { tag: 'imp', title: '통계제외 배지 표시', desc: '통계 제외된 거래와 카테고리에 파란색 "통계제외" 배지 표시' },
+    ],
+  },
   {
     section: '💱 카드 실적 제외',
     items: [
@@ -49,12 +58,28 @@ export const UPDATES = [
   {
     section: '🔧 버그 수정',
     items: [
+      { tag: 'fix', title: '포트폴리오 PDF 메모리 초과 오류 수정', desc: '포트폴리오 PDF 생성 시 서버 메모리 부족으로 프로세스가 종료되던 문제 수정 — 거래내역 표시를 최근 50건으로 제한' },
       { tag: 'fix', title: '포트폴리오 해외주식 금액 오류 수정', desc: '재무 포트폴리오 PDF 및 화면에서 해외주식 평가금액이 환율 미적용 달러 그대로 표시되던 문제 수정 — 원화로 올바르게 환산' },
     ],
   },
 ]
 
 export const VERSION_HISTORY = [
+  {
+    version: 'ver 2.24b',
+    date: '2026년 7월 10일',
+    updates: [
+      { section: '🔗 연결 계좌 (카드 공유 잔고)', items: [
+        { tag: 'new', title: '계좌-카드 연결 기능', desc: '자산 추가 시 "연결 계좌" 선택 가능 — 하나의 은행 계좌 잔고를 여러 카드가 공유하면서, 실적·목표는 카드별로 분리 관리' },
+        { tag: 'imp', title: '연결 카드 들여쓰기 표시', desc: '연결된 카드는 계좌 아래 들여쓰기로 그룹 표시, 🔗 배지로 어느 계좌에 연결됐는지 구분' },
+        { tag: 'imp', title: '잔고 이중 계산 방지', desc: '자산별 잔고 종합에서 연결 카드는 잔고 합산에서 제외 — 계좌에서 이미 합산되어 이중 계산 방지' },
+      ]},
+      { section: '💱 카드 실적 제외', items: [
+        { tag: 'new', title: '거래별 실적 제외 토글', desc: '홈 탭 내역 추가·수정 시 "카드 실적에서 제외" 토글 제공' },
+        { tag: 'new', title: '카테고리별 실적 제외 설정', desc: '카테고리 관리에서 지출 카테고리에 실적 제외 설정 가능' },
+      ]},
+    ],
+  },
   {
     version: 'ver 2.23',
     date: '2026년 7월 9일',

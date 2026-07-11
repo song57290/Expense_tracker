@@ -12,7 +12,7 @@ export default function Edit() {
   useEffect(() => {
     api.get(`/api/transactions/${id}`).then(d => {
       setData(d)
-      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: d.transaction.description || '', card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false })
+      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: d.transaction.description || '', card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false, exclude_stats: d.transaction.exclude_stats || false })
       setAmountDisplay(Number(d.transaction.amount).toLocaleString('ko-KR'))
     }).catch(console.error)
   }, [id])
@@ -88,7 +88,7 @@ export default function Edit() {
               </select>
             </div>
             {form.type === 'expense' && (
-              <div className="mb-4">
+              <div className="mb-2">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
                   <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
                   <div className="ios-toggle">
@@ -98,6 +98,15 @@ export default function Edit() {
                 </div>
               </div>
             )}
+            <div className="mb-4">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+                <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                <div className="ios-toggle">
+                  <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
+                  <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
+                </div>
+              </div>
+            </div>
             <div className="d-flex justify-content-between gap-2">
               <button type="button" className="btn btn-outline-danger" onClick={handleDelete}>삭제</button>
               <div className="d-flex gap-2">
