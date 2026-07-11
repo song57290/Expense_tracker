@@ -381,6 +381,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   }
 
   const onDragStart = e => {
+    if (countEditOpen) return
     if (e.touches) {
       const cx = e.touches[0].clientX
       const wrap = e.currentTarget.closest('.page-wrap')
@@ -440,7 +441,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
             {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f5f5f5', color: '#888' }}>{item.interest_type || '단리'}</span>}
             {isCheongYak && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
-            {isCheongYak && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a' }}>⏸ 일시정지</span>}
+            {item.stype !== '예금' && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a' }}>⏸ 일시정지</span>}
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
         </div>
@@ -464,6 +465,12 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#888' }}>
             <span>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
             <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
+          </div>
+        )}
+        {item.stype === '적금' && item.bonus_amount > 0 && (
+          <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#0d6efd' }}>
+            <span>🎁 정부 지원금 {fmt(item.bonus_amount)}원/월</span>
+            <span>만기 지원금 합계 +{fmt(item.bonus_total)}원</span>
           </div>
         )}
         {isCheongYak && !countEditOpen && (
@@ -505,6 +512,14 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
               <span style={{ fontSize: '0.7rem', color: '#b088f9', fontWeight: 600 }}>{item.progress}%</span>
               <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{item.end_date}</span>
             </div>
+            {item.stype === '적금' && (
+              <div className="mt-1" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handlePauseToggle}
+                  style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: item.is_paused ? '#fff0e0' : '#f5f5f5', color: item.is_paused ? '#c8630a' : '#888', fontWeight: 700, cursor: 'pointer' }}>
+                  {item.is_paused ? '▶ 재개' : '⏸ 일시정지'}
+                </button>
+              </div>
+            )}
           </>
         )}
         {isCheongYak && (
@@ -574,6 +589,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   const [autoTx, setAutoTx] = useState(false)
   const [autoTxDay, setAutoTxDay] = useState('')
   const [autoTxCard, setAutoTxCard] = useState('')
+  const [bonusAmount, setBonusAmount] = useState('')
   const [cards, setCards] = useState([])
 
   useEffect(() => {
@@ -594,8 +610,9 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setAutoTx(!!editItem.auto_tx)
       setAutoTxDay(editItem.auto_tx_day ? String(editItem.auto_tx_day) : '')
       setAutoTxCard(editItem.auto_tx_card || '')
+      setBonusAmount(editItem.bonus_amount ? String(editItem.bonus_amount) : '')
     } else {
-      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard(''); setBonusAmount('')
     }
   }, [open, editItem])
 
@@ -618,6 +635,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       auto_tx: (isCheongYak || stype === '적금') ? autoTx : false,
       auto_tx_day: autoTx && autoTxDay ? parseInt(autoTxDay) : null,
       auto_tx_card: autoTx ? autoTxCard : '',
+      bonus_amount: stype === '적금' && bonusAmount ? parseInt(bonusAmount.replace(/,/g, '')) : null,
     }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
     else await api.post('/api/savings', payload)
@@ -737,6 +755,17 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
                 </div>
                 <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>입력 시 해당 날짜 오전 9시에 납입 알림을 받습니다. 알림을 받으려면 설정에서 알림을 켜주세요.</p>
+              </div>
+            )}
+            {stype === '적금' && (
+              <div className="mb-3">
+                <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🎁 월 정부 지원금 <span style={{ color: '#aaa', fontWeight: 400 }}>(청년도약·내일저축 등, 없으면 비워두세요)</span></label>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" className="form-control" placeholder="없음" inputMode="numeric"
+                    value={bonusAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setBonusAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                    style={{ borderRadius: 10, paddingRight: 36 }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
               </div>
             )}
             {(stype === '적금' || stype === '청약') && (

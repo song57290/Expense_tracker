@@ -394,16 +394,16 @@ export default function Home() {
                       <div className="me-2" style={{ minWidth: 0 }}>
                         <span className="text-muted" style={{ fontSize: '0.78rem' }}>{tx.date}</span>
                         <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                        {tx.card && (() => { const bc = bankColor(tx.card); return <span className="ms-1 badge" style={{ fontSize: '0.65rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
-                        <span className={`ms-1 badge ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.68rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
-                        {tx.exclude_perf && <span className="ms-1 badge" style={{ fontSize: '0.62rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span>}
-                        {tx.exclude_stats && <span className="ms-1 badge" style={{ fontSize: '0.62rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span>}
+                        {tx.card && (() => { const bc = bankColor(tx.card); return <span className="ms-1 badge" style={{ fontSize: '0.72rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
+                        <span className={`ms-1 badge ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.72rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
                         <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
                         <span className="ms-1" style={{ fontSize: '0.85rem' }}>{tx.category}</span>
                         {tx.description && <>
                           <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
                           <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description}</span>
                         </>}
+                        {tx.exclude_perf && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span></>}
+                        {tx.exclude_stats && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span></>}
                       </div>
                       <div className="text-end flex-shrink-0">
                         <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: '0.95rem' }}>
