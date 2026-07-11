@@ -163,6 +163,12 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings ADD COLUMN bonus_amount INTEGER"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
             conn.commit()
     except Exception:
@@ -225,10 +231,10 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.25'
+    _help_version = 'ver2.27'
     _help_defaults = [
         ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
-        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
+        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n• ✏ 납입 회차 수동 설정: 청약 카드에서 현재 납입 회차를 직접 수정 가능 (수동 설정 시 보라색 "수동" 표시)\n• ⏸ 일시정지: 청약·적금 카드에서 납입 일시정지 — 일시정지 중에는 자동이체 팝업과 고정 지출에서 자동 제외\n• 🎁 정부 지원금: 청년도약계좌 등 월 정부 지원금 등록 시 만기 수령액에 자동 합산 (비과세 처리)\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
         ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동'),
         ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 통장잔고·현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출/빚 차감 후 순자산\n  - 대출/빚 계좌가 있으면 목록 하단에 빨간��으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
         ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
@@ -258,45 +264,18 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.25'
+    _notice_v = 'ver 2.27'
     _notice = {
         'version': _notice_v,
         'date': '2026년 7월 11일',
         'updates': [
-            {'section': '💱 카드 실적 제외', 'items': [
-                {'tag': 'new', 'title': '거래별 실적 제외 토글', 'desc': '홈 탭 내역 추가·수정 시 "카드 실적에서 제외" 토글 제공 — 계좌이체·대출 상환 등 실적 미포함 거래에 사용'},
-                {'tag': 'new', 'title': '카테고리별 실적 제외 설정', 'desc': '카테고리 관리에서 지출 카테고리에 실적 제외 설정 가능 — 설정된 카테고리의 거래 추가 시 토글이 자동으로 켜짐'},
-                {'tag': 'imp', 'title': '실적 제외 배지 표시', 'desc': '실적 제외된 거래와 카테고리에 "실적제외" 배지 표시'},
+            {'section': '🏦 예금·적금·청약', 'items': [
+                {'tag': 'new', 'title': '청약 납입 회차 수동 설정', 'desc': '청약 카드에서 ✏ 수정 버튼 → 현재 납입 회차를 직접 지정 가능 — 꾸준히 납입하지 않은 경우 정확한 회차로 보정 (수동 설정 시 보라색 "수동" 표시)'},
+                {'tag': 'new', 'title': '청약·적금 일시정지', 'desc': '⏸ 버튼으로 납입을 일시정지 — 일시정지 중에는 자동이체 팝업과 고정 지출 목록에서 자동 제외, ▶ 버튼으로 재개'},
+                {'tag': 'new', 'title': '정부 지원금 반영', 'desc': '청년도약계좌·청년내일저축계좌 등 월 정부 지원금 등록 시 만기 수령액에 자동 합산 — 지원금은 비과세 처리'},
             ]},
-            {'section': '💸 대출 · 빚 지원', 'items': [
-                {'tag': 'new', 'title': '음수 잔고 지원', 'desc': '예산 탭 자산 등록 시 초기 잔고에 음수(-) 입력 가능 — 대출·빚 계좌를 잔고 음수로 등록해 부채도 함께 관리'},
-                {'tag': 'imp', 'title': '통계 탭 자산 구성에 대출 표시', 'desc': '통계 탭 자산 구성 차트에 대출/빚 항목이 빨간색으로 별도 표시 — 도넛 중앙은 대출 차감 후 순자산으로 변경'},
-                {'tag': 'imp', 'title': '통계 탭 현금 표시', 'desc': '통계 탭 자산 구성에 현금(지갑) 계좌 잔고도 포함'},
-                {'tag': 'imp', 'title': '포트폴리오 자산 구성 개선', 'desc': '포트폴리오 PDF의 자산 구성 항목에 통장잔고·현금·대출/빚 별도 표시, 청약 납입금도 포함'},
-            ]},
-            {'section': '🏦 ISA 세금 개선', 'items': [
-                {'tag': 'new', 'title': 'ISA 일반형 · 서민형 구분', 'desc': '예적금 ISA 세금 종류를 일반형(비과세 200만원)과 서민형(비과세 400만원)으로 선택 가능'},
-                {'tag': 'fix', 'title': 'ISA 이자 세금 계산 정확도 개선', 'desc': '비과세 한도 초과분에만 9.9% 분리과세 적용 — 기존에는 전액 과세되던 오류 수정'},
-                {'tag': 'imp', 'title': 'ISA 예금 · 적금 안내', 'desc': 'ISA 내 예금·적금 가입은 신탁형에서만 가능하다는 안내 문구 추가'},
-            ]},
-            {'section': '📈 투자 계좌 종류', 'items': [
-                {'tag': 'new', 'title': '계좌 종류 선택', 'desc': '투자 종목 등록 시 일반 / ISA / 연금저축 / IRP 중 계좌 종류 선택 가능'},
-                {'tag': 'imp', 'title': '계좌 종류 배지', 'desc': '일반 외 계좌(ISA·연금저축·IRP)는 종목 카드에 색상 배지로 표시'},
-            ]},
-            {'section': '🔗 연결 계좌 (카드 공유 잔고)', 'items': [
-                {'tag': 'new', 'title': '계좌-카드 연결 기능', 'desc': '자산 추가 시 "연결 계좌" 선택 가능 — 하나의 은행 계좌 잔고를 여러 카드가 공유하면서, 실적·목표는 카드별로 분리 관리'},
-                {'tag': 'imp', 'title': '연결 카드 들여쓰기 표시', 'desc': '연결된 카드는 계좌 아래 들여쓰기로 그룹 표시, 🔗 배지로 어느 계좌에 연결됐는지 구분'},
-                {'tag': 'imp', 'title': '잔고 이중 계산 방지', 'desc': '자산별 잔고 종합에서 연결 카드는 잔고 합산에서 제외 — 계좌에서 이미 합산되어 이중 계산 방지'},
-            ]},
-            {'section': '📊 통계 제외 기능', 'items': [
-                {'tag': 'new', 'title': '거래별 통계 제외 토글', 'desc': '홈·수정 탭에서 수입·지출 모두 "통계에서 제외" 토글 제공 — 계좌이체 등 통계 수치를 왜곡하는 거래에 사용'},
-                {'tag': 'new', 'title': '카테고리별 통계 제외 설정', 'desc': '카테고리 관리에서 지출·수입 카테고리 모두 통계 제외 설정 가능 — 설정된 카테고리 거래 추가 시 토글 자동 켜짐'},
-                {'tag': 'imp', 'title': '통계 탭 자동 필터링', 'desc': '제외 설정된 거래·카테고리는 도넛 차트, 월별 추이, 지출/수입 합계에서 자동으로 제외'},
-                {'tag': 'imp', 'title': '통계제외 배지 표시', 'desc': '통계 제외된 거래와 카테고리에 파란색 "통계제외" 배지 표시'},
-            ]},
-            {'section': '🔧 버그 수정', 'items': [
-                {'tag': 'fix', 'title': '포트폴리오 해외주식 금액 오류 수정', 'desc': '재무 포트폴리오 PDF 및 화면에서 해외주식 평가금액이 환율 미적용 달러 그대로 표시되던 문제 수정 — 원화로 올바르게 환산'},
-                {'tag': 'fix', 'title': '포트폴리오 PDF 메모리 초과 오류 수정', 'desc': '포트폴리오 PDF 생성 시 서버 메모리 부족으로 프로세스가 종료되던 문제 수정 — 거래내역 표시를 최근 50건으로 제한하고 가격 자동 조회를 PDF에서 제외'},
+            {'section': '🎨 UI 개선', 'items': [
+                {'tag': 'imp', 'title': '실적제외·통계제외 배지 위치 개선', 'desc': '홈 탭 내역 목록에서 배지가 설명 바로 옆에 | 구분자로 표시 — 카테고리와 혼동 없이 한눈에 확인'},
             ]},
         ]
     }
@@ -515,9 +494,11 @@ def _savings_stats(s, extra_deposit=0):
     except Exception:
         start = today; end = today
     months_total = max(1, (end.year - start.year) * 12 + (end.month - start.month))
-    months_elapsed = max(0, min(months_total, (today.year - start.year) * 12 + (today.month - start.month)))
+    months_elapsed_auto = max(0, min(months_total, (today.year - start.year) * 12 + (today.month - start.month)))
+    _manual_count = getattr(s, 'manual_count', None)
+    months_elapsed = _manual_count if _manual_count is not None else months_elapsed_auto
     days_total = max(1, (end - start).days)
-    days_elapsed = max(0, (today - start).days)
+    days_elapsed = max(0, min(days_total, (today - start).days)) if _manual_count is None else int(_manual_count / months_total * days_total)
     progress = min(100.0, round(days_elapsed / days_total * 100, 1))
     d_day = (end - today).days
     rate = s.interest_rate or 0
@@ -534,6 +515,9 @@ def _savings_stats(s, extra_deposit=0):
     else:  # 적금, 청약
         total_paid = s.amount * months_total
         current_paid = s.amount * months_elapsed
+        bonus_amount = getattr(s, 'bonus_amount', None) or 0
+        bonus_total = bonus_amount * months_total if bonus_amount else 0
+        bonus_current = bonus_amount * months_elapsed if bonus_amount else 0
         n = months_total
         r_m = rate / 100 / 12
         if itype == '복리' and r_m > 0:
@@ -541,7 +525,7 @@ def _savings_stats(s, extra_deposit=0):
         else:
             # 적금 단리: 월납입액 × 월이율 × n(n+1)/2
             interest = int(s.amount * r_m * n * (n + 1) / 2)
-        maturity_amount = total_paid + interest
+        maturity_amount = total_paid + bonus_total + interest
     # 세금: 이자소득세(14%) 원 미만 절사 → 지방소득세 = 이자소득세의 10% 원 미만 절사
     if tax_type == '비과세':
         tax = 0
@@ -558,13 +542,14 @@ def _savings_stats(s, extra_deposit=0):
         tax = income_tax + (int(income_tax * 0.1) // 10) * 10
     interest_after_tax = interest - tax
     principal = s.amount if s.stype == '예금' else total_paid
-    maturity_after_tax = principal + interest_after_tax
+    maturity_after_tax = principal + interest_after_tax + (bonus_total if s.stype != '예금' else 0)
     return {
         'id': s.id, 'stype': s.stype, 'bank': s.bank, 'name': s.name,
         'amount': s.amount, 'interest_rate': rate, 'interest_type': itype,
         'tax_type': tax_type,
         'start_date': s.start_date, 'end_date': s.end_date,
         'months_total': months_total, 'months_elapsed': months_elapsed,
+        'months_elapsed_auto': months_elapsed_auto,
         'progress': progress, 'd_day': d_day,
         'total_paid': total_paid, 'current_paid': current_paid,
         'interest': interest, 'maturity_amount': maturity_amount,
@@ -573,6 +558,11 @@ def _savings_stats(s, extra_deposit=0):
         'auto_tx': bool(getattr(s, 'auto_tx', False)),
         'auto_tx_day': getattr(s, 'auto_tx_day', None),
         'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
+        'manual_count': _manual_count,
+        'is_paused': bool(getattr(s, 'is_paused', False)),
+        'bonus_amount': getattr(s, 'bonus_amount', None) or 0,
+        'bonus_total': bonus_total if s.stype != '예금' else 0,
+        'bonus_current': bonus_current if s.stype != '예금' else 0,
     }
 
 _KST = timezone(timedelta(hours=9))
@@ -1674,6 +1664,7 @@ def api_savings():
             auto_tx=bool(data.get('auto_tx', False)),
             auto_tx_day=int(atd) if atd else None,
             auto_tx_card=data.get('auto_tx_card', '') or '',
+            bonus_amount=int(data['bonus_amount']) if data.get('bonus_amount') else None,
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -1714,6 +1705,9 @@ def api_saving(sid):
         s.manual_count = int(mc) if mc is not None else None
     if 'is_paused' in data:
         s.is_paused = bool(data['is_paused'])
+    if 'bonus_amount' in data:
+        ba = data['bonus_amount']
+        s.bonus_amount = int(ba) if ba else None
     db.session.commit()
     return jsonify({'ok': True})
 
