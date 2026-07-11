@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api.js'
 
 const fmt = n => Number(n || 0).toLocaleString()
@@ -22,6 +23,60 @@ export default function Salary() {
   const [wonInputs, setWonInputs] = useState({})
   const [selectedCats, setSelectedCats] = useState([])
   const [catPickerOpen, setCatPickerOpen] = useState(false)
+
+  const [dragIdx, setDragIdx] = useState(-1)
+  const [dragOverIdx, setDragOverIdx] = useState(-1)
+  const [dragY, setDragY] = useState(0)
+  const dragActive = useRef(false)
+  const dragFrom = useRef(-1)
+  const dragOffset = useRef(0)
+  const dragContainerRect = useRef(null)
+  const catListRef = useRef(null)
+
+  function handleDragStart(e, idx) {
+    e.preventDefault()
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const rows = catListRef.current?.querySelectorAll('[data-drag-row]')
+    if (rows?.[idx]) dragOffset.current = clientY - rows[idx].getBoundingClientRect().top
+    if (catListRef.current) dragContainerRect.current = catListRef.current.getBoundingClientRect()
+    dragActive.current = true
+    dragFrom.current = idx
+    setDragIdx(idx)
+    setDragOverIdx(idx)
+    setDragY(clientY)
+  }
+
+  function handleDragMove(e) {
+    if (!dragActive.current) return
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    setDragY(clientY)
+    const rows = catListRef.current?.querySelectorAll('[data-drag-row]')
+    if (!rows) return
+    let toIdx = rows.length - 1
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect()
+      if (clientY < rect.top + rect.height / 2) { toIdx = i; break }
+    }
+    setDragOverIdx(toIdx)
+  }
+
+  function handleDragEnd() {
+    if (!dragActive.current) return
+    dragActive.current = false
+    const from = dragFrom.current
+    const to = dragOverIdx
+    if (from >= 0 && to >= 0 && from !== to) {
+      setSelectedCats(prev => {
+        const next = [...prev]
+        const [item] = next.splice(from, 1)
+        next.splice(to, 0, item)
+        return next
+      })
+    }
+    setDragIdx(-1)
+    setDragOverIdx(-1)
+    dragFrom.current = -1
+  }
 
   const TAB_ORDER = ['plan', 'fixed', 'compare']
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
@@ -163,6 +218,7 @@ export default function Salary() {
   const cardStyle = { background: 'white', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '18px 16px', marginBottom: 12 }
 
   return (
+    <>
     <div style={{ padding: '16px 14px 100px', maxWidth: 540, margin: '0 auto' }}>
       <h5 className="fw-bold mb-3">월급 관리</h5>
 
@@ -272,36 +328,52 @@ export default function Salary() {
           {salaryAmt > 0 && (
             <>
               {/* 선택된 카테고리 목록 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: selectedCats.length ? 14 : 0 }}>
-                {selectedCats.map(catName => {
+              <div
+                ref={catListRef}
+                onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
+                onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
+                style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: selectedCats.length ? 14 : 0 }}
+              >
+                {selectedCats.map((catName, i) => {
                   const cat = categories.find(c => c.name === catName)
                   if (!cat) return null
                   const wonStr = wonInputs[catName] || ''
                   const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
                   const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
+                  const isDragging = dragIdx === i
+                  const showLineAbove = dragIdx >= 0 && dragOverIdx === i && dragFrom.current > i
+                  const showLineBelow = dragIdx >= 0 && dragOverIdx === i && dragFrom.current < i
                   return (
                     <div key={catName}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <button onClick={() => removeCat(catName)}
-                            style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {won > 0 && salaryAmt > 0 && (
-                            <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct.toFixed(1)}%</span>
-                          )}
-                          <div style={{ position: 'relative', width: 120 }}>
-                            <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
-                              onChange={e => handleWonInput(catName, e.target.value)}
-                              style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }} />
-                            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                      {showLineAbove && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
+                      <div data-drag-row style={{ opacity: isDragging ? 0 : 1, transition: 'opacity 0.1s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span
+                              onMouseDown={e => handleDragStart(e, i)}
+                              onTouchStart={e => handleDragStart(e, i)}
+                              style={{ cursor: 'grab', color: '#ccc', fontSize: '1.05rem', padding: '0 4px', touchAction: 'none', userSelect: 'none', lineHeight: 1 }}>⠿</span>
+                            <button onClick={() => removeCat(catName)}
+                              style={{ background: 'none', border: 'none', color: '#ccc', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
+                            <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {won > 0 && salaryAmt > 0 && (
+                              <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct.toFixed(1)}%</span>
+                            )}
+                            <div style={{ position: 'relative', width: 120 }}>
+                              <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
+                                onChange={e => handleWonInput(catName, e.target.value)}
+                                style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid #e8e0f8', fontSize: '0.88rem', textAlign: 'right', background: '#faf8ff' }} />
+                              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                            </div>
                           </div>
                         </div>
+                        <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
+                        </div>
                       </div>
-                      <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
-                      </div>
+                      {showLineBelow && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
                     </div>
                   )
                 })}
@@ -563,5 +635,37 @@ export default function Salary() {
         </div>
       </div>
     </div>
+
+    {dragIdx >= 0 && dragContainerRect.current && createPortal(
+      <div style={{ position: 'fixed', top: dragY - dragOffset.current, left: dragContainerRect.current.left, width: dragContainerRect.current.width, zIndex: 9999, pointerEvents: 'none', padding: '0 2px' }}>
+        {(() => {
+          const catName = selectedCats[dragIdx]
+          const cat = categories.find(c => c.name === catName)
+          if (!cat) return null
+          const wonStr = wonInputs[catName] || ''
+          const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
+          const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
+          return (
+            <div style={{ background: 'white', borderRadius: 10, boxShadow: '0 8px 28px rgba(176,136,249,0.28)', border: '2px solid #b088f9', padding: '8px 10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: '#b088f9', fontSize: '1.05rem', padding: '0 4px' }}>⠿</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {won > 0 && salaryAmt > 0 && <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600 }}>{pct.toFixed(1)}%</span>}
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#333' }}>{wonStr || '0'}원</span>
+                </div>
+              </div>
+              <div style={{ height: 4, background: '#f0eaff', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
+              </div>
+            </div>
+          )
+        })()}
+      </div>,
+      document.body
+    )}
+    </>
   )
 }

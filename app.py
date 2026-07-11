@@ -231,16 +231,16 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.28'
+    _help_version = 'ver2.29'
     _help_defaults = [
         ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 내역 목록은 날짜별로 그룹화되어 표시\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
         ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n• ✏ 납입 회차 수동 설정: 청약 카드에서 현재 납입 회차를 직접 수정 가능 (수동 설정 시 보라색 "수동" 표시)\n• ⏸ 일시정지: 청약·적금 카드에서 납입 일시정지 — 일시정지 중에는 자동이체 팝업과 고정 지출에서 자동 제외\n• 🎁 정부 지원금: 청년도약계좌 등 월 정부 지원금 등록 시 만기 수령액에 자동 합산 (비과세 처리)\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
         ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동\n\n📋 월별 내역 목록\n• 달력 하단에 해당 월 전체 내역이 날짜별로 그룹화되어 표시\n• 전체 / 지출 / 수입 탭으로 필터링 가능\n• 달 이동 시 목록 자동 갱신'),
-        ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 통장잔고·현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출/빚 차감 후 순자산\n  - 대출/빚 계좌가 있으면 목록 하단에 빨간��으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능'),
-        ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
+        ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출 차감 후 순자산\n  - 대출 계좌가 있으면 목록 하단에 빨간색으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능\n• 통계에서 제외한 거래·카테고리는 모든 집계에서 자동 제외'),
+        ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n• ⠿ 핸들을 드래그하여 카테고리 순서 변경 가능\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
         ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다.\n(설정 탭 → 카테고리 관리 버튼으로 접근)\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리\n\n💱 카드 실적 제외\n• 지출 카테고리에 "카드 실적에서 제외" 설정 가능\n• 설정 시 해당 카테고리의 모든 거래가 카드 실적 집계에서 제외됨\n• 계좌이체·대출 상환 전용 카테고리 등에 활용\n• 실적 제외 카테고리는 목록에 "실적제외" 배지로 표시'),
         ('⚙️', '설정', '앱 환경을 설정합니다.\n\n• 🆕 업데이트 내역: 최근 업데이트 내용을 언제든 다시 확인 (이전 버전 기록도 열람 가능)\n• 공지사항: 앱 업데이트 및 안내 확인\n• 🏷️ 카테고리 관리: 지출·수입 카테고리 추가·수정·삭제·순서 변경\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴'),
-        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 통장잔고·현금·예금·적금/청약·투자 항목 포함, 금액 큰 순서대로 정렬\n• 대출/빚 계좌가 있으면 구분선 아래 빨간색으로 별도 표시\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
+        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 현금·예금·적금/청약·투자 항목 포함, 금액 큰 순서대로 정렬\n• 도넛 차트 중앙은 대출 차감 후 순자산 표시\n• 대출 계좌가 있으면 구분선 아래 빨간색으로 별도 표시\n• 이달 수입·지출은 통계에서 제외한 내역을 자동으로 제외\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
     ]
     _help_v_cfg = AppConfig.query.get('help_version')
     if _help_v_cfg is None or _help_v_cfg.value != _help_version:
@@ -264,20 +264,26 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.28'
+    _notice_v = 'ver 2.29'
     _notice = {
         'version': _notice_v,
         'date': '2026년 7월 11일',
         'updates': [
-            {'section': '📅 캘린더', 'items': [
-                {'tag': 'new', 'title': '월별 내역 목록', 'desc': '캘린더 하단에 해당 월 전체 내역이 날짜별로 표시 — 전체/지출/수입 탭으로 필터링, 달 이동 시 자동 갱신'},
+            {'section': '💰 월급', 'items': [
+                {'tag': 'new', 'title': '카테고리 순서 드래그 변경', 'desc': '월급 탭 예산 배분 카테고리를 ⠿ 핸들로 드래그하여 순서 변경 — 드래그 중 카드가 실시간으로 따라오는 미리보기 제공'},
             ]},
-            {'section': '🏠 홈', 'items': [
-                {'tag': 'imp', 'title': '내역 목록 날짜 그룹화', 'desc': '홈 탭 내역 목록이 날짜별로 묶여 표시 — 같은 날 거래를 한 카드에서 한눈에 확인'},
+            {'section': '📅 캘린더', 'items': [
+                {'tag': 'new', 'title': '내역 정렬 버튼', 'desc': '월별 내역 목록에 최신순 / 오래된순 정렬 토글 버튼 추가 — 달 이동 시 최신순으로 초기화'},
+            ]},
+            {'section': '📄 포트폴리오', 'items': [
+                {'tag': 'imp', 'title': '자산 구성 순자산 표시', 'desc': '도넛 차트 중앙이 "총 자산" 대신 대출 차감 후 "순자산"으로 표시'},
+                {'tag': 'imp', 'title': '자산 구성 통장잔고 제외', 'desc': '포트폴리오 자산 구성 도넛에서 통장잔고 항목 제거 — 예금·적금/청약·투자 중심으로 표시'},
+                {'tag': 'imp', 'title': '청약 경과 기간 표시', 'desc': '청약 카드의 D-NaN·null개월 오류 수정 — 시작일 기준 경과 일수(D+X)와 경과 개월수로 정확히 표시'},
             ]},
             {'section': '🔧 버그 수정 · 개선', 'items': [
-                {'tag': 'fix', 'title': '대출 카드 실적 제외', 'desc': '카드 실적 섹션에 대출 계좌가 포함되던 문제 수정 — 대출/빚 계좌는 카드 실적에서 자동 제외'},
-                {'tag': 'imp', 'title': '대출 잔고 입력 개선', 'desc': '자산 추가·수정 시 대출/빚 유형 선택 시 잔고 입력란에 자동으로 - 적용'},
+                {'tag': 'fix', 'title': '통계 청약 추가입금 반영', 'desc': '청약 추가입금이 통계 탭 적금/청약 합계에 반영되지 않던 문제 수정'},
+                {'tag': 'fix', 'title': '홈·포트폴리오 통계제외 필터링', 'desc': '홈 탭 카테고리별 지출과 포트폴리오 이달 지출에 통계에서 제외한 내역이 포함되던 문제 수정'},
+                {'tag': 'imp', 'title': '자산 구성 대출 표시', 'desc': '통계 탭 자산 구성 "대출/빚" 레이블을 "대출"로 변경'},
             ]},
         ]
     }
@@ -706,8 +712,8 @@ def api_home():
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
 
-    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income')
-    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense')
+    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and not tx.exclude_stats)
+    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and not tx.exclude_stats)
 
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     budget_amount = budget.amount if budget else 0
@@ -734,7 +740,7 @@ def api_home():
 
     category_totals = defaultdict(int)
     for tx in month_txs:
-        if tx.type == 'expense':
+        if tx.type == 'expense' and not tx.exclude_stats and tx.category not in excl_stat_cats:
             category_totals[tx.category] += tx.amount
     category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
@@ -1002,6 +1008,11 @@ def api_stats():
         tf_y, tf_m = tt_y, tt_m
 
     # 투자 현재 평가액
+    all_savings_deposits = SavingsDeposit.query.filter_by(user_id=uid).all()
+    extra_deposits_stats = {}
+    for dep in all_savings_deposits:
+        extra_deposits_stats[dep.savings_id] = extra_deposits_stats.get(dep.savings_id, 0) + dep.amount
+
     inv_list = Investment.query.filter_by(user_id=uid).all()
     inv_by_type = {}
     for inv in inv_list:
@@ -1020,7 +1031,7 @@ def api_stats():
     card_balance_now = card_pos + loan_total  # 순 통장잔고 (대출 차감)
     card_balance_all = sum(c.account_balance or 0 for c in cards)  # 자산 추이용 (현금 포함)
     deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
-    installment_total = sum(_savings_stats(s)['current_paid'] for s in savings_list if s.stype in ('적금', '청약'))
+    installment_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype in ('적금', '청약'))
     total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + inv_total_now  # 순자산 (현금·대출 반영)
 
     portfolio_breakdown = []
@@ -1036,7 +1047,7 @@ def api_stats():
         if v > 0:
             portfolio_breakdown.append({'label': k, 'value': v})
     if loan_total < 0:
-        portfolio_breakdown.append({'label': '대출/빚', 'value': loan_total})
+        portfolio_breakdown.append({'label': '대출', 'value': loan_total})
 
     card_initial = card_balance_all
     asset_trend = []
@@ -1046,7 +1057,7 @@ def api_stats():
             bd = {'통장잔고': card_pos, '현금': cash_total, '예금': deposit_total, '적금/청약': installment_total}
             bd.update({k: v for k, v in inv_by_type.items()})
             if loan_total < 0:
-                bd['대출/빚'] = loan_total
+                bd['대출'] = loan_total
             trend_total = card_balance_all + deposit_total + installment_total + inv_total_now
             asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': trend_total, 'breakdown': bd})
         else:
@@ -1063,7 +1074,8 @@ def api_stats():
                 start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
                 if s.stype == '청약':
                     me = max(0, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month))
-                    inst_bal += s.amount * me
+                    extra_dep_mo = sum(d.amount for d in all_savings_deposits if d.savings_id == s.id and d.date <= mo_end)
+                    inst_bal += s.amount * me + extra_dep_mo
                 elif s.stype == '예금':
                     dep_bal += s.amount
                 else:
@@ -1117,6 +1129,7 @@ def api_portfolio_pdf():
     inv_list = Investment.query.filter_by(user_id=uid).all()
 
     excl_cats_report = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
+    excl_stat_cats_report = {c.name for c in Category.query.filter_by(user_id=uid, exclude_stats=True).all()}
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
@@ -1126,12 +1139,16 @@ def api_portfolio_pdf():
         balance = initial + c_inc - c_exp
         spent = sum(tx.amount for tx in card_txs
                     if tx.type == 'expense' and tx.date.startswith(current_month)
-                    and not tx.exclude_perf and tx.category not in excl_cats_report)
+                    and not tx.exclude_perf and not tx.exclude_stats
+                    and tx.category not in excl_cats_report and tx.category not in excl_stat_cats_report)
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'balance': balance,
                            'spent': spent, 'target': card.monthly_target, 'percent': percent})
 
-    sav_stats = [_savings_stats(s) for s in savings_list]
+    extra_deposits_pdf = {}
+    for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
+        extra_deposits_pdf[dep.savings_id] = extra_deposits_pdf.get(dep.savings_id, 0) + dep.amount
+    sav_stats = [_savings_stats(s, extra_deposits_pdf.get(s.id, 0)) for s in savings_list]
     investments = [_investment_stats(i) for i in inv_list]
     inv_total = sum(i['current_value'] for i in investments)
     inv_gain_total = sum(i['profit'] for i in investments)
@@ -1673,7 +1690,10 @@ def api_savings():
         db.session.commit()
         return jsonify({'ok': True})
     items = Savings.query.filter_by(user_id=uid).all()
-    return jsonify({'savings': [_savings_stats(s) for s in items]})
+    extra_deposits_sav = {}
+    for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
+        extra_deposits_sav[dep.savings_id] = extra_deposits_sav.get(dep.savings_id, 0) + dep.amount
+    return jsonify({'savings': [_savings_stats(s, extra_deposits_sav.get(s.id, 0)) for s in items]})
 
 @app.route('/api/savings/<int:sid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -2097,15 +2117,18 @@ def api_portfolio():
     current_month = datetime.now().strftime('%Y-%m')
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
-    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income')
-    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense')
+    excl_stat_cats_port = {c.name for c in Category.query.filter_by(user_id=uid, exclude_stats=True).all()}
+    income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
+    expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
     cards = Card.query.filter_by(user_id=uid).all()
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in transactions if tx.card == card.name]
         current_balance = card.account_balance or 0
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
-        spent = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        spent = sum(tx.amount for tx in card_txs
+                    if tx.type == 'expense' and tx.date.startswith(current_month)
+                    and not tx.exclude_stats and tx.category not in excl_stat_cats_port)
         initial_balance = current_balance - month_income + spent
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial_balance,
@@ -2113,7 +2136,10 @@ def api_portfolio():
                            'month_income': month_income, 'spent': spent,
                            'target': card.monthly_target, 'percent': percent})
     savings_list = Savings.query.filter_by(user_id=uid).all()
-    savings_stats = [_savings_stats(s) for s in savings_list]
+    extra_deposits_port = {}
+    for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
+        extra_deposits_port[dep.savings_id] = extra_deposits_port.get(dep.savings_id, 0) + dep.amount
+    savings_stats = [_savings_stats(s, extra_deposits_port.get(s.id, 0)) for s in savings_list]
     inv_list = Investment.query.filter_by(user_id=uid).all()
     _auto_fetch_investment_prices(inv_list)
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()

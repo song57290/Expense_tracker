@@ -656,7 +656,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h6 className="mb-0 fw-bold">{editItem ? '예적금 수정' : '예적금 추가'}</h6>
+          <h6 className="mb-0 fw-bold">{editItem ? '예·적금 수정' : '예·적금 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -1321,7 +1321,7 @@ export default function Budget() {
             {loanCards.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 12px' }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc3545' }}>💸 대출 / 빚</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc3545' }}>💸 대출 </span>
                   <div style={{ flex: 1, height: 1, background: '#fde8e8' }} />
                 </div>
                 {loanCards.map(card => (
@@ -1379,19 +1379,19 @@ export default function Budget() {
         )
       })()}
 
-      {/* 예적금 섹션 */}
+      {/* 예·적금 섹션 */}
       <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>예적금</span>
+        <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>예·적금</span>
         <button onClick={openSavingsAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-          <i className="bi bi-plus-lg me-1" />예적금 추가
+          <i className="bi bi-plus-lg me-1" />예·적금 추가
         </button>
       </div>
       {(data.savings || []).length === 0 ? (
         <div className="card mb-4 text-center">
           <div className="card-body py-4 text-muted">
             <i className="bi bi-piggy-bank" style={{ fontSize: '2rem' }} />
-            <p className="mt-2 mb-0">등록된 예적금이 없습니다</p>
-            <button onClick={openSavingsAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>예적금 추가 →</button>
+            <p className="mt-2 mb-0">등록된 예·적금이 없습니다</p>
+            <button onClick={openSavingsAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>예·적금 추가 →</button>
           </div>
         </div>
       ) : (
@@ -1403,7 +1403,7 @@ export default function Budget() {
         ))
       )}
 
-      {/* 예적금 종합 */}
+      {/* 예·적금 종합 */}
       {(data.savings || []).length > 0 && (() => {
         const savings = data.savings || []
         const depositTotal = savings.filter(s => s.stype === '예금').reduce((s, i) => s + i.current_paid, 0)
@@ -1413,7 +1413,7 @@ export default function Budget() {
         return (
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid #f0e8fd' }}>
             <div className="card-body py-3">
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>예적금 종합</div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>예·적금 종합</div>
               <div className="d-flex gap-2 mb-2">
                 <div style={{ flex: 1, background: '#faf8ff', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예금 원금</div>
@@ -1509,7 +1509,7 @@ export default function Budget() {
       {confirmSavings && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-            <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>예적금을 삭제하시겠습니까?</p>
+            <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>예·적금을 삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
               <button className="btn flex-fill" onClick={handleDeleteSavings} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSavings(null)} style={{ borderRadius: 10 }}>취소</button>

@@ -36,6 +36,7 @@ export default function Calendar() {
   const [selected, setSelected] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
   const [txFilter, setTxFilter] = useState('all')
+  const [txSortAsc, setTxSortAsc] = useState(false)
   const [yearMonth, setYearMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -53,12 +54,12 @@ export default function Calendar() {
 
   function goPrev() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null); setTxFilter('all')
+    setData(null); setTxFilter('all'); setTxSortAsc(false)
     setYearMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`)
   }
   function goNext() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null); setTxFilter('all')
+    setData(null); setTxFilter('all'); setTxSortAsc(false)
     setYearMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`)
   }
   function openPicker() {
@@ -275,11 +276,16 @@ export default function Calendar() {
           acc[tx.date].push(tx)
           return acc
         }, {})
-        const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+        const dates = Object.keys(byDate).sort((a, b) => txSortAsc ? a.localeCompare(b) : b.localeCompare(a))
         return (
           <div className="mt-3">
             <div className="d-flex justify-content-between align-items-center mb-2">
-              <h5 className="mb-0 fw-bold">내역 목록</h5>
+              <div className="d-flex align-items-center gap-2">
+                <h5 className="mb-0 fw-bold">내역 목록</h5>
+                <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent' }}>
+                  {txSortAsc ? '과거순' : '최신순'}
+                </button>
+              </div>
               <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
             </div>
             {filtered.length === 0 ? (
