@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
+import TxItem from '../components/TxItem.jsx'
 
 // 슬라이딩 탭 인디케이터
 function SlidingTabs({ options, value, onChange }) {
@@ -210,8 +211,8 @@ export default function Home() {
           {[['수입', data.income_total, 'text-success'], ['지출', data.expense_total, 'text-danger'], ['총계', data.balance, 'text-primary']].map(([label, val, cls]) => (
             <div key={label} className="col-4">
               <div className="card text-center"><div className="card-body">
-                <h6 className={`card-title ${cls}`}>{label}</h6>
-                <p className="card-text" style={{ fontSize: '1rem' }}>{fmt(val)}원</p>
+                <h6 className={`card-title fw-bold ${cls}`}>{label}</h6>
+                <p className="card-text fw-bold" style={{ fontSize: '1rem', color: '#222' }}>{fmt(val)}원</p>
               </div></div>
             </div>
           ))}
@@ -256,20 +257,24 @@ export default function Home() {
               <h5 className="card-title mb-0">카테고리별 지출 <span className="text-muted fw-normal" style={{ fontSize: '0.78rem' }}></span></h5>
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
             </div>
-            {catOpen && Object.entries(data.category_totals).sort(([, a], [, b]) => b - a).map(([cat, amt]) => (
-              <div key={cat} className="mb-2 mt-2">
-                <div className="d-flex justify-content-between align-items-center mb-1">
-                  <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
-                    <span style={{ fontSize: '0.72rem', color: '#aaa', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+            {catOpen && (() => {
+              const catEntries = Object.entries(data.category_totals).sort(([, a], [, b]) => b - a)
+              const maxAmt = catEntries[0]?.[1] || 1
+              return catEntries.map(([cat, amt]) => (
+                <div key={cat} className="mb-2 mt-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                      <span className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
+                      <span style={{ fontSize: '0.72rem', color: '#aaa', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+                    </div>
+                  </div>
+                  <div className="progress" style={{ height: 5 }}>
+                    <div className="progress-bar" style={{ width: `${(amt / maxAmt * 80).toFixed(1)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
                   </div>
                 </div>
-                <div className="progress" style={{ height: 5 }}>
-                  <div className="progress-bar" style={{ width: `${catSum > 0 ? Math.round(amt / catSum * 100) : 0}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
-                </div>
-              </div>
-            ))}
+              ))
+            })()}
           </div>
         </div>
       )}
@@ -402,25 +407,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'white', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
-                          <div className="d-flex justify-content-between align-items-start">
-                            <div className="me-2" style={{ minWidth: 0 }}>
-                              {tx.card && (() => { const bc = bankColor(tx.card); return <span className="badge me-1" style={{ fontSize: '0.72rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
-                              <span className={`badge me-1 ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.72rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
-                              <span className="text-muted me-1" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                              <span style={{ fontSize: '0.85rem' }}>{tx.category}</span>
-                              {tx.description && <>
-                                <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                                <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description}</span>
-                              </>}
-                              {tx.exclude_perf && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span></>}
-                              {tx.exclude_stats && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span></>}
-                            </div>
-                            <div className="text-end flex-shrink-0">
-                              <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: '0.95rem' }}>
-                                {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
-                              </div>
-                            </div>
-                          </div>
+                          <TxItem tx={tx} emojiMap={data.emoji_map} />
                         </div>
                       </SwipeItem>
                     ))}
@@ -463,7 +450,7 @@ export default function Home() {
                   <div>
                     <span className="text-muted" style={{ fontSize: '0.78rem' }}>{tx.date}</span>
                     <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35 }}>|</span>
-                    <span className="ms-1" style={{ fontSize: '0.85rem' }}>{tx.category}</span>
+                    <span className="ms-1" style={{ fontSize: '0.85rem' }}>{data.emoji_map?.[tx.category] ? `${data.emoji_map[tx.category]} ` : ''}{tx.category}</span>
                     {tx.description && <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}> {tx.description}</span>}
                   </div>
                   <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: '0.95rem' }}>
