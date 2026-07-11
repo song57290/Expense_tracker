@@ -200,6 +200,8 @@ with app.app_context():
         "ALTER TABLE category ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE investment ADD COLUMN account_type VARCHAR(20) NOT NULL DEFAULT '일반'",
         "ALTER TABLE card ADD COLUMN linked_account_id INTEGER",
+        'ALTER TABLE "transaction" ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
+        "ALTER TABLE category ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0",
     ]:
         try:
             with db.engine.connect() as conn:
@@ -211,7 +213,7 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.24b'
+    _help_version = 'ver2.25'
     _help_defaults = [
         ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
         ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
@@ -244,10 +246,10 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.24b'
+    _notice_v = 'ver 2.25'
     _notice = {
         'version': _notice_v,
-        'date': '2026년 7월 10일',
+        'date': '2026년 7월 11일',
         'updates': [
             {'section': '💱 카드 실적 제외', 'items': [
                 {'tag': 'new', 'title': '거래별 실적 제외 토글', 'desc': '홈 탭 내역 추가·수정 시 "카드 실적에서 제외" 토글 제공 — 계좌이체·대출 상환 등 실적 미포함 거래에 사용'},
@@ -274,8 +276,15 @@ with app.app_context():
                 {'tag': 'imp', 'title': '연결 카드 들여쓰기 표시', 'desc': '연결된 카드는 계좌 아래 들여쓰기로 그룹 표시, 🔗 배지로 어느 계좌에 연결됐는지 구분'},
                 {'tag': 'imp', 'title': '잔고 이중 계산 방지', 'desc': '자산별 잔고 종합에서 연결 카드는 잔고 합산에서 제외 — 계좌에서 이미 합산되어 이중 계산 방지'},
             ]},
+            {'section': '📊 통계 제외 기능', 'items': [
+                {'tag': 'new', 'title': '거래별 통계 제외 토글', 'desc': '홈·수정 탭에서 수입·지출 모두 "통계에서 제외" 토글 제공 — 계좌이체 등 통계 수치를 왜곡하는 거래에 사용'},
+                {'tag': 'new', 'title': '카테고리별 통계 제외 설정', 'desc': '카테고리 관리에서 지출·수입 카테고리 모두 통계 제외 설정 가능 — 설정된 카테고리 거래 추가 시 토글 자동 켜짐'},
+                {'tag': 'imp', 'title': '통계 탭 자동 필터링', 'desc': '제외 설정된 거래·카테고리는 도넛 차트, 월별 추이, 지출/수입 합계에서 자동으로 제외'},
+                {'tag': 'imp', 'title': '통계제외 배지 표시', 'desc': '통계 제외된 거래와 카테고리에 파란색 "통계제외" 배지 표시'},
+            ]},
             {'section': '🔧 버그 수정', 'items': [
                 {'tag': 'fix', 'title': '포트폴리오 해외주식 금액 오류 수정', 'desc': '재무 포트폴리오 PDF 및 화면에서 해외주식 평가금액이 환율 미적용 달러 그대로 표시되던 문제 수정 — 원화로 올바르게 환산'},
+                {'tag': 'fix', 'title': '포트폴리오 PDF 메모리 초과 오류 수정', 'desc': '포트폴리오 PDF 생성 시 서버 메모리 부족으로 프로세스가 종료되던 문제 수정 — 거래내역 표시를 최근 50건으로 제한하고 가격 자동 조회를 PDF에서 제외'},
             ]},
         ]
     }
@@ -698,6 +707,7 @@ def api_home():
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     excl_cats = {c.name for c in expense_cats if c.exclude_perf}
+    excl_stat_cats = {c.name for c in (expense_cats + income_cats) if c.exclude_stats}
     card_stats = []
     for card in cards:
         spent = sum(tx.amount for tx in month_txs
@@ -721,7 +731,7 @@ def api_home():
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
-                          'exclude_perf': bool(tx.exclude_perf)} for tx in month_txs],
+                          'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
         'balance': income_total - expense_total,
@@ -734,6 +744,7 @@ def api_home():
         'emoji_map': emoji_map,
         'category_totals': category_totals,
         'excl_cat_names': list(excl_cats),
+        'excl_stat_cat_names': list(excl_stat_cats),
     })
 
 @app.route('/api/transactions', methods=['POST'])
@@ -746,6 +757,7 @@ def api_add_transaction():
         description=data.get('description', ''), amount=int(data['amount']),
         card=data.get('card') or None,
         exclude_perf=bool(data.get('exclude_perf', False)),
+        exclude_stats=bool(data.get('exclude_stats', False)),
         user_id=uid,
     )
     db.session.add(tx)
@@ -771,6 +783,8 @@ def api_transaction(tx_id):
         tx.card = data.get('card') or None
         if 'exclude_perf' in data:
             tx.exclude_perf = bool(data['exclude_perf'])
+        if 'exclude_stats' in data:
+            tx.exclude_stats = bool(data['exclude_stats'])
         db.session.commit()
         return jsonify({'ok': True})
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
@@ -778,7 +792,7 @@ def api_transaction(tx_id):
     return jsonify({
         'transaction': {'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
-                        'exclude_perf': bool(tx.exclude_perf)},
+                        'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in Card.query.filter_by(user_id=uid).all()],
@@ -883,10 +897,13 @@ def api_stats():
     emoji_map = {c.name: c.icon for c in cats}
     icon_map = {c.name: c.icon for c in cats}
 
-    expense_txs = Transaction.query.filter_by(user_id=uid).filter(
+    expense_txs_all = Transaction.query.filter_by(user_id=uid).filter(
         Transaction.type == 'expense', Transaction.date.like(f'{month}%')).all()
-    income_txs = Transaction.query.filter_by(user_id=uid).filter(
+    income_txs_all = Transaction.query.filter_by(user_id=uid).filter(
         Transaction.type == 'income', Transaction.date.like(f'{month}%')).all()
+    excl_stat_cats_stats = {c.name for c in cats if c.exclude_stats}
+    expense_txs = [tx for tx in expense_txs_all if not tx.exclude_stats and tx.category not in excl_stat_cats_stats]
+    income_txs = [tx for tx in income_txs_all if not tx.exclude_stats and tx.category not in excl_stat_cats_stats]
 
     def cat_totals(txs):
         totals = defaultdict(int)
@@ -917,7 +934,11 @@ def api_stats():
             Transaction.type == 'expense', Transaction.date.like(f'{mo}%')).all()
         inc = Transaction.query.filter_by(user_id=uid).filter(
             Transaction.type == 'income', Transaction.date.like(f'{mo}%')).all()
-        monthly.append({'month': mo, 'expense': sum(t.amount for t in e), 'income': sum(t.amount for t in inc)})
+        monthly.append({
+            'month': mo,
+            'expense': sum(t.amount for t in e if not t.exclude_stats and t.category not in excl_stat_cats_stats),
+            'income': sum(t.amount for t in inc if not t.exclude_stats and t.category not in excl_stat_cats_stats),
+        })
 
     cards = Card.query.filter_by(user_id=uid).all()
     excl_cats_stats = {c.name for c in cats if c.exclude_perf}
@@ -1100,7 +1121,6 @@ def api_portfolio_pdf():
                            'spent': spent, 'target': card.monthly_target, 'percent': percent})
 
     sav_stats = [_savings_stats(s) for s in savings_list]
-    _auto_fetch_investment_prices(inv_list)
     investments = [_investment_stats(i) for i in inv_list]
     inv_total = sum(i['current_value'] for i in investments)
     inv_gain_total = sum(i['profit'] for i in investments)
@@ -1405,11 +1425,12 @@ def api_portfolio_pdf():
             '</tr>'
         )
 
+    display_txs = all_txs[:50]
     txs_html = (
         '<table><thead><tr><th>날짜</th><th>유형</th><th>카테고리</th><th>설명</th><th>카드/계좌</th>'
         '<th style="text-align:right">금액</th></tr></thead>'
-        '<tbody>' + ''.join(tx_row(tx) for tx in all_txs) + '</tbody></table>'
-    ) if all_txs else '<div class="empty">거래 내역이 없습니다</div>'
+        '<tbody>' + ''.join(tx_row(tx) for tx in display_txs) + '</tbody></table>'
+    ) if display_txs else '<div class="empty">거래 내역이 없습니다</div>'
 
     css = """*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif;color:#222;background:#fff;padding:40px;font-size:13px;line-height:1.5}
@@ -1513,7 +1534,7 @@ tbody tr:last-child td{border-bottom:none}
 </div>
 
 <div class="sec">
-  <h2>거래 내역 (총 {len(all_txs)}건)</h2>
+  <h2>거래 내역 (최근 {len(display_txs)}건 / 전체 {len(all_txs)}건)</h2>
   <div class="si">{txs_html}</div>
 </div>
 
@@ -2118,8 +2139,8 @@ def api_categories():
     expense = Category.query.filter_by(cat_type='expense', user_id=uid).order_by(Category.position, Category.id).all()
     income = Category.query.filter_by(cat_type='income', user_id=uid).order_by(Category.position, Category.id).all()
     return jsonify({
-        'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf)} for c in expense],
-        'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf)} for c in income],
+        'expense': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf), 'exclude_stats': bool(c.exclude_stats)} for c in expense],
+        'income': [{'id': c.id, 'name': c.name, 'icon': c.icon, 'type': c.cat_type, 'exclude_perf': bool(c.exclude_perf), 'exclude_stats': bool(c.exclude_stats)} for c in income],
     })
 
 @app.route('/api/categories/reorder', methods=['POST'])
@@ -2148,6 +2169,8 @@ def api_category(cat_id):
     cat.icon = data.get('icon', cat.icon).strip()
     if 'exclude_perf' in data:
         cat.exclude_perf = bool(data['exclude_perf'])
+    if 'exclude_stats' in data:
+        cat.exclude_stats = bool(data['exclude_stats'])
     db.session.commit()
     return jsonify({'ok': True})
 
