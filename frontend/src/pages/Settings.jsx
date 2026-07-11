@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
 
 
-function makeSvgDonut(items, colors, size = 180) {
+function makeSvgDonut(items, colors, size = 180, netTotal = null) {
   const total = items.reduce((s, i) => s + i[1], 0)
   if (!total) return ''
   const cx = size / 2, cy = size / 2, r = size / 2 - 14, ir = r * 0.58
@@ -20,8 +20,10 @@ function makeSvgDonut(items, colors, size = 180) {
     angle += sweep
     return `<path d="${d}" fill="${c}" stroke="#fff" stroke-width="2"/>`
   }).join('')
-  const label = total >= 100000000 ? `${(total/100000000).toFixed(1)}억원` : `${Math.round(total/10000)}만원`
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}<text x="${cx}" y="${cy-7}" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">${label}</text><text x="${cx}" y="${cy+11}" text-anchor="middle" font-size="10" fill="#888">총 자산</text></svg>`
+  const displayVal = netTotal !== null ? netTotal : total
+  const label = Math.abs(displayVal) >= 100000000 ? `${(displayVal/100000000).toFixed(1)}억원` : `${Math.round(displayVal/10000)}만원`
+  const centerLabel = netTotal !== null ? '순자산' : '총 자산'
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}<text x="${cx}" y="${cy-7}" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">${label}</text><text x="${cx}" y="${cy+11}" text-anchor="middle" font-size="10" fill="#888">${centerLabel}</text></svg>`
 }
 
 function buildPortfolioHTML(d, sections) {
@@ -80,11 +82,26 @@ function buildPortfolioHTML(d, sections) {
   const txs = d.transactions || []
   const COLORS = ['#b088f9','#7baff0','#4BC0C0','#FF6384','#FF9F40','#FFCE56','#9966FF']
 
-  const dday = (endStr) => {
-    const diff = Math.round((new Date(endStr) - new Date()) / 86400000)
+  const dday = (s) => {
+    if (s.stype === '청약') {
+      if (!s.start_date) return '-'
+      const diff = Math.round((new Date() - new Date(s.start_date)) / 86400000)
+      return `D+${diff}`
+    }
+    const diff = Math.round((new Date(s.end_date) - new Date()) / 86400000)
     if (diff < 0) return `D+${Math.abs(diff)}`
     if (diff === 0) return 'D-Day'
     return `D-${diff}`
+  }
+  const monthsStr = (s) => {
+    if (s.stype === '청약') {
+      if (!s.start_date) return '-'
+      const st = new Date(s.start_date)
+      const now = new Date()
+      const m = (now.getFullYear() - st.getFullYear()) * 12 + (now.getMonth() - st.getMonth())
+      return `${m}개월`
+    }
+    return `${s.months_total}개월`
   }
 
   const PDF_BANK_LOGOS = [
@@ -136,12 +153,12 @@ function buildPortfolioHTML(d, sections) {
     <div class="sp">
       <div class="sh">
         <div class="sn" style="display:flex;align-items:center;gap:8px">${bankLogoTag(s.bank, 28)}<span>${s.bank}</span>&nbsp;<span class="badge ${s.stype === '예금' ? 'by' : 'bj'}">${s.stype}</span></div>
-        <div class="dd">${dday(s.end_date)}</div>
+        <div class="dd">${dday(s)}</div>
       </div>
       <div class="sg2">
         <div class="ic"><div class="l">${s.stype === '예금' ? '예치금액' : '월 납입액'}</div><div class="v">${f(s.amount)}원</div></div>
         <div class="ic"><div class="l">연 이율</div><div class="v">${s.interest_rate}%</div></div>
-        <div class="ic"><div class="l">기간</div><div class="v">${s.months_total}개월</div></div>
+        <div class="ic"><div class="l">기간</div><div class="v">${monthsStr(s)}</div></div>
       </div>
       <div class="sg2">
         <div class="ic"><div class="l">예상 이자</div><div class="v ci">+${f(s.interest)}원</div></div>
@@ -222,7 +239,6 @@ function buildPortfolioHTML(d, sections) {
   const depositTotal = savings.filter(s => s.stype === '예금').reduce((s, v) => s + (v.amount || 0), 0)
   const installTotal = savings.filter(s => s.stype === '적금' || s.stype === '청약').reduce((s, v) => s + (v.current_paid || 0), 0)
   const assetItems = []
-  if (cardPos > 0) assetItems.push(['통장잔고', cardPos])
   if (cashTotal > 0) assetItems.push(['현금', cashTotal])
   if (depositTotal > 0) assetItems.push(['예금', depositTotal])
   if (installTotal > 0) assetItems.push(['적금/청약', installTotal])
@@ -231,7 +247,7 @@ function buildPortfolioHTML(d, sections) {
   Object.entries(invByType).forEach(([k, v]) => { if (v > 0) assetItems.push([k, v]) })
   assetItems.sort((a, b) => b[1] - a[1])
   const assetTotal2 = assetItems.reduce((s, x) => s + x[1], 0)
-  const donutSvg = makeSvgDonut(assetItems, COLORS)
+  const donutSvg = makeSvgDonut(assetItems, COLORS, 180, netWorth)
   const legendHtml = [
     ...assetItems.map(([label, value], i) => {
       const pct = assetTotal2 ? (value / assetTotal2 * 100).toFixed(1) : 0
@@ -254,7 +270,7 @@ function buildPortfolioHTML(d, sections) {
       `<div style="margin-bottom:10px;border-top:1px solid #f0f0f0;padding-top:10px">` +
       `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">` +
       `<svg width="12" height="12" style="flex-shrink:0;vertical-align:middle"><rect width="12" height="12" rx="3" fill="#ff6b6b"/></svg>` +
-      `<span style="flex:1;font-size:12px;color:#e05555">대출/빚</span>` +
+      `<span style="flex:1;font-size:12px;color:#e05555">대출</span>` +
       `<span style="font-size:12px;font-weight:700;color:#e05555">-${f(Math.abs(loanTotal))}원</span>` +
       `<span style="font-size:11px;color:#aaa;width:38px;text-align:right">${assetTotal2 ? (Math.abs(loanTotal) / assetTotal2 * 100).toFixed(1) : 0}%</span>` +
       `</div>` +
@@ -288,7 +304,7 @@ ${sec.summary !== false ? `<div class="sec">
   </div></div>
 </div>` : ''}
 
-${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
+${sec.asset_composition !== false ? `<div class="sec"><h2>자산 구성(잔고 제외)</h2><div class="si">${assetCompositionHtml}</div></div>` : ''}
 
 ${sec.cards !== false ? `<div class="sec">
   <h2>카드 / 계좌 (${cards.length}개)</h2>

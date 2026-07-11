@@ -87,7 +87,7 @@ function SwipeItem({ children, onDelete, onEdit }) {
   const editWidth = Math.max(0, offsetX)
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 10, marginBottom: 6, border: '1px solid #eee' }}>
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: deleteWidth, background: '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
         <i className="bi bi-trash" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>삭제</span>
       </div>
