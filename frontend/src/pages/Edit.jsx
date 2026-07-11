@@ -90,7 +90,7 @@ export default function Edit() {
             {form.type === 'expense' && (
               <div className="mb-2">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
-                  <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
+                  <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem' }}>💱 카드 실적에서 제외</label>
                   <div className="ios-toggle">
                     <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
                     <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
@@ -100,7 +100,7 @@ export default function Edit() {
             )}
             <div className="mb-4">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
-                <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem' }}>📊 통계에서 제외</label>
                 <div className="ios-toggle">
                   <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
                   <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />

@@ -4,7 +4,8 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
-import { fmt, fmtMonth, fmtDate } from '../utils.js'
+import { fmt, fmtMonth, fmtDate, bankColor } from '../utils.js'
+import TxItem from '../components/TxItem.jsx'
 
 function SlidingTabs({ options, value, onChange }) {
   const tabRefs = useRef([])
@@ -221,17 +222,9 @@ export default function Calendar() {
             <div style={{ overflowY: 'auto', padding: '8px 20px 40px' }}>
               {!selDay || selDay.length === 0 ? (
                 <p style={{ color: '#aaa', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
-              ) : selDay.map(tx => (
-                <div key={tx.id} className="d-flex align-items-center py-2" style={{ borderBottom: '1px solid #f5f5f5' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1c1c1e' }}>{tx.category}</div>
-                    {(tx.description || tx.card) && (
-                      <div style={{ fontSize: '0.75rem', color: '#999' }}>{[tx.description, tx.card].filter(Boolean).join(' · ')}</div>
-                    )}
-                  </div>
-                  <div style={{ fontWeight: 700, color: tx.type === 'income' ? '#34c759' : '#ff3b30', flexShrink: 0 }}>
-                    {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
-                  </div>
+              ) : selDay.map((tx, i) => (
+                <div key={tx.id} style={{ padding: '10px 0', borderBottom: i < selDay.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                  <TxItem tx={tx} emojiMap={data.emoji_map} />
                 </div>
               ))}
             </div>
@@ -250,15 +243,15 @@ export default function Calendar() {
         <div className="card-body">
           <div className="d-flex justify-content-around">
             <div className="text-center">
-              <div style={{ fontSize: '0.78rem', color: '#34c759', fontWeight: 600 }}>수입</div>
+              <div style={{ fontSize: '0.95rem', color: '#34c759', fontWeight: 600 }}>수입</div>
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total)}원</div>
             </div>
             <div className="text-center">
-              <div style={{ fontSize: '0.78rem', color: '#ff3b30', fontWeight: 600 }}>지출</div>
+              <div style={{ fontSize: '0.95rem', color: '#ff3b30', fontWeight: 600 }}>지출</div>
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.expense_total)}원</div>
             </div>
             <div className="text-center">
-              <div style={{ fontSize: '0.78rem', color: '#007aff', fontWeight: 600 }}>총계</div>
+              <div style={{ fontSize: '0.95rem', color: '#007aff', fontWeight: 600 }}>총계</div>
               <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total - data.expense_total)}원</div>
             </div>
           </div>
@@ -280,13 +273,13 @@ export default function Calendar() {
         return (
           <div className="mt-3">
             <div className="d-flex justify-content-between align-items-center mb-2">
+              <h5 className="mb-0 fw-bold">내역 목록</h5>
               <div className="d-flex align-items-center gap-2">
-                <h5 className="mb-0 fw-bold">내역 목록</h5>
-                <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent' }}>
+                <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', whiteSpace: 'nowrap' }}>
                   {txSortAsc ? '과거순' : '최신순'}
                 </button>
+                <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
               </div>
-              <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
             </div>
             {filtered.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#bbb', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
@@ -297,23 +290,8 @@ export default function Calendar() {
                 </div>
                 <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                   {byDate[date].map((tx, i) => (
-                    <div key={tx.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1c1c1e', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                          <span style={{ marginRight: 2 }}>{data.emoji_map[tx.category] || ''}</span>
-                          <span>{tx.category}</span>
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#999', marginTop: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                          {tx.card && <span style={{ fontSize: '0.72rem', background: '#f0eeff', color: '#b088f9', border: '1px solid #e0d0ff', borderRadius: 4, padding: '0 4px', fontWeight: 600 }}>{tx.card}</span>}
-                          {tx.card && tx.description && <span style={{ opacity: 0.35 }}>|</span>}
-                          {tx.description && <span>{tx.description}</span>}
-                          {tx.exclude_perf && <><span style={{ opacity: 0.35 }}>|</span><span style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc', borderRadius: 4, padding: '0 4px' }}>실적제외</span></>}
-                          {tx.exclude_stats && <><span style={{ opacity: 0.35 }}>|</span><span style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5', borderRadius: 4, padding: '0 4px' }}>통계제외</span></>}
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: tx.type === 'income' ? '#34c759' : '#ff3b30', flexShrink: 0, marginLeft: 8 }}>
-                        {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
-                      </div>
+                    <div key={tx.id} style={{ padding: '12px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                      <TxItem tx={tx} emojiMap={data.emoji_map} />
                     </div>
                   ))}
                 </div>
