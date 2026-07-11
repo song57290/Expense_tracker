@@ -73,6 +73,8 @@ class Savings(db.Model):
     auto_tx = db.Column(db.Boolean, nullable=False, default=False)
     auto_tx_day = db.Column(db.Integer, nullable=True)
     auto_tx_card = db.Column(db.String(50), nullable=True, default='')
+    manual_count = db.Column(db.Integer, nullable=True)
+    is_paused = db.Column(db.Boolean, nullable=False, default=False)
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
