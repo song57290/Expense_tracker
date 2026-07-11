@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -6,10 +6,36 @@ import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
 import { fmt, fmtMonth, fmtDate } from '../utils.js'
 
+function SlidingTabs({ options, value, onChange }) {
+  const tabRefs = useRef([])
+  const indRef = useRef(null)
+  useEffect(() => {
+    const idx = options.findIndex(o => o[0] === value)
+    const tab = tabRefs.current[idx]
+    const ind = indRef.current
+    if (tab && ind) {
+      ind.style.left = tab.offsetLeft + 'px'
+      ind.style.width = tab.offsetWidth + 'px'
+    }
+  }, [value, options])
+  return (
+    <div style={{ display: 'flex', background: '#f0eeff', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
+      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'white', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
+      {options.map(([val, label], i) => (
+        <button key={val} ref={el => tabRefs.current[i] = el} onClick={() => onChange(val)}
+          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '3px 12px', fontSize: '0.8rem', background: 'transparent', color: value === val ? '#b088f9' : '#888', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s' }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function Calendar() {
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
+  const [txFilter, setTxFilter] = useState('all')
   const [yearMonth, setYearMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -27,12 +53,12 @@ export default function Calendar() {
 
   function goPrev() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null)
+    setData(null); setTxFilter('all')
     setYearMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`)
   }
   function goNext() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null)
+    setData(null); setTxFilter('all')
     setYearMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`)
   }
   function openPicker() {
@@ -48,13 +74,12 @@ export default function Calendar() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0 fw-bold">캘린더</h5>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         <div className="d-flex align-items-center gap-1">
-          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
+          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.3rem', padding: '4px 10px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
             <i className="bi bi-chevron-left" />
           </button>
-          <span onClick={openPicker} style={{ fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', userSelect: 'none', padding: '4px 6px' }}>
+          <span onClick={openPicker} style={{ fontSize: '1.25rem', fontWeight: 700, cursor: 'pointer', userSelect: 'none', padding: '4px 10px' }}>
             {fmtMonth(yearMonth)}
           </span>
           <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goNext}>
@@ -238,6 +263,59 @@ export default function Calendar() {
           </div>
         </div>
       </div>
+
+      {/* 월별 내역 목록 */}
+      {(() => {
+        const allTxs = Object.entries(data.day_transactions)
+          .sort(([a], [b]) => b.localeCompare(a))
+          .flatMap(([date, txs]) => txs.map(tx => ({ ...tx, date })))
+        const filtered = allTxs.filter(tx => txFilter === 'all' || tx.type === txFilter)
+        const byDate = filtered.reduce((acc, tx) => {
+          if (!acc[tx.date]) acc[tx.date] = []
+          acc[tx.date].push(tx)
+          return acc
+        }, {})
+        const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+        return (
+          <div className="mt-3">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <h5 className="mb-0 fw-bold">내역 목록</h5>
+              <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
+            </div>
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#bbb', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
+            ) : dates.map(date => (
+              <div key={date} className="mb-2">
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa', padding: '4px 0 2px' }}>
+                  {fmtDate(date)}
+                </div>
+                <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                  {byDate[date].map((tx, i) => (
+                    <div key={tx.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#1c1c1e', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                          <span style={{ marginRight: 2 }}>{data.emoji_map[tx.category] || ''}</span>
+                          <span>{tx.category}</span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#999', marginTop: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                          {tx.card && <span style={{ fontSize: '0.72rem', background: '#f0eeff', color: '#b088f9', border: '1px solid #e0d0ff', borderRadius: 4, padding: '0 4px', fontWeight: 600 }}>{tx.card}</span>}
+                          {tx.card && tx.description && <span style={{ opacity: 0.35 }}>|</span>}
+                          {tx.description && <span>{tx.description}</span>}
+                          {tx.exclude_perf && <><span style={{ opacity: 0.35 }}>|</span><span style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc', borderRadius: 4, padding: '0 4px' }}>실적제외</span></>}
+                          {tx.exclude_stats && <><span style={{ opacity: 0.35 }}>|</span><span style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5', borderRadius: 4, padding: '0 4px' }}>통계제외</span></>}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: tx.type === 'income' ? '#34c759' : '#ff3b30', flexShrink: 0, marginLeft: 8 }}>
+                        {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -133,7 +133,8 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
             <div className="mb-2" style={{ position: 'relative' }}>
               <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '초기 잔고 (음수 입력 시 -부터, 선택)'} inputMode="text"
                 value={initialBalance} onChange={e => {
-                  const neg = e.target.value.startsWith('-')
+                  const forceNeg = assetType === 'loan'
+                  const neg = forceNeg || e.target.value.startsWith('-')
                   const raw = e.target.value.replace(/[^0-9]/g, '')
                   if (!raw) { setInitialBalance(neg ? '-' : ''); return }
                   setInitialBalance((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
