@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api.js'
-import { fmt, today, bankColor, bankLogo } from '../utils.js'
+import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 
 // 슬라이딩 탭 인디케이터
 function SlidingTabs({ options, value, onChange }) {
@@ -226,7 +226,7 @@ export default function Home() {
               <h5 className="card-title mb-0">카드 실적</h5>
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{cardStatOpen ? '▴' : '▾'}</span>
             </div>
-            {cardStatOpen && data.card_stats.map(cs => {
+            {cardStatOpen && data.card_stats.filter(cs => !cs.is_loan).map(cs => {
               const logo = bankLogo(cs.name)
               return (
                 <div key={cs.name} className="mb-3 mt-2">
@@ -386,35 +386,48 @@ export default function Home() {
           {txOpen && (
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
-            ) : (
-              filtered.map(tx => (
-                <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
-                  <div style={{ padding: '16px 14px' }}>
-                    <div className="d-flex justify-content-between align-items-start">
-                      <div className="me-2" style={{ minWidth: 0 }}>
-                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>{tx.date}</span>
-                        <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                        {tx.card && (() => { const bc = bankColor(tx.card); return <span className="ms-1 badge" style={{ fontSize: '0.72rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
-                        <span className={`ms-1 badge ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.72rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
-                        <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                        <span className="ms-1" style={{ fontSize: '0.85rem' }}>{tx.category}</span>
-                        {tx.description && <>
-                          <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-                          <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description}</span>
-                        </>}
-                        {tx.exclude_perf && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span></>}
-                        {tx.exclude_stats && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span></>}
-                      </div>
-                      <div className="text-end flex-shrink-0">
-                        <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: '0.95rem' }}>
-                          {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
-                        </div>
-                      </div>
-                    </div>
+            ) : (() => {
+              const byDate = filtered.reduce((acc, tx) => {
+                if (!acc[tx.date]) acc[tx.date] = []
+                acc[tx.date].push(tx)
+                return acc
+              }, {})
+              const dates = Object.keys(byDate).sort((a, b) => sortAsc ? a.localeCompare(b) : b.localeCompare(a))
+              return dates.map(date => (
+                <div key={date} className="mb-2">
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa', padding: '4px 2px 2px' }}>
+                    {fmtDate(date)}
                   </div>
-                </SwipeItem>
+                  <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    {byDate[date].map((tx, i) => (
+                      <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
+                        <div style={{ padding: '12px 14px', background: 'white', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                          <div className="d-flex justify-content-between align-items-start">
+                            <div className="me-2" style={{ minWidth: 0 }}>
+                              {tx.card && (() => { const bc = bankColor(tx.card); return <span className="badge me-1" style={{ fontSize: '0.72rem', background: bc.background, color: bc.color }}>{tx.card}</span> })()}
+                              <span className={`badge me-1 ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.72rem' }}>{tx.type === 'income' ? '수입' : '지출'}</span>
+                              <span className="text-muted me-1" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
+                              <span style={{ fontSize: '0.85rem' }}>{tx.category}</span>
+                              {tx.description && <>
+                                <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
+                                <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description}</span>
+                              </>}
+                              {tx.exclude_perf && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span></>}
+                              {tx.exclude_stats && <><span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span><span className="ms-1 badge" style={{ fontSize: '0.72rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span></>}
+                            </div>
+                            <div className="text-end flex-shrink-0">
+                              <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: '0.95rem' }}>
+                                {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </SwipeItem>
+                    ))}
+                  </div>
+                </div>
               ))
-            )
+            })()
           )}
         </div>
       </div>
