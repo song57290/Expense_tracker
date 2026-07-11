@@ -274,6 +274,11 @@ with app.app_context():
             ]},
             {'section': '📅 캘린더', 'items': [
                 {'tag': 'new', 'title': '내역 정렬 버튼', 'desc': '월별 내역 목록에 최신순 / 오래된순 정렬 토글 버튼 추가 — 달 이동 시 최신순으로 초기화'},
+                {'tag': 'fix', 'title': '수입·지출·총계 통계제외 반영', 'desc': '캘린더 하단 수입/지출/총계 합계에 "통계에서 제외"한 내역이 포함되던 문제 수정'},
+            ]},
+            {'section': '🎨 UI 개선', 'items': [
+                {'tag': 'imp', 'title': '내역 카테고리 이모지 표시', 'desc': '홈·캘린더 탭 내역 목록에서 카테고리 이름 앞에 설정된 이모지 표시'},
+                {'tag': 'imp', 'title': '홈·캘린더 내역 스타일 통일', 'desc': '캘린더 탭 날짜 클릭 팝업·월별 목록이 홈 탭과 동일한 스타일(카드배지·이모지·배지)로 표시'},
             ]},
             {'section': '📄 포트폴리오', 'items': [
                 {'tag': 'imp', 'title': '자산 구성 순자산 표시', 'desc': '도넛 차트 중앙이 "총 자산" 대신 대출 차감 후 "순자산"으로 표시'},
@@ -892,6 +897,7 @@ def api_calendar():
 
     cats = Category.query.filter_by(user_id=uid).order_by(Category.position, Category.id).all()
     emoji_map = {c.name: c.icon for c in cats}
+    excl_stat_cats = {c.name for c in cats if c.exclude_stats}
 
     day_totals = defaultdict(lambda: {'expense': 0, 'income': 0})
     day_transactions = defaultdict(list)
@@ -906,8 +912,8 @@ def api_calendar():
     return jsonify({
         'day_totals': {k: dict(v) for k, v in day_totals.items()},
         'day_transactions': dict(day_transactions),
-        'income_total': sum(tx.amount for tx in transactions if tx.type == 'income'),
-        'expense_total': sum(tx.amount for tx in transactions if tx.type == 'expense'),
+        'income_total': sum(tx.amount for tx in transactions if tx.type == 'income' and _is_stats_tx(tx, excl_stat_cats)),
+        'expense_total': sum(tx.amount for tx in transactions if tx.type == 'expense' and _is_stats_tx(tx, excl_stat_cats)),
         'emoji_map': emoji_map,
     })
 
