@@ -7,6 +7,7 @@ import {
 } from 'chart.js'
 import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
+import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, bankLogo, fmtMonth } from '../utils.js'
 
@@ -50,6 +51,7 @@ function defaultTrendRange() {
 }
 
 export default function Stats() {
+  const navigate = useNavigate()
   const [month, setMonth] = useState(nowYM)
   const [data, setData] = useState(null)
   const [cardFilter, setCardFilter] = useState('__all__')
@@ -482,51 +484,65 @@ export default function Stats() {
                         plugins: {
                           legend: { display: false },
                           datalabels: { display: false },
-                          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)` } }
+                          tooltip: {
+                            backgroundColor: 'rgba(30,30,30,0.92)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)` }
+                          }
                         }
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {assetItems.map((item, i) => {
-                      const pct = assetTotal ? (item.value / assetTotal * 100).toFixed(1) : 0
-                      return (
-                        <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 12, height: 12, borderRadius: 3, background: PF_COLORS[i % PF_COLORS.length], flexShrink: 0 }} />
-                            <span style={{ flex: 1, fontSize: '0.85rem', color: '#444' }}>{item.label}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#333', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
-                              <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{pct}%</span>
-                            </div>
-                          </div>
-                          <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: PF_COLORS[i % PF_COLORS.length], borderRadius: 6 }} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {debtItems.length > 0 && (
-                      <>
-                        <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 4 }} />
-                        {debtItems.map(item => (
-                          <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{ width: 12, height: 12, borderRadius: 3, background: '#ff6b6b', flexShrink: 0 }} />
-                              <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
-                                <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{assetTotal ? (Math.abs(item.value) / assetTotal * 100).toFixed(1) : 0}%</span>
+                  {(() => {
+                    const toSection = label => ['예금','적금/청약'].includes(label) ? 'savings' : ['국내주식','해외주식','펀드','ETF','리츠'].includes(label) ? 'investment' : 'cards'
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {assetItems.map((item, i) => {
+                          const pct = assetTotal ? (item.value / assetTotal * 100).toFixed(1) : 0
+                          return (
+                            <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }} onClick={() => navigate(`/budget?section=${toSection(item.label)}`)}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 12, height: 12, borderRadius: 3, background: PF_COLORS[i % PF_COLORS.length], flexShrink: 0 }} />
+                                <span style={{ flex: 1, fontSize: '0.85rem', color: '#444' }}>{item.label}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#333', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
+                                  <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{pct}%</span>
+                                </div>
+                              </div>
+                              <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: PF_COLORS[i % PF_COLORS.length], borderRadius: 6 }} />
                               </div>
                             </div>
-                            <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
-                              <div style={{ width: `${assetTotal ? Math.min(100, Math.abs(item.value) / assetTotal * 100) : 0}%`, height: '100%', background: '#ff6b6b', borderRadius: 6 }} />
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
+                          )
+                        })}
+                        {debtItems.length > 0 && (
+                          <>
+                            <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 4 }} />
+                            {debtItems.map(item => {
+                              const pct = assetTotal ? (Math.abs(item.value) / assetTotal * 100).toFixed(1) : 0
+                              return (
+                                <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }} onClick={() => navigate('/budget?section=cards')}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div style={{ width: 12, height: 12, borderRadius: 3, background: '#ff6b6b', flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
+                                      <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{pct}%</span>
+                                    </div>
+                                  </div>
+                                  <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
+                                    <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: '#ff6b6b', borderRadius: 6 }} />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })()}
