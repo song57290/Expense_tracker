@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, bankLogo, fmtMonth, today } from '../utils.js'
 
@@ -1158,6 +1159,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
 }
 
 export default function Budget() {
+  const [searchParams] = useSearchParams()
   const [data, setData] = useState(null)
   const [confirmCard, setConfirmCard] = useState(null)
   const [editCard, setEditCard] = useState(null)
@@ -1182,6 +1184,19 @@ export default function Budget() {
 
   const load = useCallback(() => api.get('/api/budget').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!data) return
+    const section = searchParams.get('section')
+    if (!section) return
+    setTimeout(() => {
+      const el = document.getElementById(`budget-section-${section}`)
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - 40
+        window.scrollTo({ top, behavior: 'smooth' })
+      }
+    }, 100)
+  }, [data, searchParams])
 
   useEffect(() => {
     const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv
@@ -1281,7 +1296,7 @@ export default function Budget() {
 
   return (
     <div>
-      <div className="d-flex align-items-center justify-content-between mb-3 px-1">
+      <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>은행별 잔고</span>
         <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
           <i className="bi bi-plus-lg me-1" />자산 추가
@@ -1380,7 +1395,7 @@ export default function Budget() {
       })()}
 
       {/* 예·적금 섹션 */}
-      <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
+      <div id="budget-section-savings" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>예·적금</span>
         <button onClick={openSavingsAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
           <i className="bi bi-plus-lg me-1" />예·적금 추가
@@ -1440,7 +1455,7 @@ export default function Budget() {
       })()}
 
       {/* 투자 섹션 */}
-      <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
+      <div id="budget-section-investment" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: '#333' }}>투자</span>
         <button onClick={openInvAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
           <i className="bi bi-plus-lg me-1" />투자 추가
