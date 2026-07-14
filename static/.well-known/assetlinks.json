@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.fly.gaegyebu.twa",
+        "sha256_cert_fingerprints": ["0D:B5:1B:D0:E1:5A:12:4B:7B:27:57:EB:B1:A2:22:8C:FE:BB:83:9F:62:C3:72:B9:DF:F0:7E:D2:E9:41:48:98"]
+      }
+    }]
