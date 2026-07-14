@@ -2737,7 +2737,8 @@ def service_worker():
 
 @app.route('/.well-known/assetlinks.json')
 def asset_links():
-    return send_from_directory('static/.well-known', 'assetlinks.json', mimetype='application/json')
+    data = [{"relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "dev.fly.gaegyebu.twa", "sha256_cert_fingerprints": ["7E:49:04:C8:8F:9A:D5:C6:4F:7C:17:FE:38:55:9B:C7:DC:A4:01:16:88:12:A8:72:CA:78:BB:E8:32:63:A0:65"]}}]
+    return jsonify(data)
 
 # ── Push Notification ─────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
