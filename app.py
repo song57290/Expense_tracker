@@ -2735,6 +2735,10 @@ def import_text_confirm():
 def service_worker():
     return send_from_directory('static', 'sw.js')
 
+@app.route('/.well-known/assetlinks.json')
+def asset_links():
+    return send_from_directory('static/.well-known', 'assetlinks.json', mimetype='application/json')
+
 # ── Push Notification ─────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _FILE_DIR = os.environ.get('DATA_DIR', _BASE_DIR)
