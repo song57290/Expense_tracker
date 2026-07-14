@@ -2254,9 +2254,9 @@ def assetlinks():
         'relation': ['delegate_permission/common.handle_all_urls'],
         'target': {
             'namespace': 'android_app',
-            'package_name': 'app.gaegyebu',
+            'package_name': 'dev.fly.gaegyebu.twa',
             'sha256_cert_fingerprints': [
-                '9A:52:C8:28:82:F8:A7:77:E1:CE:0A:93:7F:D2:8E:DB:09:37:C3:C4:09:AF:FF:BF:21:4C:39:9C:D8:2E:3C:76'
+                '7E:49:04:C8:8F:9A:D5:C6:4F:7C:17:FE:38:55:9B:C7:DC:A4:01:16:88:12:A8:72:CA:78:BB:E8:32:63:A0:65'
             ]
         }
     }]
@@ -2735,10 +2735,6 @@ def import_text_confirm():
 def service_worker():
     return send_from_directory('static', 'sw.js')
 
-@app.route('/.well-known/assetlinks.json')
-def asset_links():
-    data = [{"relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "dev.fly.gaegyebu.twa", "sha256_cert_fingerprints": ["7E:49:04:C8:8F:9A:D5:C6:4F:7C:17:FE:38:55:9B:C7:DC:A4:01:16:88:12:A8:72:CA:78:BB:E8:32:63:A0:65"]}}]
-    return jsonify(data)
 
 # ── Push Notification ─────────────────────────────────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
