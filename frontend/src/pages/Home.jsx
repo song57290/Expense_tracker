@@ -128,6 +128,11 @@ export default function Home() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    const d = params.get('date')
+    if (d) setForm(f => ({ ...f, date: d }))
+  }, [params])
+
+  useEffect(() => {
     const open = !!confirmSheet || !!cardSheet || importOpen
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')

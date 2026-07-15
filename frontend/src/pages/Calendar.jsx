@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -33,6 +34,7 @@ function SlidingTabs({ options, value, onChange }) {
 }
 
 export default function Calendar() {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
@@ -217,7 +219,13 @@ export default function Calendar() {
           <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
-              <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); navigate('/?date=' + selected) }, 280) }}
+                  style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: '0.8rem', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                  + 추가
+                </button>
+                <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+              </div>
             </div>
             <div style={{ overflowY: 'auto', padding: '8px 20px 40px' }}>
               {!selDay || selDay.length === 0 ? (
