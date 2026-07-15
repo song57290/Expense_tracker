@@ -27,12 +27,14 @@ export default function UpdateNoticeModal() {
   }, [])
 
   useEffect(() => {
+    const seen = localStorage.getItem('update_version_seen')
+    if (seen !== CURRENT_VERSION) setVisible(true)
+
     fetch('/api/update-notice-config', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
         if (d.version) {
           setConfig(d)
-          const seen = localStorage.getItem('update_version_seen')
           if (seen !== d.version) setVisible(true)
         }
       })
@@ -44,7 +46,7 @@ export default function UpdateNoticeModal() {
   }, [])
 
   function close() {
-    localStorage.setItem('update_version_seen', config.version)
+    localStorage.setItem('update_version_seen', config.version || CURRENT_VERSION)
     setVisible(false)
     setEditOpen(false)
   }
