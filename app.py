@@ -781,6 +781,15 @@ def api_home():
         'excl_stat_cat_names': list(excl_stat_cats),
     })
 
+def _sync_salary_if_needed(uid, category, tx_type, amount):
+    if category == '월급' and tx_type == 'income':
+        cfg = SalaryConfig.query.filter_by(user_id=uid).first()
+        if cfg:
+            cfg.amount = amount
+        else:
+            db.session.add(SalaryConfig(user_id=uid, amount=amount, pay_day=None))
+        db.session.commit()
+
 @app.route('/api/transactions', methods=['POST'])
 @login_required
 def api_add_transaction():
@@ -796,6 +805,7 @@ def api_add_transaction():
     )
     db.session.add(tx)
     db.session.commit()
+    _sync_salary_if_needed(uid, tx.category, tx.type, tx.amount)
     return jsonify({'ok': True, 'id': tx.id})
 
 @app.route('/api/transactions/<int:tx_id>', methods=['GET', 'PUT', 'DELETE'])
@@ -820,6 +830,7 @@ def api_transaction(tx_id):
         if 'exclude_stats' in data:
             tx.exclude_stats = bool(data['exclude_stats'])
         db.session.commit()
+        _sync_salary_if_needed(uid, tx.category, tx.type, tx.amount)
         return jsonify({'ok': True})
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
@@ -2560,6 +2571,7 @@ def import_categorize_confirm():
     os.remove(path)
 
     imported = 0
+    salary_sync = None
     for i, row in enumerate(data['rows']):
         cat = request.form.get(f'cat_{i}', '기타').strip() or '기타'
         card_val = request.form.get(f'card_{i}', '').strip() or None
@@ -2568,9 +2580,13 @@ def import_categorize_confirm():
             description=row['description'], amount=row['amount'],
             card=card_val, user_id=uid,
         ))
+        if cat == '월급' and row['type'] == 'income':
+            salary_sync = row['amount']
         imported += 1
 
     db.session.commit()
+    if salary_sync is not None:
+        _sync_salary_if_needed(uid, '월급', 'income', salary_sync)
     skipped_count = len(data.get('skipped_rows', []))
     return redirect(f'/?imported={imported}&skipped={skipped_count}')
 
@@ -2801,8 +2817,16 @@ def push_subscribe():
     uid = session.get('user_id')
     if uid:
         data['user_id'] = uid
-    subs = [s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')]
+    all_subs = _load_subs()
+    # 동일 엔드포인트 제거 (중복 방지)
+    subs = [s for s in all_subs if s.get('endpoint') != data.get('endpoint')]
     subs.append(data)
+    # 같은 user_id 구독이 3개 초과하면 오래된 것부터 제거
+    if uid:
+        user_subs = [s for s in subs if s.get('user_id') == uid]
+        if len(user_subs) > 3:
+            keep_endpoints = {s['endpoint'] for s in user_subs[-3:]}
+            subs = [s for s in subs if s.get('user_id') != uid or s.get('endpoint') in keep_endpoints]
     _save_subs(subs)
     return {'ok': True}
 
@@ -2822,6 +2846,7 @@ def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기
         data=json.dumps({'title': title, 'body': body, 'url': '/'}),
         vapid_private_key=priv_path,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
+        ttl=86400,
     )
 
 def _scheduled_price_update():
@@ -2872,24 +2897,35 @@ def _send_savings_notifications():
         except Exception as e:
             app.logger.error('Savings notification error: %s', e)
 
+
 @app.route('/api/test-notify', methods=['POST'])
 @login_required
 def test_notify():
     uid = session['user_id']
-    subs = [s for s in _load_subs() if s.get('user_id') == uid or True]
+    all_subs = _load_subs()
+    subs = [s for s in all_subs if s.get('user_id') == uid]
     if not subs:
         return jsonify({'ok': False, 'error': '구독 정보 없음. 알림을 먼저 켜주세요.'}), 400
     sent = 0
     errors = []
+    expired_endpoints = []
     for sub in subs:
         try:
             _do_send_push(sub, title='✅ 테스트 알림', body='알림이 정상 작동합니다!')
             sent += 1
         except Exception as e:
-            errors.append(str(e))
+            err_str = str(e)
+            if '410' in err_str or 'unsubscribed' in err_str or 'expired' in err_str:
+                expired_endpoints.append(sub.get('endpoint'))
+            else:
+                errors.append(err_str)
             app.logger.error('Test push failed: %s', e)
+    if expired_endpoints:
+        _save_subs([s for s in all_subs if s.get('endpoint') not in expired_endpoints])
     if sent > 0:
         return jsonify({'ok': True, 'sent': sent})
+    if expired_endpoints:
+        return jsonify({'ok': False, 'error': '구독이 만료되었습니다. 알림을 껐다가 다시 켜주세요.'}), 400
     return jsonify({'ok': False, 'error': '; '.join(errors)}), 500
 
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':

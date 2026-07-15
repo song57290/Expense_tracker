@@ -16,7 +16,7 @@ self.addEventListener('message', function (e) {
     e.waitUntil(
         caches.open(NAV_CACHE).then(function (cache) {
             return cache.match(url).then(function (hit) {
-                if (hit) return; // 이미 캐시됨
+                if (hit) return;
                 return fetch(url, { credentials: 'same-origin' }).then(function (r) {
                     if (r.ok) return cache.put(url, r);
                 }).catch(function () {});
@@ -45,17 +45,37 @@ self.addEventListener('fetch', function (e) {
 });
 
 self.addEventListener('push', function (e) {
-    var data = e.data ? e.data.json() : {};
-    e.waitUntil(self.registration.showNotification(data.title || '나의 가계부', {
-        body: data.body || '오늘 지출을 기록했나요? 📝',
-        icon: '/static/icon-192.png',
-        badge: '/static/icon-192.png',
-        data: { url: data.url || '/' }
-    }));
+    var data = {};
+    try { data = e.data ? e.data.json() : {}; } catch (err) {}
+    e.waitUntil(
+        self.registration.showNotification(data.title || '나의 가계부', {
+            body: data.body || '오늘 지출을 기록했나요? 📝',
+            icon: '/static/icon-192.png',
+            vibrate: [200, 100, 200],
+            tag: 'gaegyebu-push',
+            data: { url: data.url || '/' }
+        }).catch(function () {
+            return self.registration.showNotification(data.title || '나의 가계부', {
+                body: data.body || '오늘 지출을 기록했나요? 📝',
+                vibrate: [200, 100, 200],
+                tag: 'gaegyebu-push',
+                data: { url: data.url || '/' }
+            });
+        })
+    );
 });
 
 self.addEventListener('notificationclick', function (e) {
     e.notification.close();
-    var url = (e.notification.data && e.notification.data.url) || '/';
-    e.waitUntil(clients.openWindow(url));
+    var url = self.location.origin + ((e.notification.data && e.notification.data.url) || '/');
+    e.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].url.startsWith(self.location.origin) && 'focus' in list[i]) {
+                    return list[i].focus();
+                }
+            }
+            return clients.openWindow(url);
+        })
+    );
 });

@@ -181,8 +181,10 @@ export default function NotifySheet() {
       localStorage.setItem('notifyActive', '0'); setActive(false); setPickerOpen(false)
     } else {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return alert('HTTPS로 접속해주세요.')
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') return alert('알림 권한이 필요합니다.')
+      if (Notification.permission === 'denied') {
+        alert('Chrome에서 알림이 차단되어 있습니다.\n\n해제 방법:\n1. Chrome 앱 실행\n2. 주소창에 gaegyebu.fly.dev 입력 후 접속\n3. 주소창 왼쪽 자물쇠 아이콘 탭\n4. 알림 → 허용\n\n또는: Chrome 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
+        return
+      }
       try {
         const parts = time.split(':')
         const resp = await api.get('/api/vapid-public-key')
@@ -195,7 +197,11 @@ export default function NotifySheet() {
         const r = await api.post('/api/subscribe', subJson)
         if (r.ok) { localStorage.setItem('notifyActive', '1'); setActive(true) }
         else alert('서버 오류가 발생했습니다.')
-      } catch (e) { alert('오류: ' + e.message) }
+      } catch (e) {
+        if (e.name === 'NotAllowedError' || Notification.permission === 'denied')
+          alert('알림이 차단되어 있습니다.\n\n해제 방법: Android 설정 → 앱 → Gaegyebu → 알림 → 허용\n또는 Chrome → 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
+        else alert('오류: ' + e.message)
+      }
     }
   }
 

@@ -34,6 +34,8 @@ export default function Layout({ user, onLogout }) {
 
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
+  useEffect(() => { window.scrollTo(0, 0) }, [location.pathname])
+
   useEffect(() => { dragXRef.current = 0; setDragX(0) }, [location.pathname])
 
   useEffect(() => {
