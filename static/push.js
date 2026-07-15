@@ -99,8 +99,6 @@
             alert('HTTPS로 접속해주세요.');
             return;
         }
-        var perm = await Notification.requestPermission();
-        if (perm !== 'granted') { alert('알림 권한이 필요합니다.'); return; }
         try {
             var timeVal = localStorage.getItem('notifyTime') || '21:00';
             var parts = timeVal.split(':');
@@ -118,7 +116,10 @@
                 localStorage.setItem('notifyActive', '1');
                 updateNotifyUI();
             } else { alert('서버 오류가 발생했습니다.'); }
-        } catch (e) { alert('오류: ' + e.message); }
+        } catch (e) {
+            if (e.name === 'NotAllowedError') { alert('알림 권한이 필요합니다.'); }
+            else { alert('오류: ' + e.message); }
+        }
     };
 
     window.handleTimeChange = async function () {

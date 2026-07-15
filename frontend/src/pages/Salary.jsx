@@ -219,7 +219,7 @@ export default function Salary() {
 
   return (
     <>
-    <div style={{ padding: '16px 14px 100px', maxWidth: 540, margin: '0 auto' }}>
+    <div style={{ padding: '16px 14px 16px', maxWidth: 540, margin: '0 auto' }}>
       <h5 className="fw-bold mb-3">월급 관리</h5>
 
       {/* 월급 설정 카드 */}
