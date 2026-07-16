@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -34,7 +33,6 @@ function SlidingTabs({ options, value, onChange }) {
 }
 
 export default function Calendar() {
-  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
@@ -48,6 +46,48 @@ export default function Calendar() {
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
   const [pickerMode, setPickerMode] = useState('month')
   const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [addVisible, setAddVisible] = useState(false)
+  const [addTab, setAddTab] = useState('manual')
+  const [homeData, setHomeData] = useState(null)
+  const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
+  const [addAmountDisplay, setAddAmountDisplay] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
+
+  function openAdd(date) {
+    setAddOpen(true)
+    setAddTab('manual')
+    setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
+    setAddAmountDisplay('')
+    if (!homeData) api.get('/api/home').then(setHomeData).catch(console.error)
+    requestAnimationFrame(() => requestAnimationFrame(() => setAddVisible(true)))
+  }
+  function closeAdd() {
+    setAddVisible(false)
+    setTimeout(() => setAddOpen(false), 280)
+  }
+  async function handleAddSubmit(e) {
+    e.preventDefault()
+    const amt = parseInt(addAmountDisplay.replace(/,/g, ''))
+    if (!amt || !addForm.category) return
+    setAddSaving(true)
+    try {
+      await api.post('/api/transactions', { ...addForm, amount: amt })
+      closeAdd()
+      load(yearMonth)
+    } finally {
+      setAddSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!homeData || !addOpen) return
+    const cats = addForm.type === 'expense' ? homeData.expense_cats : homeData.income_cats
+    if (cats?.length && !cats.find(c => c[0] === addForm.category)) {
+      setAddForm(f => ({ ...f, category: cats[0][0], card: '' }))
+    }
+  }, [addForm.type, homeData, addOpen])
 
   const load = useCallback((ym) => {
     api.get(`/api/calendar?month=${ym}`).then(setData).catch(console.error)
@@ -141,6 +181,92 @@ export default function Calendar() {
         </div>
       </div>
 
+      {/* 내역 추가 모달 */}
+      {addOpen && createPortal(
+        <div onClick={e => e.target === e.currentTarget && closeAdd()}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: addVisible ? 1 : 0, transition: 'opacity 0.22s' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(addForm.date)} 내역 추가</span>
+              <button onClick={closeAdd} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+            </div>
+            {/* 탭 */}
+            <div style={{ display: 'flex', gap: 4, margin: '12px 20px 0', background: '#f0eeff', borderRadius: 12, padding: 4, flexShrink: 0 }}>
+              {[['manual', '✏️ 직접 입력'], ['text', '💬 문자 가져오기']].map(([t, label]) => (
+                <button key={t} type="button" onClick={() => setAddTab(t)}
+                  style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                    background: addTab === t ? 'white' : 'transparent',
+                    color: addTab === t ? '#b088f9' : '#999',
+                    boxShadow: addTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ overflowY: 'auto', padding: '16px 20px 32px' }}>
+              {addTab === 'manual' ? (
+                !homeData ? (
+                  <div className="text-center py-4"><div className="spinner-border spinner-border-sm" style={{ color: '#b088f9' }} /></div>
+                ) : (
+                  <form onSubmit={handleAddSubmit} className="row g-2">
+                    <div className="col-6">
+                      <input type="date" className="form-control" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} required />
+                    </div>
+                    <div className="col-6">
+                      <select className="form-select" value={addForm.type} onChange={e => setAddForm(f => ({ ...f, type: e.target.value, category: '', exclude_perf: false, exclude_stats: false }))}>
+                        <option value="expense">지출</option>
+                        <option value="income">수입</option>
+                      </select>
+                    </div>
+                    <div className="col-12">
+                      <select className="form-select" value={addForm.category} onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))} required>
+                        <option value="">카테고리 선택</option>
+                        {(addForm.type === 'expense' ? homeData.expense_cats : homeData.income_cats).map(([name]) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-12" style={{ position: 'relative' }}>
+                      <input className="form-control" inputMode="numeric" placeholder="금액" value={addAmountDisplay}
+                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                        required style={{ paddingRight: 36 }} />
+                      <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                    </div>
+                    <div className="col-12">
+                      <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
+                    </div>
+                    <div className="col-12">
+                      <select className="form-select" value={addForm.card} onChange={e => setAddForm(f => ({ ...f, card: e.target.value }))}>
+                        <option value="">카드/계좌 선택</option>
+                        {(homeData.cards || []).map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-12 mt-1">
+                      <button type="submit" className="btn w-100" disabled={addSaving}
+                        style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, borderRadius: 12, padding: '12px 0' }}>
+                        {addSaving ? '저장 중...' : '추가'}
+                      </button>
+                    </div>
+                  </form>
+                )
+              ) : (
+                <form action="/import/text" method="post">
+                  <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: 12 }}>카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.</p>
+                  <textarea name="text" className="form-control mb-3" rows={7}
+                    placeholder={'예) [신한카드] 일시불 50,000원 스타벅스 2026-06-17'}
+                    style={{ fontSize: '0.82rem', resize: 'vertical' }} />
+                  <button type="submit" className="btn w-100"
+                    style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, borderRadius: 12, padding: '12px 0' }}>
+                    분석
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* 년/월 피커 */}
       {pickerOpen && createPortal(
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
@@ -220,7 +346,7 @@ export default function Calendar() {
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); navigate('/?date=' + selected) }, 280) }}
+                <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); openAdd(selected) }, 280) }}
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: '0.8rem', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
                   + 추가
                 </button>
