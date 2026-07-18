@@ -2075,9 +2075,11 @@ def api_fixed_register(fid):
     uid = session['user_id']
     f = FixedExpense.query.filter_by(id=fid, user_id=uid).first_or_404()
     today = datetime.now().strftime('%Y-%m-%d')
+    data = request.get_json() or {}
+    card = data.get('card', f.tx_card) or None
     tx = Transaction(date=today, type=f.tx_type or 'expense',
                      category=f.category or '기타', description=f'[자동] {f.name}',
-                     amount=f.amount, card=f.tx_card or None, user_id=uid)
+                     amount=f.amount, card=card, user_id=uid)
     db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True})
@@ -2088,9 +2090,11 @@ def api_savings_auto_register(sid):
     uid = session['user_id']
     s = Savings.query.filter_by(id=sid, user_id=uid).first_or_404()
     today = datetime.now().strftime('%Y-%m-%d')
+    data = request.get_json() or {}
+    card = data.get('card', getattr(s, 'auto_tx_card', '')) or None
     tx = Transaction(date=today, type='expense',
-                     category='저축', description=f'[자동이체]{s.name}',
-                     amount=s.amount, card=getattr(s, 'auto_tx_card', '') or None, user_id=uid)
+                     category='저축', description=f'[자동이체] {s.name}',
+                     amount=s.amount, card=card, user_id=uid)
     db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True})
