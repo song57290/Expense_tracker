@@ -156,7 +156,7 @@ export default function Calendar() {
                 else if (incomeCount >= expenseCount) { incDots = 2; expDots = 1 }
                 else { incDots = 1; expDots = 2 }
               }
-              const numCol = dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : '#1c1c1e'
+              const numCol = dow === 0 ? 'var(--fc-sun-color)' : dow === 6 ? 'var(--fc-sat-color)' : 'var(--text-primary)'
               return (
                 <>
                   <span style={{ color: numCol }}>{d.getDate()}</span>

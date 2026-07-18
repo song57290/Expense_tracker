@@ -49,7 +49,7 @@ export default function App() {
       .catch(() => {})
     fetch('/api/cards', { credentials: 'same-origin' })
       .then(r => r.json())
-      .then(data => setCardOptions((data.cards || []).map(c => c.name)))
+      .then(data => setCardOptions((data.cards || []).filter(c => (c.account_balance || 0) >= 0).map(c => c.name)))
       .catch(() => {})
   }, [user])
 
