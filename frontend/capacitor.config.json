@@ -1,0 +1,19 @@
+{
+  "appId": "com.gaegyebu.app",
+  "appName": "가계부",
+  "webDir": "dist",
+  "server": {
+    "url": "https://gaegyebu.fly.dev",
+    "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "backgroundColor": "#b088f9",
+      "style": "LIGHT"
+    }
+  }
+}
