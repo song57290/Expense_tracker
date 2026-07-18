@@ -2043,7 +2043,7 @@ def api_pending_registers():
             continue
         already = Transaction.query.filter_by(user_id=uid).filter(
             Transaction.date.like(f'{current_month}%'),
-            Transaction.description == f'[자동]{f.name}',
+            Transaction.description == f'[자동] {f.name}',
         ).first()
         if not already:
             pending.append({'item_type': 'fixed', 'id': f.id, 'name': f.name, 'amount': f.amount,
@@ -2058,7 +2058,7 @@ def api_pending_registers():
         atd = getattr(s, 'auto_tx_day', None)
         if not atd or atd != today_day:
             continue
-        desc = f'[자동이체]{s.name}'
+        desc = f'[자동이체] {s.name}'
         already = Transaction.query.filter_by(user_id=uid).filter(
             Transaction.date.like(f'{current_month}%'),
             Transaction.description == desc,
@@ -2076,7 +2076,7 @@ def api_fixed_register(fid):
     f = FixedExpense.query.filter_by(id=fid, user_id=uid).first_or_404()
     today = datetime.now().strftime('%Y-%m-%d')
     tx = Transaction(date=today, type=f.tx_type or 'expense',
-                     category=f.category or '기타', description=f'[자동]{f.name}',
+                     category=f.category or '기타', description=f'[자동] {f.name}',
                      amount=f.amount, card=f.tx_card or None, user_id=uid)
     db.session.add(tx)
     db.session.commit()

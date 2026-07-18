@@ -33,9 +33,13 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return
+    const today = new Date().toISOString().slice(0, 10)
     fetch('/api/pending-registers', { credentials: 'same-origin' })
       .then(r => r.json())
-      .then(list => { if (list.length) { setPendingRegisters(list); setRegisterIdx(0) } })
+      .then(list => {
+        const filtered = list.filter(item => !localStorage.getItem(`skip_register_${item.item_type}_${item.id}_${today}`))
+        if (filtered.length) { setPendingRegisters(filtered); setRegisterIdx(0) }
+      })
       .catch(() => {})
   }, [user])
 
@@ -91,7 +95,11 @@ export default function App() {
       )}
       {pendingRegisters.length > 0 && registerIdx < pendingRegisters.length && (() => {
         const item = pendingRegisters[registerIdx]
-        const dismiss = () => setRegisterIdx(i => i + 1)
+        const today = new Date().toISOString().slice(0, 10)
+        const dismiss = () => {
+          localStorage.setItem(`skip_register_${item.item_type}_${item.id}_${today}`, '1')
+          setRegisterIdx(i => i + 1)
+        }
         const confirm = () => {
           const url = item.item_type === 'savings'
             ? `/api/savings/${item.id}/auto-register`
