@@ -413,7 +413,9 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | # | 내용 |
 |---|------|
 | 196 | 시스템 다크모드 지원 — `index.css`에 CSS 변수 토큰 시스템 구축, `@media (prefers-color-scheme: dark)` + `:root[data-theme]` 오버라이드, 17개 JSX 파일 인라인 스타일 전수 교체 |
-| 197 | 자동이��� 팝업 카드·계좌 선택 — 팝업 내 카드 드롭다운(`/api/cards` 목록), 등록 시 선택한 카드로 거래 생성 (`card` POST 파라미터 추가) |
+| 197 | 자동이체 팝업 카드·계좌 선택 — 팝업 내 카드 드롭다운(`/api/cards` 목록), 등록 시 선택한 카드로 거래 생성 (`card` POST 파라미터 추가) |
+| 198 | 캘린더 날짜 숫자 다크모드 수정 — `dayCellContent` 인라인 스타일에 하드코딩된 `#1c1c1e`(평일)을 `var(--text-primary)`로 교체, `index.css`에 `--fc-sun-color` / `--fc-sat-color` 다크모드 변수 추가 (CSS `!important`가 인라인 스타일을 이길 수 없던 근본 원인 수정) |
+| 199 | 업데이트 내역 ver별 항목 정리 — `updateNotice.js` UPDATES(2.32)에서 Android 앱(2.31) 항목 분리, VERSION_HISTORY에 ver 2.31 신규 추가, ver 2.30에 문자 가져오기 항목 추가 |
 
 ## 2026-07-15 — ver 2.30
 
