@@ -7,3 +7,4 @@ vapid_public_v2.txt
 subscriptions.json
 expense.db
 *.db
+firebase-adminsdk.json

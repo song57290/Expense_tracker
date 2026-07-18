@@ -2758,6 +2758,48 @@ _FILE_DIR = os.environ.get('DATA_DIR', _BASE_DIR)
 VAPID_PRIVATE_FILE = os.path.join(_FILE_DIR, 'vapid_private_v2.pem')
 VAPID_PUBLIC_FILE = os.path.join(_FILE_DIR, 'vapid_public_v2.txt')
 SUBSCRIPTIONS_FILE = os.path.join(_FILE_DIR, 'subscriptions.json')
+FCM_TOKENS_FILE = os.path.join(_FILE_DIR, 'fcm_tokens.json')
+
+_firebase_initialized = False
+
+def _init_firebase():
+    global _firebase_initialized
+    if _firebase_initialized:
+        return True
+    try:
+        import firebase_admin
+        from firebase_admin import credentials
+        if firebase_admin._apps:
+            _firebase_initialized = True
+            return True
+        creds_b64 = os.environ.get('FIREBASE_CREDENTIALS_B64')
+        creds_json = os.environ.get('FIREBASE_CREDENTIALS')
+        if creds_b64:
+            import base64
+            cred = credentials.Certificate(json.loads(base64.b64decode(creds_b64).decode('utf-8')))
+        elif creds_json:
+            cred = credentials.Certificate(json.loads(creds_json))
+        else:
+            sdk_path = os.path.join(_BASE_DIR, 'firebase-adminsdk.json')
+            if not os.path.exists(sdk_path):
+                return False
+            cred = credentials.Certificate(sdk_path)
+        firebase_admin.initialize_app(cred)
+        _firebase_initialized = True
+        return True
+    except Exception as e:
+        app.logger.error('Firebase init error: %s', e)
+        return False
+
+def _load_fcm_tokens():
+    if not os.path.exists(FCM_TOKENS_FILE):
+        return []
+    with open(FCM_TOKENS_FILE) as f:
+        return json.load(f)
+
+def _save_fcm_tokens(tokens):
+    with open(FCM_TOKENS_FILE, 'w') as f:
+        json.dump(tokens, f)
 
 def _get_vapid_keys():
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -2836,6 +2878,51 @@ def push_unsubscribe():
     _save_subs([s for s in _load_subs() if s.get('endpoint') != data.get('endpoint')])
     return {'ok': True}
 
+@app.route('/api/fcm-subscribe', methods=['POST'])
+def fcm_subscribe():
+    data = request.json or {}
+    token = data.get('token')
+    if not token:
+        return jsonify({'ok': False}), 400
+    uid = session.get('user_id')
+    tokens = _load_fcm_tokens()
+    tokens = [t for t in tokens if t.get('token') != token]
+    tokens.append({
+        'token': token,
+        'user_id': uid,
+        'notify_hour': data.get('notify_hour', 21),
+        'notify_minute': data.get('notify_minute', 0),
+    })
+    _save_fcm_tokens(tokens)
+    # 같은 유저의 Web Push 구독 제거 (중복 알림 방지)
+    if uid:
+        _save_subs([s for s in _load_subs() if s.get('user_id') != uid])
+    return jsonify({'ok': True})
+
+@app.route('/api/fcm-unsubscribe', methods=['POST'])
+def fcm_unsubscribe():
+    data = request.json or {}
+    token = data.get('token')
+    _save_fcm_tokens([t for t in _load_fcm_tokens() if t.get('token') != token])
+    return jsonify({'ok': True})
+
+def _do_send_fcm(token, title='💰 나의 가계부', body='오늘 지출을 기록했나요? 📝'):
+    from firebase_admin import messaging
+    if not _init_firebase():
+        raise RuntimeError('Firebase not initialized')
+    message = messaging.Message(
+        notification=messaging.Notification(title=title, body=body),
+        android=messaging.AndroidConfig(
+            priority='high',
+            notification=messaging.AndroidNotification(
+                channel_id='gaegyebu_push',
+                sound='default',
+            ),
+        ),
+        token=token,
+    )
+    messaging.send(message)
+
 def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기록했나요? 📝'):
     from pywebpush import webpush
     priv_path = vapid_keys.get('private', '')
@@ -2870,6 +2957,12 @@ def _send_push_notifications():
                     _do_send_push(sub)
                 except Exception as e:
                     app.logger.error('Push failed for %s: %s', sub.get('endpoint', '')[:40], e)
+        for tok in _load_fcm_tokens():
+            if now.hour == tok.get('notify_hour', 21) and now.minute == tok.get('notify_minute', 0):
+                try:
+                    _do_send_fcm(tok['token'])
+                except Exception as e:
+                    app.logger.error('FCM push failed: %s', e)
     except Exception as e:
         app.logger.error('Push scheduler error: %s', e)
 
@@ -2895,6 +2988,16 @@ def _send_savings_notifications():
                             )
                         except Exception as e:
                             app.logger.error('Savings push failed uid=%s: %s', s.user_id, e)
+                    user_tokens = [t for t in _load_fcm_tokens() if t.get('user_id') == s.user_id]
+                    for tok in user_tokens:
+                        try:
+                            _do_send_fcm(
+                                tok['token'],
+                                title='🏠 청약 납입일 알림',
+                                body=f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.',
+                            )
+                        except Exception as e:
+                            app.logger.error('Savings FCM failed uid=%s: %s', s.user_id, e)
         except Exception as e:
             app.logger.error('Savings notification error: %s', e)
 
@@ -2905,7 +3008,9 @@ def test_notify():
     uid = session['user_id']
     all_subs = _load_subs()
     subs = [s for s in all_subs if s.get('user_id') == uid]
-    if not subs:
+    all_fcm = _load_fcm_tokens()
+    fcm_subs = [t for t in all_fcm if t.get('user_id') == uid]
+    if not subs and not fcm_subs:
         return jsonify({'ok': False, 'error': '구독 정보 없음. 알림을 먼저 켜주세요.'}), 400
     sent = 0
     errors = []
@@ -2923,6 +3028,14 @@ def test_notify():
             app.logger.error('Test push failed: %s', e)
     if expired_endpoints:
         _save_subs([s for s in all_subs if s.get('endpoint') not in expired_endpoints])
+    # FCM 토큰으로도 전송
+    for tok in fcm_subs:
+        try:
+            _do_send_fcm(tok['token'], title='✅ 테스트 알림', body='알림이 정상 작동합니다!')
+            sent += 1
+        except Exception as e:
+            errors.append(str(e))
+            app.logger.error('Test FCM failed: %s', e)
     if sent > 0:
         return jsonify({'ok': True, 'sent': sent})
     if expired_endpoints:

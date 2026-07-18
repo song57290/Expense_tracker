@@ -27,6 +27,7 @@ export default function UpdateNoticeModal() {
   }, [])
 
   useEffect(() => {
+    if (localStorage.getItem('update_notice_never') === 'true') return
     const seen = localStorage.getItem('update_version_seen')
     if (seen !== CURRENT_VERSION) setVisible(true)
 
@@ -35,7 +36,7 @@ export default function UpdateNoticeModal() {
       .then(d => {
         if (d.version) {
           setConfig(d)
-          if (seen !== d.version) setVisible(true)
+          if (localStorage.getItem('update_notice_never') !== 'true' && seen !== d.version) setVisible(true)
         }
       })
       .catch(() => {})
@@ -46,6 +47,13 @@ export default function UpdateNoticeModal() {
   }, [])
 
   function close() {
+    localStorage.setItem('update_version_seen', config.version || CURRENT_VERSION)
+    setVisible(false)
+    setEditOpen(false)
+  }
+
+  function dismissForever() {
+    localStorage.setItem('update_notice_never', 'true')
     localStorage.setItem('update_version_seen', config.version || CURRENT_VERSION)
     setVisible(false)
     setEditOpen(false)
@@ -254,11 +262,21 @@ export default function UpdateNoticeModal() {
         </div>
 
         {/* 하단 버튼 */}
-        <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: '#faf8ff', borderTop: '1px solid #ede8fb' }}>
+        <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: '#faf8ff', borderTop: '1px solid #ede8fb', display: 'flex', gap: 8 }}>
+          <button
+            onClick={dismissForever}
+            style={{
+              flex: 1, padding: '13px 0', borderRadius: 14,
+              border: '1.5px solid #e0d0fd', background: 'white',
+              color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+            }}
+          >
+            다시 안보기
+          </button>
           <button
             onClick={close}
             style={{
-              width: '100%', padding: '13px 0', borderRadius: 14, border: 'none',
+              flex: 1, padding: '13px 0', borderRadius: 14, border: 'none',
               background: 'linear-gradient(135deg,#b088f9,#7baff0)',
               color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
             }}

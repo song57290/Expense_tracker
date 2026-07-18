@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 export default function Navbar({ onMenuClick, nickname }) {
   const navigate = useNavigate()
   return (
-    <div className="px-3 pt-3">
+    <div className="px-3" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 12px)' }}>
       <nav className="app-navbar d-flex align-items-center justify-content-between mb-4">
         <div className="d-flex align-items-center gap-3">
           <button onClick={onMenuClick} className="nav-icon-btn nav-icon-btn-lg d-none d-lg-flex">
