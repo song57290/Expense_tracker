@@ -15,7 +15,8 @@ http://127.0.0.1:5000/                    ← 로컬 개발용
 | 백엔드 | Flask + SQLAlchemy + SQLite |
 | 배포 | Fly.io (Docker) |
 | 인증 | 이메일 + 비밀번호 (Flask session, werkzeug PBKDF2) |
-| 알림 | Web Push API (VAPID), Service Worker |
+| 알림 | Web Push API (VAPID) + FCM (Firebase Cloud Messaging) |
+| 네이티브 앱 | Capacitor (Android APK, gaegyebu.fly.dev 원격 로드) |
 | 드래그 | @dnd-kit/core (카테고리 순서 변경) |
 | 캘린더 | FullCalendar (@fullcalendar/react) |
 | 차트 | Chart.js |
@@ -390,6 +391,29 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 170 | 통계 탭 자산 구성 바 클릭 → 예산 탭 해당 섹션 이동 — 카드잔고·예금적금·투자 섹션으로 스크롤 이동 (`useNavigate` + `useSearchParams`) |
 | 171 | 통계 탭 도넛 차트 툴팁 불투명 배경 적용 — 흰 배경에서 글씨 안 보이던 문제 수정 |
 | 172 | 실적제외·통계제외 배지 줄바꿈 — 배지가 있을 때 카테고리 줄 아래 별도 줄 표시 (모바일 겹침 방지) |
+
+## 2026-07-18 — ver 2.31
+
+| # | 내용 |
+|---|------|
+| 185 | Capacitor 네이티브 안드로이드 앱 — Capacitor 설정(`capacitor.config.json`), `frontend/android/` 프로젝트 추가, gaegyebu.fly.dev 원격 로드 방식 |
+| 186 | FCM 푸시 알림 �� Firebase Admin SDK(`firebase-admin`) 연동, `FIREBASE_CREDENTIALS_B64` 환경변수(Base64 인코딩), `/api/fcm-subscribe`, `/api/fcm-unsubscribe` API |
+| 187 | HIGH importance 알림 채널 — `MainActivity.java`에서 `gaegyebu_push` 채널 생성 (`IMPORTANCE_HIGH`), 헤드업 배너 팝업 알림 표시 |
+| 188 | FCM/Web Push 중복 방지 — FCM 구독 시 해당 사용자 Web Push 구독 자동 삭제 |
+| 189 | 앱 아이콘 교체 — `static/icon-512.png` → mipmap 5단계(mdpi~xxxhdpi) 리사이즈, ic_launcher_foreground 66% 크기 패딩 처리 |
+| 190 | 상태바 safe-area 처리 — Navbar 외부 div에 `padding-top: calc(env(safe-area-inset-top) + 12px)` 적용, 상태바와 앱 헤더 겹침 해결 |
+| 191 | StatusBar 플러그인 설정 — `capacitor.config.json`에 `StatusBar.overlaysWebView: false`, `style: DARK` 설정 |
+| 192 | 업데이트 내역 "다시 안보기" 버튼 — `update_notice_never` localStorage 플래그, 이후 모든 버전에서도 팝업 미표시 |
+| 193 | 자동이체 건너뛰기 저장 — 건너뛰기 시 `skip_register_{type}_{id}_{date}` localStorage 저장, 당일 재진입 시 팝업 재표시 방지 |
+| 194 | 자동이체 내역명 띄어쓰기 ��� `[자동이체]농협은행` → `[자동이체] 농협은행` (TxItem 렌더링 정규식 + API description 수정) |
+| 195 | gitignore 보완 — `google-services.json`(android/app), `node_modules/`, `dist/`(frontend) 추가 |
+
+## 2026-07-19 — ver 2.32
+
+| # | 내용 |
+|---|------|
+| 196 | 시스템 다크모드 지원 — `index.css`에 CSS 변수 토큰 시스템 구축, `@media (prefers-color-scheme: dark)` + `:root[data-theme]` 오버라이드, 17개 JSX 파일 인라인 스타일 전수 교체 |
+| 197 | 자동이��� 팝업 카드·계좌 선택 — 팝업 내 카드 드롭다운(`/api/cards` 목록), 등록 시 선택한 카드로 거래 생성 (`card` POST 파라미터 추가) |
 
 ## 2026-07-15 — ver 2.30
 
