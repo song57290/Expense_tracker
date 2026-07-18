@@ -1059,8 +1059,9 @@ def api_stats():
     card_balance_now = card_pos + loan_total  # 순 통장잔고 (대출 차감)
     card_balance_all = sum(c.account_balance or 0 for c in cards)  # 자산 추이용 (현금 포함)
     deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
-    installment_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype in ('적금', '청약'))
-    total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + inv_total_now  # 순자산 (현금·대출 반영)
+    installment_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype == '적금')
+    subscription_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype == '청약')
+    total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + subscription_total + inv_total_now  # 순자산 (현금·대출 반영)
 
     portfolio_breakdown = []
     if card_pos > 0:
@@ -1070,7 +1071,9 @@ def api_stats():
     if deposit_total > 0:
         portfolio_breakdown.append({'label': '예금', 'value': deposit_total})
     if installment_total > 0:
-        portfolio_breakdown.append({'label': '적금/청약', 'value': installment_total})
+        portfolio_breakdown.append({'label': '적금', 'value': installment_total})
+    if subscription_total > 0:
+        portfolio_breakdown.append({'label': '청약', 'value': subscription_total})
     for k, v in inv_by_type.items():
         if v > 0:
             portfolio_breakdown.append({'label': k, 'value': v})
@@ -1082,11 +1085,11 @@ def api_stats():
     cy, cm = tf_y, tf_m
     while (cy, cm) <= (tt_y, tt_m):
         if (cy, cm) == (tt_y, tt_m):
-            bd = {'통장잔고': card_pos, '현금': cash_total, '예금': deposit_total, '적금/청약': installment_total}
+            bd = {'통장잔고': card_pos, '현금': cash_total, '예금': deposit_total, '적금': installment_total, '청약': subscription_total}
             bd.update({k: v for k, v in inv_by_type.items()})
             if loan_total < 0:
                 bd['대출'] = loan_total
-            trend_total = card_balance_all + deposit_total + installment_total + inv_total_now
+            trend_total = card_balance_all + deposit_total + installment_total + subscription_total + inv_total_now
             asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': trend_total, 'breakdown': bd})
         else:
             last_day = _cal.monthrange(cy, cm)[1]
@@ -1096,6 +1099,7 @@ def api_stats():
             card_bal = card_initial + inc - exp
             dep_bal = 0
             inst_bal = 0
+            sub_bal = 0
             mo_end_date = _date(cy, cm, last_day)
             for s in savings_list:
                 if s.start_date > mo_end: continue
@@ -1103,7 +1107,7 @@ def api_stats():
                 if s.stype == '청약':
                     me = max(0, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month))
                     extra_dep_mo = sum(d.amount for d in all_savings_deposits if d.savings_id == s.id and d.date <= mo_end)
-                    inst_bal += s.amount * me + extra_dep_mo
+                    sub_bal += s.amount * me + extra_dep_mo
                 elif s.stype == '예금':
                     dep_bal += s.amount
                 else:
@@ -1111,9 +1115,9 @@ def api_stats():
                     mt = max(1, (end_d.year - start.year) * 12 + (end_d.month - start.month))
                     me = max(0, min(mt, (mo_end_date.year - start.year) * 12 + (mo_end_date.month - start.month)))
                     inst_bal += s.amount * me
-            bd = {'통장잔고': card_bal, '예금': dep_bal, '적금/청약': inst_bal}
+            bd = {'통장잔고': card_bal, '예금': dep_bal, '적금': inst_bal, '청약': sub_bal}
             bd.update({k: v for k, v in inv_by_type.items()})
-            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': card_bal + dep_bal + inst_bal + inv_total_now, 'breakdown': bd})
+            asset_trend.append({'month': f'{cy}-{cm:02d}', 'assets': card_bal + dep_bal + inst_bal + sub_bal + inv_total_now, 'breakdown': bd})
         cm += 1
         if cm > 12: cm = 1; cy += 1
 
