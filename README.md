@@ -416,6 +416,10 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 197 | 자동이체 팝업 카드·계좌 선택 — 팝업 내 카드 드롭다운(`/api/cards` 목록), 등록 시 선택한 카드로 거래 생성 (`card` POST 파라미터 추가) |
 | 198 | 캘린더 날짜 숫자 다크모드 수정 — `dayCellContent` 인라인 스타일에 하드코딩된 `#1c1c1e`(평일)을 `var(--text-primary)`로 교체, `index.css`에 `--fc-sun-color` / `--fc-sat-color` 다크모드 변수 추가 (CSS `!important`가 인라인 스타일을 이길 수 없던 근본 원인 수정) |
 | 199 | 업데이트 내역 ver별 항목 정리 — `updateNotice.js` UPDATES(2.32)에서 Android 앱(2.31) 항목 분리, VERSION_HISTORY에 ver 2.31 신규 추가, ver 2.30에 문자 가져오기 항목 추가 |
+| 200 | 통계 도넛차트 중앙 글씨 다크모드 수정 — `centerTextPlugin` / `pfCenter` 플러그인 `#333` 하드코딩을 `isDark` 분기로 교체 |
+| 201 | 통계 도넛차트 항목 이름 표시 — 카테고리별 지출·자산 구성 도넛 안에 항목 이름 datalabels 표시, 탭 시 금액·비율 툴팁 표시 |
+| 202 | 통계 카테고리별 지출 상세 내역 형식 개선 — Bootstrap table → 색상 도트·금액·비율·프로그레스바 형식으로 교체 (자산 구성과 동일), 도넛 아래 색상 범례 제거 |
+| 203 | 자산 구성 도넛차트 크기 확대 — `maxWidth: 220` → `360` |
 
 ## 2026-07-15 — ver 2.30
 
