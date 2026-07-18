@@ -19,11 +19,11 @@ function SlidingTabs({ options, value, onChange }) {
     }
   }, [value, options])
   return (
-    <div style={{ display: 'flex', background: '#f0eeff', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
-      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'white', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
+    <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
+      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
       {options.map(([val, label], i) => (
         <button key={val} ref={el => tabRefs.current[i] = el} onClick={() => onChange(val)}
-          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '3px 12px', fontSize: '0.8rem', background: 'transparent', color: value === val ? '#b088f9' : '#888', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s' }}>
+          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '3px 12px', fontSize: '0.8rem', background: 'transparent', color: value === val ? '#b088f9' : 'var(--text-muted)', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s' }}>
           {label}
         </button>
       ))}
@@ -95,7 +95,7 @@ function SwipeItem({ children, onDelete, onEdit }) {
       <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: editWidth, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>수정</span>
       </div>
-      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'white', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
+      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
         onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
         onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
         {children}
@@ -217,7 +217,7 @@ export default function Home() {
             <div key={label} className="col-4">
               <div className="card text-center"><div className="card-body">
                 <h6 className={`card-title fw-bold ${cls}`}>{label}</h6>
-                <p className="card-text fw-bold" style={{ fontSize: '1rem', color: '#222' }}>{fmt(val)}원</p>
+                <p className="card-text fw-bold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{fmt(val)}원</p>
               </div></div>
             </div>
           ))}
@@ -245,7 +245,7 @@ export default function Home() {
                   </div>
                   <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => openCardSheet(cs.name)}>
                     <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
-                    <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: '#333', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(255,255,255,0.9)' }}>{cs.percent}%</span>
+                    <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
                   </div>
                 </div>
               )
@@ -271,7 +271,7 @@ export default function Home() {
                     <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                       <span className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
-                      <span style={{ fontSize: '0.72rem', color: '#aaa', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
                     </div>
                   </div>
                   <div className="progress" style={{ height: 5 }}>
@@ -316,7 +316,7 @@ export default function Home() {
                 <div style={{ position: 'relative' }}>
                   <input className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
                     onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ paddingRight: 36 }} />
-                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
               </div>
               <div className="col-12 col-lg-2">
@@ -324,7 +324,7 @@ export default function Home() {
               </div>
               <div className="col-12 col-lg-2">
                 {data.card_list.length === 0 ? (
-                  <div style={{ fontSize: '0.82rem', color: '#aaa', padding: '9px 4px' }}>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '9px 4px' }}>
                     카드 없음 —{' '}
                     <button type="button" onClick={() => navigate('/budget')}
                       style={{ background: 'none', border: 'none', padding: 0, color: '#b088f9', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}>
@@ -346,7 +346,7 @@ export default function Home() {
               {form.type === 'expense' && (
                 <div className="col-12">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
-                    <label style={{ flex: 1, fontSize: '0.85rem', color: '#555', marginBottom: 0, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
+                    <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
                     <div className="ios-toggle">
                       <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
                       <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
@@ -356,7 +356,7 @@ export default function Home() {
               )}
               <div className="col-12">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
-                  <label style={{ flex: 1, fontSize: '0.85rem', color: '#555', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                  <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
                   <div className="ios-toggle">
                     <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
                     <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
@@ -405,13 +405,13 @@ export default function Home() {
               const dates = Object.keys(byDate).sort((a, b) => sortAsc ? a.localeCompare(b) : b.localeCompare(a))
               return dates.map(date => (
                 <div key={date} className="mb-2">
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa', padding: '4px 2px 2px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 2px 2px' }}>
                     {fmtDate(date)}
                   </div>
                   <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
-                        <div style={{ padding: '12px 14px', background: 'white', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                        <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
                           <TxItem tx={tx} emojiMap={data.emoji_map} />
                         </div>
                       </SwipeItem>
@@ -428,7 +428,7 @@ export default function Home() {
       {/* 삭제 확인 */}
       {confirmSheet && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
               <button className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
@@ -442,15 +442,15 @@ export default function Home() {
       {cardSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3000, alignItems: 'flex-end', justifyContent: 'center', opacity: cardSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeCardSheet()}>
-          <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
-              <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#aaa', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+              <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
             </div>
             {cardSheetTxs.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
             ) : cardSheetTxs.map(tx => (
-              <div key={tx.id} style={{ borderBottom: '1px solid #f0f0f0', padding: '10px 2px' }}>
+              <div key={tx.id} style={{ borderBottom: '1px solid var(--border-light)', padding: '10px 2px' }}>
                 <div className="d-flex justify-content-between align-items-start">
                   <div>
                     <span className="text-muted" style={{ fontSize: '0.78rem' }}>{tx.date}</span>
@@ -472,18 +472,18 @@ export default function Home() {
       {/* 가져오기 모달 */}
       {importOpen && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header p-3">
               <h5 className="modal-title mb-0">내역 가져오기</h5>
               <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text'); setImportFileName('') }} />
             </div>
             <div className="p-3">
-              <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f0eeff', borderRadius: 12, padding: 4 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-accent)', borderRadius: 12, padding: 4 }}>
                 {[['text', '💬 문자 붙여넣기'], ['excel', '📊 엑셀']].map(([t, label]) => (
                   <button key={t} type="button" onClick={() => setImportTab(t)}
                     style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-                      background: importTab === t ? 'white' : 'transparent',
-                      color: importTab === t ? '#b088f9' : '#999',
+                      background: importTab === t ? 'var(--bg-card)' : 'transparent',
+                      color: importTab === t ? '#b088f9' : 'var(--text-muted)',
                       boxShadow: importTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
                     {label}
                   </button>
@@ -503,12 +503,12 @@ export default function Home() {
                 <form action="/import" method="post" encType="multipart/form-data">
                   <p className="text-muted" style={{ fontSize: '0.85rem' }}>양식을 다운받아 작성 후 업로드하거나, 은행 내보내기 파일을 바로 올리세요.</p>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                    <a href="/import/template" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, background: '#e8e8e8', color: '#1c1c1e', fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none' }}>
+                    <a href="/import/template" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, background: 'var(--bg-section)', color: 'var(--text-primary)', fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none' }}>
                       <i className="bi bi-download" /> 양식 다운로드
                     </a>
                   </div>
                   <input type="file" name="file" className="form-control mb-3 file-input-green" accept=".xlsx,.xls" required
-                    style={{ border: '1.5px solid #4caf50', background: 'white', color: '#1c1c1e' }} />
+                    style={{ border: '1.5px solid #4caf50', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                   <div className="d-flex justify-content-end gap-2 pb-2">
                     <button type="submit" className="btn" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>다음</button>
                     <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>

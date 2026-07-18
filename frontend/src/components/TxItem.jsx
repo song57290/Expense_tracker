@@ -12,7 +12,7 @@ export default function TxItem({ tx, emojiMap = {} }) {
           <span style={{ fontSize: '0.85rem' }}>{emojiMap[tx.category] ? `${emojiMap[tx.category]} ` : ''}{tx.category}</span>
           {tx.description && <>
             <span className="ms-1 text-muted" style={{ fontSize: '0.7rem', opacity: 0.35, verticalAlign: 'middle' }}>|</span>
-            <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description}</span>
+            <span className="ms-1 text-muted" style={{ fontSize: '0.82rem' }}>{tx.description.replace(/\](?!\s)/, '] ')}</span>
           </>}
         </div>
         {hasBadges && (
