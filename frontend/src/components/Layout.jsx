@@ -121,7 +121,7 @@ export default function Layout({ user, onLogout }) {
           <div className="d-lg-none swipe-nav-zone" style={{ height: 90 }} />
         </div>
       </div>
-      <div className="d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 'calc(16px + env(safe-area-inset-bottom))', background: '#f8f9fa', zIndex: 1001 }} />
+      <div className="d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 'calc(16px + env(safe-area-inset-bottom))', background: 'var(--bg-page)', zIndex: 1001 }} />
       <BottomNav />
       <NotifySheet />
     </>

@@ -41,8 +41,8 @@ function AmPmDrum({ value, onChange }) {
     >
       {/* 하이라이트 바 — 가운데 고정 */}
       <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 4, right: 4, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to top, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'var(--drum-fade-down)', pointerEvents: 'none', zIndex: 3 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'var(--drum-fade-up)', pointerEvents: 'none', zIndex: 3 }} />
       {/* 글씨가 위아래로 움직임 */}
       <div style={{
         position: 'absolute', left: 0, right: 0,
@@ -54,7 +54,7 @@ function AmPmDrum({ value, onChange }) {
             height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '1.45rem',
             fontWeight: item === value ? 700 : 400,
-            color: item === value ? '#1c1c1e' : '#bbb',
+            color: item === value ? 'var(--text-primary)' : 'var(--text-muted)',
           }}>{item}</div>
         ))}
       </div>
@@ -126,8 +126,8 @@ function InfiniteDrum({ items, value, onChange, onWrap, renderItem, fontSize = '
   return (
     <div style={{ position: 'relative', height: ITEM_H * 5, flex: 1, overflow: 'hidden', userSelect: 'none' }}>
       <div style={{ position: 'absolute', top: PAD * ITEM_H, left: 4, right: 4, height: ITEM_H, background: 'rgba(176,136,249,0.12)', borderRadius: 10, borderTop: '1px solid rgba(176,136,249,0.28)', borderBottom: '1px solid rgba(176,136,249,0.28)', pointerEvents: 'none', zIndex: 2 }} />
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'linear-gradient(to top, rgba(255,255,255,0.95) 20%, transparent)', pointerEvents: 'none', zIndex: 3 }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'var(--drum-fade-down)', pointerEvents: 'none', zIndex: 3 }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: PAD * ITEM_H, background: 'var(--drum-fade-up)', pointerEvents: 'none', zIndex: 3 }} />
       <div
         ref={ref}
         onScroll={onScroll}
@@ -150,7 +150,7 @@ function InfiniteDrum({ items, value, onChange, onWrap, renderItem, fontSize = '
             scrollSnapAlign: 'center',
             fontSize,
             fontWeight: item === value ? 700 : 400,
-            color: item === value ? '#1c1c1e' : '#bbb',
+            color: item === value ? 'var(--text-primary)' : 'var(--text-muted)',
             whiteSpace: 'nowrap',
           }}>
             {renderItem ? renderItem(item) : item}
@@ -304,13 +304,13 @@ export default function NotifySheet() {
 
   return (
     <div onClick={e => e.target === e.currentTarget && close()} style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}>
-      <div style={{ background: 'white', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 520, transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 520, transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div style={{ padding: '20px 20px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1c1c1e' }}>알림 설정</span>
-            <button onClick={close} style={{ background: '#f2f2f7', border: 'none', width: 30, height: 30, borderRadius: 15, fontSize: '1.1rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>알림 설정</span>
+            <button onClick={close} style={{ background: 'var(--bg-section)', border: 'none', width: 30, height: 30, borderRadius: 15, fontSize: '1.1rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
           </div>
-          <div style={{ background: '#f7f7f7', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-section)', borderRadius: 14, overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px' }}>
               <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <i className="bi bi-bell-fill" style={{ fontSize: '0.85rem', color: 'white' }} />
@@ -323,8 +323,8 @@ export default function NotifySheet() {
             </div>
             {active && (
               <>
-                <div onClick={() => setPickerOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #ebebeb', padding: '14px 16px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-                  <div style={{ width: 32, height: 32, background: '#f0eeff', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div onClick={() => setPickerOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--border-light)', padding: '14px 16px', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+                  <div style={{ width: 32, height: 32, background: 'var(--bg-accent)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className="bi bi-clock" style={{ fontSize: '0.85rem', color: '#b088f9' }} />
                   </div>
                   <span style={{ flex: 1, marginLeft: 12, fontSize: '0.95rem' }}>알림 시간</span>
@@ -334,11 +334,11 @@ export default function NotifySheet() {
                   </div>
                 </div>
                 {pickerOpen && (
-                  <div style={{ borderTop: '1px solid #ebebeb', padding: '8px 16px 20px' }}>
+                  <div style={{ borderTop: '1px solid var(--border-light)', padding: '8px 16px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <AmPmDrum value={ampmVal} onChange={onAmPm} />
                       <InfiniteDrum items={HOUR_ITEMS} value={hourVal} onChange={onHour} onWrap={onHourWrap} renderItem={displayHour} />
-                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#ccc', flexShrink: 0 }}>:</div>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>:</div>
                       <InfiniteDrum items={MIN_ITEMS} value={minVal} onChange={onMin} />
                     </div>
                   </div>
@@ -351,7 +351,7 @@ export default function NotifySheet() {
           <button
             onClick={sendTest}
             disabled={testState === 'sending'}
-            style={{ width: '100%', padding: '12px 0', border: 'none', borderRadius: 12, background: testState === 'ok' ? '#e8fdf0' : '#f2f2f7', color: testState === 'ok' ? '#198754' : '#555', fontSize: '0.9rem', fontWeight: 600, cursor: testState === 'sending' ? 'default' : 'pointer', transition: 'background 0.2s' }}
+            style={{ width: '100%', padding: '12px 0', border: 'none', borderRadius: 12, background: testState === 'ok' ? '#e8fdf0' : 'var(--bg-section)', color: testState === 'ok' ? '#198754' : 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600, cursor: testState === 'sending' ? 'default' : 'pointer', transition: 'background 0.2s' }}
           >
             {testState === 'sending' ? '전송 중...' : testState === 'ok' ? '✅ 전송 완료!' : '테스트 알림 보내기'}
           </button>

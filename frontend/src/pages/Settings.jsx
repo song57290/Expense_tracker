@@ -478,7 +478,7 @@ export default function Settings() {
     }
   }
 
-  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #e8e8e8', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }
+  const inputStyle = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }
 
   const SECTION_LIST = [
     { key: 'summary', label: '순자산 요약' },
@@ -495,7 +495,7 @@ export default function Settings() {
         @keyframes settingsFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .s-card { transition: box-shadow 0.2s ease, transform 0.2s ease; }
         .s-card:hover { box-shadow: 0 4px 20px rgba(176,136,249,0.13) !important; }
-        .s-arrow { display: inline-block; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); color: #bbb; font-size: 0.85rem; line-height: 1; }
+        .s-arrow { display: inline-block; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); color: var(--text-faint); font-size: 0.85rem; line-height: 1; }
         .s-collapse { overflow: hidden; transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1); }
       `}</style>
       <h5 className="fw-bold mb-3">설정</h5>
@@ -512,38 +512,38 @@ export default function Settings() {
               {helpItems.map(h => (
                 <div key={h.id}>
                   <div onClick={() => { if (editHelpId !== h.id) setHelpItem(helpItem === h.title ? null : h.title) }}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: helpItem === h.title ? '#f0eaff' : '#fafafa', cursor: 'pointer', transition: 'background 0.18s ease' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: helpItem === h.title ? '#7c4fbf' : '#333' }}>{h.icon} {h.title}</span>
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: helpItem === h.title ? 'var(--bg-accent)' : 'var(--bg-elevated)', cursor: 'pointer', transition: 'background 0.18s ease' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: helpItem === h.title ? '#7c4fbf' : 'var(--text-primary)' }}>{h.icon} {h.title}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {user?.email === 'song57290@gmail.com' && (
                         <span onClick={e => { e.stopPropagation(); setEditHelpId(editHelpId === h.id ? null : h.id); setEditHelpForm({ icon: h.icon, title: h.title, desc: h.desc }) }}
-                          style={{ fontSize: '0.78rem', color: '#b088f9', padding: '2px 8px', borderRadius: 6, background: '#f0eaff', fontWeight: 600 }}>편집</span>
+                          style={{ fontSize: '0.78rem', color: '#b088f9', padding: '2px 8px', borderRadius: 6, background: 'var(--bg-accent)', fontWeight: 600 }}>편집</span>
                       )}
                       <span className="s-arrow" style={{ transform: helpItem === h.title ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
                     </div>
                   </div>
                   {/* 관리자 편집 폼 */}
                   <div className="s-collapse" style={{ maxHeight: editHelpId === h.id ? '400px' : '0' }}>
-                    <div style={{ padding: '10px 12px', background: '#faf8ff', borderRadius: 10, margin: '4px 0' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 10, margin: '4px 0' }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                         <input value={editHelpForm.icon} onChange={e => setEditHelpForm(f => ({ ...f, icon: e.target.value }))}
-                          placeholder="이모지" style={{ width: 52, padding: '6px 8px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '1rem', textAlign: 'center' }} />
+                          placeholder="이모지" style={{ width: 52, padding: '6px 8px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '1rem', textAlign: 'center' }} />
                         <input value={editHelpForm.title} onChange={e => setEditHelpForm(f => ({ ...f, title: e.target.value }))}
-                          placeholder="탭 이름" style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '0.88rem' }} />
+                          placeholder="탭 이름" style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem' }} />
                       </div>
                       <textarea value={editHelpForm.desc} onChange={e => setEditHelpForm(f => ({ ...f, desc: e.target.value }))}
-                        rows={6} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e0d0fd', fontSize: '0.84rem', lineHeight: 1.7, resize: 'vertical' }} />
+                        rows={6} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.84rem', lineHeight: 1.7, resize: 'vertical' }} />
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button onClick={() => saveHelp(h.id)}
                           style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
                         <button onClick={() => setEditHelpId(null)}
-                          style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e0d0fd', background: 'white', color: '#aaa', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                          style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid var(--border-input)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
                       </div>
                     </div>
                   </div>
                   {/* 내용 */}
                   <div className="s-collapse" style={{ maxHeight: helpItem === h.title && editHelpId !== h.id ? '600px' : '0' }}>
-                    <div style={{ padding: '10px 14px 6px', fontSize: '0.84rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
+                    <div style={{ padding: '10px 14px 6px', fontSize: '0.84rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
                       {h.desc}
                     </div>
                   </div>
@@ -566,64 +566,64 @@ export default function Settings() {
 
               {/* 닉네임 */}
               <div>
-                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>닉네임</div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>닉네임</div>
                 {!nicknameEdit ? (
                   <div className="d-flex justify-content-between align-items-center">
                     <span style={{ fontSize: '1rem', fontWeight: 600 }}>{user?.nickname || '(없음)'}</span>
                     <button onClick={() => { setNicknameVal(user?.nickname || ''); setNicknameEdit(true) }}
-                      style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
+                      style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
                   </div>
                 ) : (
                   <div>
                     <input type="text" value={nicknameVal} onChange={e => setNicknameVal(e.target.value)} placeholder="닉네임 입력"
-                      style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus maxLength={30} />
+                      style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} autoFocus maxLength={30} />
                     <div className="d-flex gap-2">
                       <button onClick={saveNickname} disabled={nicknameSaving}
                         style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: nicknameSaving ? 0.7 : 1 }}>
                         {nicknameSaving ? '저장 중...' : '저장'}</button>
                       <button onClick={() => setNicknameEdit(false)}
-                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+              <div style={{ borderTop: '1px solid var(--border-light)' }} />
 
               {/* 비밀번호 */}
               <div>
-                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>비밀번호</div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>비밀번호</div>
                 {!pwEdit ? (
                   <div className="d-flex justify-content-between align-items-center">
-                    <span style={{ fontSize: '1rem', fontWeight: 600, color: '#bbb', letterSpacing: 4 }}>••••••</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: 4 }}>••••••</span>
                     <button onClick={() => { setPwEdit(true); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }}
-                      style={{ background: '#f0eeff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
+                      style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>변경</button>
                   </div>
                 ) : (
                   <div>
                     <input type="password" placeholder="현재 비밀번호" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
-                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
                     <input type="password" placeholder="새 비밀번호 (6자 이상)" value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
-                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                      style={{ ...inputStyle, marginBottom: 8 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
                     <input type="password" placeholder="새 비밀번호 확인" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
-                      style={{ ...inputStyle, marginBottom: pwError ? 6 : 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+                      style={{ ...inputStyle, marginBottom: pwError ? 6 : 10 }} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
                     {pwError && <p style={{ color: '#dc3545', fontSize: '0.8rem', marginBottom: 8 }}>{pwError}</p>}
                     <div className="d-flex gap-2">
                       <button onClick={savePassword} disabled={pwSaving}
                         style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: pwSaving ? 0.7 : 1 }}>
                         {pwSaving ? '저장 중...' : '저장'}</button>
                       <button onClick={() => { setPwEdit(false); setPwError('') }}
-                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+              <div style={{ borderTop: '1px solid var(--border-light)' }} />
 
               {/* 계정 / 로그아웃 */}
               <div>
-                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>계정</div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>계정</div>
                 <div className="text-muted mb-3" style={{ fontSize: '0.82rem' }}>{user?.email}</div>
                 {!logoutConfirm ? (
                   <button onClick={() => setLogoutConfirm(true)}
@@ -632,25 +632,25 @@ export default function Settings() {
                   </button>
                 ) : (
                   <div>
-                    <p style={{ fontSize: '0.88rem', color: '#555', marginBottom: 12, textAlign: 'center' }}>로그아웃 하시겠습니까?</p>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 12, textAlign: 'center' }}>로그아웃 하시겠습니까?</p>
                     <div className="d-flex gap-2">
                       <button onClick={handleLogout}
                         style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#dc3545', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>로그아웃</button>
                       <button onClick={() => setLogoutConfirm(false)}
-                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div style={{ borderTop: '1px solid #f5f5f5' }} />
+              <div style={{ borderTop: '1px solid var(--border-light)' }} />
 
               {/* 회원 탈퇴 */}
               <div>
-                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: '#aaa' }}>개인 정보 보호</div>
+                <div className="fw-semibold mb-2" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>개인 정보 보호</div>
                 {!deleteConfirm ? (
                   <button onClick={() => setDeleteConfirm(true)}
-                    style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #dc3545', background: 'white', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #dc3545', background: 'var(--bg-card)', color: '#dc3545', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
                     회원 탈퇴
                   </button>
                 ) : (
@@ -660,10 +660,10 @@ export default function Settings() {
                       style={{ ...inputStyle, borderColor: '#ffcdd2', marginBottom: 10 }} />
                     <div className="d-flex gap-2">
                       <button onClick={handleDeleteAccount} disabled={deleteInput !== user?.email || deleting}
-                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: deleteInput === user?.email ? '#dc3545' : '#eee', color: deleteInput === user?.email ? 'white' : '#aaa', fontWeight: 600, fontSize: '0.9rem', cursor: deleteInput === user?.email ? 'pointer' : 'not-allowed' }}>
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: deleteInput === user?.email ? '#dc3545' : 'var(--bg-section)', color: deleteInput === user?.email ? 'white' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: deleteInput === user?.email ? 'pointer' : 'not-allowed' }}>
                         {deleting ? '처리 중...' : '탈퇴 확인'}</button>
                       <button onClick={() => { setDeleteConfirm(false); setDeleteInput('') }}
-                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                        style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
                     </div>
                   </div>
                 )}
@@ -678,15 +678,15 @@ export default function Settings() {
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <div className="fw-semibold" style={{ fontSize: '0.88rem', color: '#888' }}>공지사항</div>
+            <div className="fw-semibold" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>공지사항</div>
             <div className="d-flex gap-2 align-items-center">
               <button onClick={() => window.dispatchEvent(new Event('showUpdateNotice'))}
-                style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                 🆕 업데이트 내역
               </button>
               {user?.email === 'song57290@gmail.com' && (
                 <button onClick={() => { setNoticeFormOpen(o => !o); setNoticeForm({ title: '', content: '' }) }}
-                  style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
                   {noticeFormOpen ? '취소' : '+ 작성'}
                 </button>
               )}
@@ -701,10 +701,10 @@ export default function Settings() {
             <form onSubmit={submitNotice} style={{ marginBottom: 12 }}>
               <input type="text" placeholder="제목" value={noticeForm.title}
                 onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e8e8e8', fontSize: '0.9rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
               <textarea placeholder="내용" value={noticeForm.content}
                 onChange={e => setNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid #e8e8e8', fontSize: '0.9rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
               <button type="submit" disabled={noticeSaving}
                 style={{ marginTop: 8, width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: noticeSaving ? 0.7 : 1 }}>
                 {noticeSaving ? '등록 중...' : '등록'}
@@ -713,33 +713,33 @@ export default function Settings() {
           )}
 
           {notices.length === 0 ? (
-            <p style={{ fontSize: '0.82rem', color: '#ccc', margin: 0 }}>등록된 공지사항이 없습니다</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-faint)', margin: 0 }}>등록된 공지사항이 없습니다</p>
           ) : (
             <div>
               {/* 최신 1개는 항상 표시 */}
               {notices.slice(0, noticeOpen ? notices.length : 1).map(n => (
-                <div key={n.id} style={{ borderRadius: 10, border: '1px solid #f0f0f0', marginBottom: 8, overflow: 'hidden' }}>
+                <div key={n.id} style={{ borderRadius: 10, border: '1px solid var(--border-light)', marginBottom: 8, overflow: 'hidden' }}>
                   {editNotice === n.id ? (
-                    <form onSubmit={saveEditNotice} style={{ padding: '12px 14px', background: '#faf8ff' }}>
+                    <form onSubmit={saveEditNotice} style={{ padding: '12px 14px', background: 'var(--bg-elevated)' }}>
                       <input type="text" value={editNoticeForm.title}
                         onChange={e => setEditNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #d0b8ff', fontSize: '0.88rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                       <textarea value={editNoticeForm.content}
                         onChange={e => setEditNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #d0b8ff', fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
                       <div className="d-flex gap-2 mt-2">
                         <button type="submit" style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
-                        <button type="button" onClick={() => setEditNotice(null)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: '#f2f2f7', color: '#666', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                        <button type="button" onClick={() => setEditNotice(null)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
                       </div>
                     </form>
                   ) : (
                     <>
                       <div className="d-flex justify-content-between align-items-center"
                         onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
-                        style={{ padding: '10px 14px', cursor: 'pointer', background: '#fafafa' }}>
+                        style={{ padding: '10px 14px', cursor: 'pointer', background: 'var(--bg-elevated)' }}>
                         <div>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#333' }}>{n.title}</span>
-                          <span style={{ fontSize: '0.72rem', color: '#aaa', marginLeft: 8 }}>{n.created_at}</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 8 }}>{n.created_at}</span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           {n.is_admin && (
@@ -754,7 +754,7 @@ export default function Settings() {
                         </div>
                       </div>
                       <div className="s-collapse" style={{ maxHeight: expandedNotice === n.id ? '400px' : '0' }}>
-                        <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'white' }}>
+                        <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-card)' }}>
                           {n.content}
                         </div>
                       </div>
@@ -776,8 +776,8 @@ export default function Settings() {
       {/* 카테고리 관리 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>카테고리</div>
-          <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: 12 }}>지출·수입 카테고리를 추가하거나 삭제합니다.</p>
+          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>카테고리</div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>지출·수입 카테고리를 추가하거나 삭제합니다.</p>
           <button onClick={() => navigate('/categories')}
             style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             카테고리 관리
@@ -788,8 +788,8 @@ export default function Settings() {
       {/* 포트폴리오 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: '#888' }}>포트폴리오</div>
-          <p style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: 12 }}>자산 구성, 예적금, 투자 내역 등을 PDF로 출력합니다.</p>
+          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>포트폴리오</div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>자산 구성, 예적금, 투자 내역 등을 PDF로 출력합니다.</p>
           <button onClick={openPfSheet}
             style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             포트폴리오 PDF 출력
@@ -803,28 +803,28 @@ export default function Settings() {
       {pfSheetOpen && (
         <>
           <div onClick={closePfSheet} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1400, opacity: pfSheetVisible ? 1 : 0, transition: 'opacity 0.3s' }} />
-          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1500, background: '#fff', borderRadius: '20px 20px 0 0', transform: pfSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(.32,1.1,.72,1)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid #f0f0f0' }}>
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1500, background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', transform: pfSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(.32,1.1,.72,1)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
               <span style={{ fontWeight: 700, fontSize: '1rem' }}>포함할 항목 선택</span>
-              <button onClick={closePfSheet} style={{ background: '#f2f2f7', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>✕</button>
+              <button onClick={closePfSheet} style={{ background: 'var(--bg-section)', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>✕</button>
             </div>
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {SECTION_LIST.map(({ key, label }) => {
                 const on = pfSections[key]
                 return (
                   <button key={key} onClick={() => setPfSections(s => ({ ...s, [key]: !s[key] }))}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: on ? '#f0eaff' : '#f8f8f8', border: `1.5px solid ${on ? '#b088f9' : '#e8e8e8'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', textAlign: 'left' }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, background: on ? '#b088f9' : 'transparent', border: `2px solid ${on ? '#b088f9' : '#ccc'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: on ? 'var(--bg-accent)' : 'var(--bg-section)', border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', textAlign: 'left' }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, background: on ? '#b088f9' : 'transparent', border: `2px solid ${on ? '#b088f9' : 'var(--border-light)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {on && <span style={{ color: 'white', fontSize: 13, lineHeight: 1 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: '0.95rem', color: on ? '#7c4fbf' : '#666', fontWeight: on ? 600 : 400 }}>{label}</span>
+                    <span style={{ fontSize: '0.95rem', color: on ? '#7c4fbf' : 'var(--text-secondary)', fontWeight: on ? 600 : 400 }}>{label}</span>
                   </button>
                 )
               })}
             </div>
             <div style={{ padding: '0 20px 32px' }}>
               <button onClick={exportPortfolio} disabled={portfolioExporting}
-                style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: portfolioExporting ? '#e8e8f8' : 'linear-gradient(135deg,#b088f9,#7baff0)', color: portfolioExporting ? '#aaa' : 'white', fontWeight: 700, fontSize: '1rem', cursor: portfolioExporting ? 'not-allowed' : 'pointer' }}>
+                style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: portfolioExporting ? 'var(--bg-section)' : 'linear-gradient(135deg,#b088f9,#7baff0)', color: portfolioExporting ? 'var(--text-muted)' : 'white', fontWeight: 700, fontSize: '1rem', cursor: portfolioExporting ? 'not-allowed' : 'pointer' }}>
                 {portfolioExporting ? '생성 중...' : 'PDF 출력'}
               </button>
             </div>

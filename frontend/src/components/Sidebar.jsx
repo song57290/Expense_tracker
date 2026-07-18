@@ -94,9 +94,9 @@ export default function Sidebar({ open, onClose, user, onLogout }) {
         <div style={{ padding: '12px 8px' }}>
           {user && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px 10px', marginBottom: 4 }}>
-              <span style={{ fontSize: '0.78rem', color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{user.email}</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{user.email}</span>
               <button onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); onLogout() }}
-                style={{ background: '#f0eeff', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
                 로그아웃
               </button>
             </div>
@@ -106,9 +106,9 @@ export default function Sidebar({ open, onClose, user, onLogout }) {
               <i className={`bi ${icon}`} /><span>{label}</span>
             </NavLink>
           ))}
-          <hr style={{ margin: '8px 4px', borderColor: '#f0f0f0' }} />
+          <hr style={{ margin: '8px 4px', borderColor: 'var(--border-light)' }} />
           <div style={{ padding: '4px 8px 8px' }}>
-            <div style={{ background: '#f7f7f7', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-section)', borderRadius: 12, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '11px 14px' }}>
                 <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <i className="bi bi-bell-fill" style={{ fontSize: '0.78rem', color: 'white' }} />
@@ -120,8 +120,8 @@ export default function Sidebar({ open, onClose, user, onLogout }) {
                 </div>
               </div>
               {active && (
-                <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid #ebebeb', padding: '11px 14px' }}>
-                  <div style={{ width: 28, height: 28, background: '#f0eeff', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--border-light)', padding: '11px 14px' }}>
+                  <div style={{ width: 28, height: 28, background: 'var(--bg-accent)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className="bi bi-clock" style={{ fontSize: '0.78rem', color: '#b088f9' }} />
                   </div>
                   <span style={{ flex: 1, marginLeft: 10, fontSize: '0.88rem' }}>알림 시간</span>

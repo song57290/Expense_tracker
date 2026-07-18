@@ -150,7 +150,7 @@ export default function Stats() {
   }
   const ax = barMode === 'both' ? niceAxis([...allExpData, ...allIncData]) : niceAxis(barData)
 
-  const pickerBtnStyle = { flex: 1, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: '#555', background: '#faf8ff', cursor: 'pointer', textAlign: 'center', fontWeight: 500 }
+  const pickerBtnStyle = { flex: 1, border: '1.5px solid var(--border-input)', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', cursor: 'pointer', textAlign: 'center', fontWeight: 500 }
 
   return (
     <div>
@@ -158,18 +158,18 @@ export default function Stats() {
       {pickerOpen && createPortal(
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
-          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
             {pickerMode === 'month' ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                  <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
                     <i className="bi bi-chevron-left" />
                   </button>
                   <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }}
-                    style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: '#f0eeff', color: '#b088f9' }}>
+                    style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: 'var(--bg-accent)', color: '#b088f9' }}>
                     {pickerYear}년 ▾
                   </span>
-                  <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                  <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
                     <i className="bi bi-chevron-right" />
                   </button>
                 </div>
@@ -179,7 +179,7 @@ export default function Stats() {
                     const isSel = ym === { barFrom, barTo, trendFrom, trendTo }[pickerTarget]
                     return (
                       <button key={m} onClick={() => onPickerSelect(pickerYear, m)}
-                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
                         {m}월
                       </button>
                     )
@@ -189,8 +189,8 @@ export default function Stats() {
             ) : pickerMode === 'decade' ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>연도 선택</span>
-                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
+                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   {[2001, 2011, 2021, 2031].map(start => {
@@ -198,7 +198,7 @@ export default function Stats() {
                     const isCur = pickerYear >= start && pickerYear <= end
                     return (
                       <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
-                        style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isCur ? 'white' : '#333' }}>
+                        style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isCur ? 'white' : 'var(--text-primary)' }}>
                         {start} ~ {end}
                       </button>
                     )
@@ -208,15 +208,15 @@ export default function Stats() {
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
-                  <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
+                  <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
                   {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
                     const isSel = y === pickerYear
                     return (
                       <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
-                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
                         {y}
                       </button>
                     )
@@ -237,7 +237,7 @@ export default function Stats() {
           <div className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>{fmtMonth(month)}</div>
           {!isCurrent && (
             <button onClick={() => setMonth(nowYM())}
-              style={{ fontSize: '0.75rem', color: '#aaa', background: 'none', border: 'none', padding: 0, position: 'absolute', left: '50%', top: '100%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', marginTop: 2 }}>현재로</button>
+              style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'none', border: 'none', padding: 0, position: 'absolute', left: '50%', top: '100%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', marginTop: 2 }}>현재로</button>
           )}
         </div>
         <button onClick={() => !isCurrent && setMonth(m => shiftMonth(m, 1))} className="btn btn-sm"
@@ -247,7 +247,7 @@ export default function Stats() {
 
       {/* 카테고리별 지출 헤더 */}
       <div className="d-flex justify-content-between align-items-center mb-3 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
-        <span className="fw-bold" style={{ fontSize: '1rem', color: '#333' }}>{fmtMonth(month)} 카테고리별 지출</span>
+        <span className="fw-bold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{fmtMonth(month)} 카테고리별 지출</span>
         <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
       </div>
       {catOpen && (
@@ -277,7 +277,7 @@ export default function Stats() {
                     />
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px 10px', marginTop: 16, width: '100%' }}>
                       {expLabels.map((cat, i) => (
-                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: '#555', minWidth: 0 }}>
+                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: 'var(--text-secondary)', minWidth: 0 }}>
                           <div style={{ width: 10, height: 10, borderRadius: '50%', background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
                         </div>
@@ -345,12 +345,12 @@ export default function Stats() {
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setBarOpen(o => !o)}>
             <div className="d-flex align-items-center gap-2">
               <h5 className="card-title mb-0">월별 추이</h5>
-              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: '#f2f2f7', borderRadius: 10, padding: 3, gap: 2 }}>
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: 'var(--bg-section)', borderRadius: 10, padding: 3, gap: 2 }}>
                 {[['expense', '지출'], ['income', '수입'], ['both', '전체']].map(([mode, label]) => (
                   <button key={mode} onClick={() => setBarMode(mode)}
                     style={{ border: 'none', borderRadius: 7, padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
                       background: barMode === mode ? (mode === 'expense' ? '#b088f9' : mode === 'income' ? '#34c759' : '#5b8def') : 'transparent',
-                      color: barMode === mode ? 'white' : '#888', transition: 'all 0.15s' }}>
+                      color: barMode === mode ? 'white' : 'var(--text-muted)', transition: 'all 0.15s' }}>
                     {label}
                   </button>
                 ))}
@@ -363,13 +363,13 @@ export default function Stats() {
               <button onClick={() => openPicker('barFrom')} style={pickerBtnStyle}>
                 {barFrom.slice(0,4)}년 {parseInt(barFrom.slice(5))}월
               </button>
-              <span style={{ color: '#bbb', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
               <button onClick={() => openPicker('barTo')} style={pickerBtnStyle}>
                 {barTo.slice(0,4)}년 {parseInt(barTo.slice(5))}월
               </button>
               {data.first_month && (
                 <button onClick={() => { setBarFrom(data.first_month); setBarTo(nowYM()) }}
-                  style={{ flexShrink: 0, border: '1.5px solid #e0d5ff', borderRadius: 10, padding: '6px 10px', fontSize: '0.78rem', color: barFrom === data.first_month && barTo === nowYM() ? '#fff' : '#b088f9', background: barFrom === data.first_month && barTo === nowYM() ? '#b088f9' : '#faf8ff', cursor: 'pointer', fontWeight: 600 }}>
+                  style={{ flexShrink: 0, border: '1.5px solid var(--border-input)', borderRadius: 10, padding: '6px 10px', fontSize: '0.78rem', color: barFrom === data.first_month && barTo === nowYM() ? '#fff' : '#b088f9', background: barFrom === data.first_month && barTo === nowYM() ? '#b088f9' : 'var(--bg-elevated)', cursor: 'pointer', fontWeight: 600 }}>
                   전체
                 </button>
               )}
@@ -428,7 +428,7 @@ export default function Stats() {
                       { label: '월 평균 잔액', val: avgBal, color: avgBal >= 0 ? '#0d6efd' : '#dc3545', bg: avgBal >= 0 ? '#f0f4ff' : '#fff0f0' },
                     ].map(({ label, val, color, bg }) => (
                       <div key={label} style={{ flex: 1, background: bg, borderRadius: 12, padding: '10px 12px' }}>
-                        <div style={{ fontSize: '0.68rem', color: '#888', marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
                         <div style={{ fontSize: '0.88rem', fontWeight: 700, color }}>{(val / 10000).toFixed(0)}만원</div>
                       </div>
                     ))}
@@ -505,13 +505,13 @@ export default function Stats() {
                             <div key={item.label} style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer' }} onClick={() => navigate(`/budget?section=${toSection(item.label)}`)}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <div style={{ width: 12, height: 12, borderRadius: 3, background: PF_COLORS[i % PF_COLORS.length], flexShrink: 0 }} />
-                                <span style={{ flex: 1, fontSize: '0.85rem', color: '#444' }}>{item.label}</span>
+                                <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#333', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
-                                  <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{pct}%</span>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                 </div>
                               </div>
-                              <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
+                              <div style={{ background: 'var(--bg-section)', borderRadius: 6, height: 10 }}>
                                 <div style={{ width: `${pct}%`, height: '100%', background: PF_COLORS[i % PF_COLORS.length], borderRadius: 6 }} />
                               </div>
                             </div>
@@ -519,7 +519,7 @@ export default function Stats() {
                         })}
                         {debtItems.length > 0 && (
                           <>
-                            <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 4 }} />
+                            <div style={{ borderTop: '1px solid var(--border-light)', marginTop: 4 }} />
                             {debtItems.map(item => {
                               const pct = assetTotal ? (Math.abs(item.value) / assetTotal * 100).toFixed(1) : 0
                               return (
@@ -529,10 +529,10 @@ export default function Stats() {
                                     <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
-                                      <span style={{ fontSize: '0.75rem', color: '#aaa', width: 38, textAlign: 'right' }}>{pct}%</span>
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                     </div>
                                   </div>
-                                  <div style={{ background: '#f0f0f0', borderRadius: 6, height: 10 }}>
+                                  <div style={{ background: 'var(--bg-section)', borderRadius: 6, height: 10 }}>
                                     <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: '#ff6b6b', borderRadius: 6 }} />
                                   </div>
                                 </div>
@@ -562,11 +562,11 @@ export default function Stats() {
               <button onClick={() => openPicker('trendFrom')} style={pickerBtnStyle}>
                 {trendFrom.slice(0,4)}년 {parseInt(trendFrom.slice(5))}월
               </button>
-              <span style={{ color: '#bbb', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>~</span>
               <button onClick={() => openPicker('trendTo')} style={pickerBtnStyle}>
                 {trendTo.slice(0,4)}년 {parseInt(trendTo.slice(5))}월
               </button>
-              <span style={{ fontSize: '0.7rem', color: '#bbb', flexShrink: 0, whiteSpace: 'nowrap' }}>최대 6개월</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>최대 6개월</span>
             </div>
           )}
           {assetOpen && (() => {
@@ -626,12 +626,12 @@ export default function Stats() {
             return (
               <div className="mt-3">
                 <div className="d-flex gap-3 mb-2">
-                  <div style={{ flex: 1, background: '#f8f5ff', borderRadius: 12, padding: '10px 14px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#888', marginBottom: 3 }}>현재 순자산</div>
+                  <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 12, padding: '10px 14px' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 3 }}>현재 순자산</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#b088f9' }}>{fmt(latest)}원</div>
                   </div>
                   <div style={{ flex: 1, background: diff >= 0 ? '#f0faf4' : '#fff0f0', borderRadius: 12, padding: '10px 14px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#888', marginBottom: 3 }}>전월 대비</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 3 }}>전월 대비</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: diff >= 0 ? '#198754' : '#dc3545' }}>
                       {diff >= 0 ? '+' : ''}{fmt(diff)}원
                     </div>
@@ -679,22 +679,22 @@ export default function Stats() {
                       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1400, transition: 'opacity 0.3s', opacity: assetVisible ? 1 : 0 }} />
                     <div style={{
                       position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1500,
-                      background: '#fff', borderRadius: '20px 20px 0 0',
+                      background: 'var(--bg-card)', borderRadius: '20px 20px 0 0',
                       maxHeight: '92dvh', display: 'flex', flexDirection: 'column',
                       transform: assetVisible ? 'translateY(0)' : 'translateY(100%)',
                       transition: 'transform 0.3s cubic-bezier(.32,1.1,.72,1)',
                       boxShadow: '0 -4px 32px rgba(0,0,0,0.13)',
                     }}>
                       {/* 헤더 */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: '1rem' }}>총 자산 추이</div>
-                          <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 1 }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 1 }}>
                             {trendFrom.slice(2,4)}년 {parseInt(trendFrom.slice(5))}월 ~ {trendTo.slice(2,4)}년 {parseInt(trendTo.slice(5))}월
                           </div>
                         </div>
                         <button onClick={closeAssetDetail}
-                          style={{ background: '#f2f2f7', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>✕</button>
+                          style={{ background: 'var(--bg-section)', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>✕</button>
                       </div>
 
                       {/* 스크롤 영역 */}
@@ -703,12 +703,12 @@ export default function Stats() {
                         {/* 요약 카드 */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
                           {[
-                            { label: '현재 순자산', val: fmt(latest) + '원', color: '#b088f9', bg: '#f8f5ff' },
+                            { label: '현재 순자산', val: fmt(latest) + '원', color: '#b088f9', bg: 'var(--bg-elevated)' },
                             { label: '전월 대비', val: (diff >= 0 ? '+' : '') + fmt(diff) + '원', color: diff >= 0 ? '#198754' : '#dc3545', bg: diff >= 0 ? '#f0faf4' : '#fff0f0' },
                             { label: '6개월 성장', val: (() => { const first = tData[0]; return first ? (((latest - first) / Math.abs(first)) * 100).toFixed(1) + '%' : '—' })(), color: (latest - tData[0]) >= 0 ? '#198754' : '#dc3545', bg: (latest - tData[0]) >= 0 ? '#f0faf4' : '#fff0f0' },
                           ].map(s => (
                             <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '10px 10px' }}>
-                              <div style={{ fontSize: '0.65rem', color: '#888', marginBottom: 3 }}>{s.label}</div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 3 }}>{s.label}</div>
                               <div style={{ fontSize: '0.88rem', fontWeight: 700, color: s.color }}>{s.val}</div>
                             </div>
                           ))}
@@ -720,8 +720,8 @@ export default function Stats() {
                         </div>
 
                         {/* 월별 상세 테이블 */}
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 10, color: '#444' }}>월별 상세</div>
-                        <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 10, color: 'var(--text-secondary)' }}>월별 상세</div>
+                        <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border-light)' }}>
                           {trend.map((t, i) => {
                             const prev2 = i > 0 ? tData[i - 1] : null
                             const chg = prev2 !== null ? t.assets - prev2 : null
@@ -741,8 +741,8 @@ export default function Stats() {
                             return (
                               <div key={t.month} style={{
                                 padding: '13px 16px',
-                                borderBottom: i < trend.length - 1 ? '1px solid #f5f5f5' : 'none',
-                                background: isMax ? '#f8f5ff' : isMin ? '#fff8f8' : '#fff',
+                                borderBottom: i < trend.length - 1 ? '1px solid var(--border-light)' : 'none',
+                                background: isMax ? 'var(--bg-elevated)' : isMin ? '#fff8f8' : 'var(--bg-card)',
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                   <div style={{ flex: 1 }}>
@@ -751,11 +751,11 @@ export default function Stats() {
                                       {isMax && <span style={{ fontSize: '0.65rem', background: '#b088f9', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최고</span>}
                                       {isMin && <span style={{ fontSize: '0.65rem', background: '#ff8fa3', color: '#fff', borderRadius: 6, padding: '1px 6px' }}>최저</span>}
                                     </div>
-                                    <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 2 }}>{t.month}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{t.month}</div>
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
                                     <div>
-                                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#333' }}>{fmt(t.assets)}원</div>
+                                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{fmt(t.assets)}원</div>
                                     </div>
                                     {chg !== null && (
                                       <div
