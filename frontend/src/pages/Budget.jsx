@@ -1382,7 +1382,7 @@ export default function Budget() {
                     { label: '이달 상환', val: totalRepaid, color: '#198754' },
                     { label: '순자산', val: totalBalance - totalLoan, color: (totalBalance - totalLoan) >= 0 ? '#198754' : '#dc3545' },
                   ].map(({ label, val, color }) => (
-                    <div key={label} style={{ flex: 1, background: '#fff5f5', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                    <div key={label} style={{ flex: 1, background: 'var(--bg-danger-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                       <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
                     </div>
@@ -1440,11 +1440,11 @@ export default function Budget() {
                 </div>
               </div>
               <div className="d-flex gap-2">
-                <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>예상이자 (세후)</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
                 </div>
-                <div style={{ flex: 1, background: '#f0faf4', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예상만기금액 (세후)</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
                 </div>

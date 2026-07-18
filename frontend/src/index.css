@@ -16,6 +16,10 @@
   --border-input: #e0d0fd;
   --bg-accent: #f0eeff;
   --input-bg: #ffffff;
+  --bg-danger-subtle: #fff5f5;
+  --bg-success-subtle: #f0faf4;
+  --fc-sun-color: #ff3b30;
+  --fc-sat-color: #007aff;
   /* Drum picker scroll fade */
   --drum-fade-down: linear-gradient(to bottom, rgba(255,255,255,0.97) 20%, transparent);
   --drum-fade-up: linear-gradient(to top, rgba(255,255,255,0.97) 20%, transparent);
@@ -23,6 +27,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --grad: linear-gradient(135deg, #6b44b0 0%, #3d6aaa 100%);
     --bg-page: #0f0f14;
     --bg-card: #1a1a24;
     --bg-elevated: #141420;
@@ -36,12 +41,46 @@
     --border-input: #332f50;
     --bg-accent: #2a2050;
     --input-bg: #1e1e2c;
+    --bg-danger-subtle: #2a1520;
+    --bg-success-subtle: #0f2518;
+    --fc-sun-color: #ff5a50;
+    --fc-sat-color: #409cff;
     --drum-fade-down: linear-gradient(to bottom, rgba(26,26,36,0.97) 20%, transparent);
     --drum-fade-up: linear-gradient(to top, rgba(26,26,36,0.97) 20%, transparent);
   }
+  body { color: var(--text-primary); }
+  .card { background-color: var(--bg-card) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+  .text-muted { color: var(--text-muted) !important; }
+  .text-dark { color: var(--text-primary) !important; }
+  .text-body { color: var(--text-primary) !important; }
+  .form-control, .form-select { background-color: var(--input-bg) !important; color: var(--text-primary) !important; border-color: var(--border-input) !important; }
+  .badge.bg-light { background-color: var(--bg-section) !important; color: var(--text-primary) !important; }
+  .list-group-item { background-color: var(--bg-card) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
+  .fc { color: var(--text-primary) !important; }
+  .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border) !important; }
+  .fc-theme-standard .fc-scrollgrid { border-color: var(--border) !important; }
+  .fc .fc-daygrid-day { background: var(--bg-card) !important; }
+  .fc .fc-col-header-cell { background: var(--bg-section) !important; }
+  .fc .fc-day-today { background: var(--bg-accent) !important; }
+  .fc .fc-daygrid-day-number,
+  .fc .fc-daygrid-day-number a,
+  .fc a.fc-daygrid-day-number { color: var(--text-primary) !important; }
+  .fc .fc-col-header-cell-cushion,
+  .fc .fc-col-header-cell a { color: var(--text-primary) !important; }
+  .fc-day-sun .fc-daygrid-day-number,
+  .fc-day-sun .fc-daygrid-day-number a,
+  .fc-day-sun a.fc-daygrid-day-number,
+  .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion,
+  .fc-col-header-cell.fc-day-sun a { color: #ff5a50 !important; }
+  .fc-day-sat .fc-daygrid-day-number,
+  .fc-day-sat .fc-daygrid-day-number a,
+  .fc-day-sat a.fc-daygrid-day-number,
+  .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
+  .fc-col-header-cell.fc-day-sat a { color: #409cff !important; }
 }
 
 :root[data-theme="dark"] {
+  --grad: linear-gradient(135deg, #6b44b0 0%, #3d6aaa 100%);
   --bg-page: #0f0f14;
   --bg-card: #1a1a24;
   --bg-elevated: #141420;
@@ -55,9 +94,37 @@
   --border-input: #332f50;
   --bg-accent: #2a2050;
   --input-bg: #1e1e2c;
+  --bg-danger-subtle: #2a1520;
+  --bg-success-subtle: #0f2518;
+  --fc-sun-color: #ff5a50;
+  --fc-sat-color: #409cff;
   --drum-fade-down: linear-gradient(to bottom, rgba(26,26,36,0.97) 20%, transparent);
   --drum-fade-up: linear-gradient(to top, rgba(26,26,36,0.97) 20%, transparent);
 }
+
+:root[data-theme="dark"] body { color: var(--text-primary); }
+:root[data-theme="dark"] .text-muted { color: var(--text-muted) !important; }
+:root[data-theme="dark"] .text-dark { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .form-control,
+:root[data-theme="dark"] .form-select { background-color: var(--input-bg) !important; color: var(--text-primary) !important; border-color: var(--border-input) !important; }
+:root[data-theme="dark"] .fc { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .fc-theme-standard td,
+:root[data-theme="dark"] .fc-theme-standard th { border-color: var(--border) !important; }
+:root[data-theme="dark"] .fc .fc-daygrid-day { background: var(--bg-card) !important; }
+:root[data-theme="dark"] .fc .fc-col-header-cell { background: var(--bg-section) !important; }
+:root[data-theme="dark"] .fc .fc-day-today { background: var(--bg-accent) !important; }
+:root[data-theme="dark"] .fc .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc a.fc-daygrid-day-number { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .fc .fc-col-header-cell-cushion,
+:root[data-theme="dark"] .fc .fc-col-header-cell a { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .fc-day-sun .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-day-sun a.fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sun a { color: #ff5a50 !important; }
+:root[data-theme="dark"] .fc-day-sat .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-day-sat a.fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sat a { color: #409cff !important; }
 
 :root[data-theme="light"] {
   --bg-page: #f8f9fa;
@@ -106,6 +173,16 @@ html, body {
 }
 
 /* Navbar */
+.app-navbar-title {
+  color: white;
+  text-shadow: 0 0 16px rgba(255,255,255,0.7);
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  .app-navbar-title { color: rgba(255,255,255,0.72); text-shadow: 0 0 10px rgba(255,255,255,0.25); }
+}
+:root[data-theme="dark"] .app-navbar-title { color: rgba(255,255,255,0.72); text-shadow: 0 0 10px rgba(255,255,255,0.25); }
+
 .app-navbar {
   background: var(--grad);
   border-radius: 20px;
@@ -285,13 +362,39 @@ body.sheet-open .top-fade { display: none !important; }
 /* FullCalendar 날짜 숫자 밑줄 제거 */
 .fc a { text-decoration: none !important; }
 
-/* FullCalendar day colors */
+/* FullCalendar day colors - light mode */
 .fc-day-sun .fc-daygrid-day-number { color: #ff3b30 !important; }
 .fc-day-sat .fc-daygrid-day-number { color: #007aff !important; }
 .fc-col-header-cell.fc-day-sun a,
 .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #ff3b30 !important; }
 .fc-col-header-cell.fc-day-sat a,
 .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #007aff !important; }
+
+/* Dark mode overrides - must come AFTER the global rules above */
+@media (prefers-color-scheme: dark) {
+  .fc-daygrid-day-number,
+  .fc-daygrid-day-number a,
+  a.fc-daygrid-day-number { color: var(--text-primary) !important; }
+  .fc-day-sun .fc-daygrid-day-number,
+  .fc-day-sun a.fc-daygrid-day-number { color: #ff5a50 !important; }
+  .fc-day-sat .fc-daygrid-day-number,
+  .fc-day-sat a.fc-daygrid-day-number { color: #409cff !important; }
+  .fc-col-header-cell.fc-day-sun a,
+  .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #ff5a50 !important; }
+  .fc-col-header-cell.fc-day-sat a,
+  .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #409cff !important; }
+}
+:root[data-theme="dark"] .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-daygrid-day-number a,
+:root[data-theme="dark"] a.fc-daygrid-day-number { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .fc-day-sun .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-day-sun a.fc-daygrid-day-number { color: #ff5a50 !important; }
+:root[data-theme="dark"] .fc-day-sat .fc-daygrid-day-number,
+:root[data-theme="dark"] .fc-day-sat a.fc-daygrid-day-number { color: #409cff !important; }
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sun a,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #ff5a50 !important; }
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sat a,
+:root[data-theme="dark"] .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion { color: #409cff !important; }
 
 /* Calendar dots positioning */
 .fc-daygrid-day-frame { position: relative !important; min-height: 52px !important; }

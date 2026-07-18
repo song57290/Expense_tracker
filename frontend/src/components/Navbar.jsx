@@ -9,7 +9,7 @@ export default function Navbar({ onMenuClick, nickname }) {
           <button onClick={onMenuClick} className="nav-icon-btn nav-icon-btn-lg d-none d-lg-flex">
             <i className="bi bi-list" />
           </button>
-          <span className="fw-bold fs-5" style={{ color: 'white', textShadow: '0 0 16px rgba(255,255,255,0.7)', cursor: 'pointer' }} onClick={() => navigate('/')}>
+          <span className="fw-bold fs-5 app-navbar-title" onClick={() => navigate('/')}>
             {nickname || '나'}의 가계부
           </span>
         </div>
