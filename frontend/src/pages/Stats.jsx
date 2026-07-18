@@ -270,7 +270,10 @@ export default function Stats() {
                               const total = context.dataset.data.reduce((a, b) => a + b, 0)
                               return context.dataset.data[context.dataIndex] / total > 0.07
                             },
-                            formatter: (_, ctx) => ctx.chart.data.labels[ctx.dataIndex],
+                            formatter: (_, ctx) => {
+                              const c = cats[ctx.dataIndex]
+                              return (c.icon || data.emoji_map[c.name] || '📦') + ' ' + c.name
+                            },
                             color: '#fff',
                             font: { weight: 'bold', size: 12 },
                           },
@@ -524,7 +527,7 @@ export default function Stats() {
                     />
                   </div>
                   {(() => {
-                    const toSection = label => ['예금','적금/청약'].includes(label) ? 'savings' : ['국내주식','해외주식','펀드','ETF','리츠'].includes(label) ? 'investment' : 'cards'
+                    const toSection = label => ['예금','적금','청약'].includes(label) ? 'savings' : ['국내주식','해외주식','펀드','ETF','리츠'].includes(label) ? 'investment' : 'cards'
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {assetItems.map((item, i) => {
