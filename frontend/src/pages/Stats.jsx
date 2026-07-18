@@ -21,14 +21,15 @@ const centerTextPlugin = {
     const { ctx, chartArea: { width, height, left, top } } = chart
     const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0)
     const cx = left + width / 2, cy = top + height / 2
+    const isDark = document.documentElement.dataset.theme === 'dark' || window.matchMedia?.('(prefers-color-scheme: dark)').matches
     ctx.save()
     ctx.font = 'bold 26px sans-serif'
-    ctx.fillStyle = '#333'
+    ctx.fillStyle = isDark ? '#f0eeff' : '#333'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(total.toLocaleString() + '원', cx, cy - 12)
     ctx.font = '13px sans-serif'
-    ctx.fillStyle = '#888'
+    ctx.fillStyle = isDark ? '#9590a8' : '#888'
     ctx.fillText('총 사용 금액', cx, cy + 16)
     ctx.restore()
   },
@@ -265,24 +266,30 @@ export default function Stats() {
                         plugins: {
                           legend: { display: false },
                           datalabels: {
-                            formatter: (value, ctx) => {
-                              const total = ctx.dataset.data.reduce((a, b) => a + b, 0)
-                              return value.toLocaleString() + '원\n(' + ((value / total) * 100).toFixed(1) + '%)'
+                            display: context => {
+                              const total = context.dataset.data.reduce((a, b) => a + b, 0)
+                              return context.dataset.data[context.dataIndex] / total > 0.07
                             },
+                            formatter: (_, ctx) => ctx.chart.data.labels[ctx.dataIndex],
                             color: '#fff',
                             font: { weight: 'bold', size: 12 },
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(30,30,30,0.92)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            callbacks: {
+                              title: () => [],
+                              label: ctx => {
+                                const total = ctx.dataset.data.reduce((a, b) => a + b, 0)
+                                return `${fmt(ctx.parsed)}원 (${(ctx.parsed / total * 100).toFixed(1)}%)`
+                              }
+                            }
                           },
                         },
                       }}
                     />
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px 10px', marginTop: 16, width: '100%' }}>
-                      {expLabels.map((cat, i) => (
-                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.76rem', color: 'var(--text-secondary)', minWidth: 0 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
-                        </div>
-                      ))}
-                    </div>
                   </>
                 ) : (
                   <p className="text-muted text-center py-4">지출 내역이 없습니다.</p>
@@ -290,24 +297,36 @@ export default function Stats() {
               </div>
             </div>
           </div>
-          {/* 상세 내역 테이블 */}
+          {/* 상세 내역 */}
           <div className="col-md-6">
             <div className="card h-100">
               <div className="card-body">
                 <h5 className="card-title">상세 내역</h5>
-                <table className="table table-hover" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-                  <thead><tr><th>카테고리</th><th style={{ textAlign: 'right' }}>지출 합계</th></tr></thead>
-                  <tbody>
-                    {cats.length === 0 ? (
-                      <tr><td colSpan={2} className="text-muted text-center">내역 없음</td></tr>
-                    ) : cats.map(c => (
-                      <tr key={c.name}>
-                        <td>{c.icon || data.emoji_map[c.name] || '📦'} {c.name}</td>
-                        <td style={{ textAlign: 'right' }}>{fmt(c.amount)}원</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {cats.length === 0 ? (
+                  <p className="text-muted text-center py-4">내역 없음</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {cats.map((c, i) => {
+                      const total = cats.reduce((s, x) => s + x.amount, 0)
+                      const pct = total ? (c.amount / total * 100).toFixed(1) : 0
+                      return (
+                        <div key={c.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 12, height: 12, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{c.icon || data.emoji_map[c.name] || '📦'} {c.name}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(c.amount)}원</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div style={{ background: 'var(--bg-section)', borderRadius: 6, height: 10 }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: PIE_COLORS[i % PIE_COLORS.length], borderRadius: 6 }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -462,34 +481,43 @@ export default function Stats() {
                 afterDraw(chart) {
                   const { ctx, chartArea: { width, height, left, top } } = chart
                   const cx = left + width / 2, cy = top + height / 2
+                  const isDark = document.documentElement.dataset.theme === 'dark' || window.matchMedia?.('(prefers-color-scheme: dark)').matches
                   ctx.save()
                   ctx.font = 'bold 20px sans-serif'
-                  ctx.fillStyle = '#333'
+                  ctx.fillStyle = isDark ? '#f0eeff' : '#333'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'middle'
                   ctx.fillText(netTotal >= 100000000 ? (netTotal / 100000000).toFixed(1) + '억원' : (netTotal / 10000).toFixed(0) + '만원', cx, cy - 10)
                   ctx.font = '12px sans-serif'
-                  ctx.fillStyle = '#888'
+                  ctx.fillStyle = isDark ? '#9590a8' : '#888'
                   ctx.fillText('순자산', cx, cy + 14)
                   ctx.restore()
                 }
               }
               return (
                 <div className="mt-3">
-                  <div style={{ maxWidth: 220, margin: '0 auto 16px' }}>
+                  <div style={{ maxWidth: 360, margin: '0 auto 16px' }}>
                     <Doughnut
                       data={{ labels, datasets: [{ data: values, backgroundColor: PF_COLORS, borderWidth: 2, hoverOffset: 6 }] }}
                       plugins={[pfCenter]}
                       options={{
                         plugins: {
                           legend: { display: false },
-                          datalabels: { display: false },
+                          datalabels: {
+                            display: context => assetTotal ? context.dataset.data[context.dataIndex] / assetTotal > 0.07 : false,
+                            formatter: (_, ctx) => ctx.chart.data.labels[ctx.dataIndex],
+                            color: '#fff',
+                            font: { weight: 'bold', size: 12 },
+                          },
                           tooltip: {
                             backgroundColor: 'rgba(30,30,30,0.92)',
                             titleColor: '#fff',
                             bodyColor: '#fff',
                             padding: 10,
-                            callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)` }
+                            callbacks: {
+                              title: () => [],
+                              label: ctx => `${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)`
+                            }
                           }
                         }
                       }}
