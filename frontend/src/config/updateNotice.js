@@ -2,35 +2,55 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.30'
-export const UPDATE_DATE = '2026년 7월 15일'
+export const CURRENT_VERSION = 'ver 2.32'
+export const UPDATE_DATE = '2026년 7월 19일'
 
 export const UPDATES = [
   {
-    section: '📅 캘린더',
+    section: '🌙 다크모드',
     items: [
-      { tag: 'new', title: '날짜에서 바로 내역 추가', desc: '날짜 클릭 팝업 오른쪽 상단 "+ 추가" 버튼 → 해당 날짜가 자동 입력된 바텀시트 열기\n· ✏️ 직접 입력: 카테고리·금액·카드 선택 후 바로 저장\n· 💬 문자 가져오기: 카드·은행 문자 붙여넣어 자동 인식' },
+      { tag: 'new', title: '시스템 다크모드 자동 적용', desc: '기기 설정에서 다크모드를 켜면 앱 전체가 자동으로 어두운 테마로 전환' },
     ],
   },
   {
-    section: '🔔 알림',
+    section: '📱 안드로이드 앱',
     items: [
-      { tag: 'fix', title: '알림 권한 팝업 중복 방지', desc: '알림 켜기 시 권한 팝업이 두 번 뜨던 문제 수정' },
-      { tag: 'imp', title: '알림 클릭 시 앱으로 이동', desc: '알림을 탭하면 Chrome 브라우저 대신 앱으로 바로 이동' },
-      { tag: 'imp', title: '알림 차단 상태 안내', desc: '알림이 차단된 경우 Chrome에서 해제하는 방법 안내' },
+      { tag: 'new', title: '네이티브 앱 지원 (Capacitor)', desc: '홈화면 추가 방식이 아닌 네이티브 안드로이드 앱으로 설치 가능 — APK 파일로 직접 설치' },
+      { tag: 'new', title: '헤드업 배너 푸시 알림', desc: '앱을 사용 중이 아닐 때도 카카오톡처럼 상단에 팝업 형태로 알림이 표시됨 (FCM 기반)' },
+      { tag: 'fix', title: '상태바 겹침 수정', desc: '네이티브 앱에서 시간·와이파이·배터리 표시줄이 앱 상단바와 겹치던 문제 수정' },
     ],
   },
   {
     section: '🔧 버그 수정 · 개선',
     items: [
-      { tag: 'fix', title: '월급 탭 빈 스크롤 제거', desc: '월급 탭 하단에 불필요한 빈 스크롤 공간 제거' },
-      { tag: 'imp', title: '탭 이동 시 스크롤 상단 복귀', desc: '다른 탭으로 이동하면 스크롤 위치가 자동으로 맨 위로 초기화' },
-      { tag: 'fix', title: '업데이트 내역 팝업 조건 수정', desc: '로그인 전에도 업데이트 내역 팝업이 뜨던 문제 수정 — 로그인 후에만 표시' },
+      { tag: 'fix', title: '자동이체 건너뛰기 저장', desc: '건너뛰기를 눌렀는데 앱 재진입 시 다시 팝업이 뜨던 문제 수정 — 오늘 하루 다시 표시 안 함' },
+      { tag: 'imp', title: '자동이체 팝업 카드·계좌 선택', desc: '자동이체 등록 팝업에서 카드·계좌를 직접 변경하여 등록 가능' },
+      { tag: 'fix', title: '자동이체 내역명 띄어쓰기', desc: '[자동이체]농협은행 → [자동이체] 농협은행으로 표시 개선' },
+      { tag: 'imp', title: '업데이트 내역 다시 안보기', desc: '업데이트 내역 팝업에 "다시 안보기" 버튼 추가 — 이후 업데이트에서도 팝업을 보지 않도록 설정' },
     ],
   },
 ]
 
 export const VERSION_HISTORY = [
+  {
+    version: 'ver 2.30',
+    date: '2026년 7월 15일',
+    updates: [
+      { section: '📅 캘린더', items: [
+        { tag: 'new', title: '날짜에서 바로 내역 추가', desc: '날짜 클릭 팝업 오른쪽 상단 "+ 추가" 버튼 → 해당 날짜가 자동 입력된 바텀시트 열기' },
+      ]},
+      { section: '🔔 알림', items: [
+        { tag: 'fix', title: '알림 권한 팝업 중복 방지', desc: '알림 켜기 시 권한 팝업이 두 번 뜨던 문제 수정' },
+        { tag: 'imp', title: '알림 클릭 시 앱으로 이동', desc: '알림을 탭하면 Chrome 브라우저 대신 앱으로 바로 이동' },
+        { tag: 'imp', title: '알림 차단 상태 안내', desc: '알림이 차단된 경우 Chrome에서 해제하는 방법 안내' },
+      ]},
+      { section: '🔧 버그 수정 · 개선', items: [
+        { tag: 'fix', title: '월급 탭 빈 스크롤 제거', desc: '월급 탭 하단에 불필요한 빈 스크롤 공간 제거' },
+        { tag: 'imp', title: '탭 이동 시 스크롤 상단 복귀', desc: '다른 탭으로 이동하면 스크롤 위치가 자동으로 맨 위로 초기화' },
+        { tag: 'fix', title: '업데이트 내역 팝업 조건 수정', desc: '로그인 전에도 업데이트 내역 팝업이 뜨던 문제 수정 — 로그인 후에만 표시' },
+      ]},
+    ],
+  },
   {
     version: 'ver 2.29',
     date: '2026년 7월 11일',
