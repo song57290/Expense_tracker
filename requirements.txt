@@ -6,4 +6,5 @@ openpyxl
 xlrd
 cryptography
 gunicorn
+firebase-admin
 finance-datareader

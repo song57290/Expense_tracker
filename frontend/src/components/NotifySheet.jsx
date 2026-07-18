@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
+
+function isCapacitor() {
+  return Capacitor.isNativePlatform()
+}
 
 function urlB64ToUint8Array(b64) {
   const pad = '='.repeat((4 - b64.length % 4) % 4)
@@ -173,34 +178,68 @@ export default function NotifySheet() {
 
   async function handleToggle() {
     if (active) {
-      try {
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        if (sub) { await api.post('/api/unsubscribe', { endpoint: sub.endpoint }); await sub.unsubscribe() }
-      } catch (e) { console.warn(e) }
+      if (isCapacitor()) {
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications')
+          await PushNotifications.unregister()
+        } catch (e) { console.warn(e) }
+        const token = localStorage.getItem('fcmToken')
+        if (token) await api.post('/api/fcm-unsubscribe', { token })
+      } else {
+        try {
+          const reg = await navigator.serviceWorker.ready
+          const sub = await reg.pushManager.getSubscription()
+          if (sub) { await api.post('/api/unsubscribe', { endpoint: sub.endpoint }); await sub.unsubscribe() }
+        } catch (e) { console.warn(e) }
+      }
       localStorage.setItem('notifyActive', '0'); setActive(false); setPickerOpen(false)
     } else {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return alert('HTTPS로 접속해주세요.')
-      if (Notification.permission === 'denied') {
-        alert('Chrome에서 알림이 차단되어 있습니다.\n\n해제 방법:\n1. Chrome 앱 실행\n2. 주소창에 gaegyebu.fly.dev 입력 후 접속\n3. 주소창 왼쪽 자물쇠 아이콘 탭\n4. 알림 → 허용\n\n또는: Chrome 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
-        return
-      }
-      try {
-        const parts = time.split(':')
-        const resp = await api.get('/api/vapid-public-key')
-        const reg = await navigator.serviceWorker.ready
-        const existing = await reg.pushManager.getSubscription()
-        if (existing) await existing.unsubscribe()
-        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(resp.key) })
-        const subJson = sub.toJSON()
-        subJson.notify_hour = parseInt(parts[0]); subJson.notify_minute = parseInt(parts[1])
-        const r = await api.post('/api/subscribe', subJson)
-        if (r.ok) { localStorage.setItem('notifyActive', '1'); setActive(true) }
-        else alert('서버 오류가 발생했습니다.')
-      } catch (e) {
-        if (e.name === 'NotAllowedError' || Notification.permission === 'denied')
-          alert('알림이 차단되어 있습니다.\n\n해제 방법: Android 설정 → 앱 → Gaegyebu → 알림 → 허용\n또는 Chrome → 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
-        else alert('오류: ' + e.message)
+      if (isCapacitor()) {
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications')
+          const perm = await PushNotifications.requestPermissions()
+          if (perm.receive !== 'granted') { alert('알림 권한이 거부되었습니다.'); return }
+          await PushNotifications.register()
+          const parts = time.split(':')
+          await new Promise((resolve, reject) => {
+            PushNotifications.addListener('registration', async (t) => {
+              localStorage.setItem('fcmToken', t.value)
+              const r = await api.post('/api/fcm-subscribe', {
+                token: t.value,
+                notify_hour: parseInt(parts[0]),
+                notify_minute: parseInt(parts[1]),
+              })
+              if (r.ok) { localStorage.setItem('notifyActive', '1'); setActive(true); resolve() }
+              else { alert('서버 오류가 발생했습니다.'); reject() }
+            })
+            PushNotifications.addListener('registrationError', (err) => {
+              alert('알림 등록 오류: ' + err.error); reject(err)
+            })
+          })
+        } catch (e) { console.warn(e) }
+      } else {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return alert('HTTPS로 접속해주세요.')
+        if (Notification.permission === 'denied') {
+          alert('Chrome에서 알림이 차단되어 있습니다.\n\n해제 방법:\n1. Chrome 앱 실행\n2. 주소창에 gaegyebu.fly.dev 입력 후 접속\n3. 주소창 왼쪽 자물쇠 아이콘 탭\n4. 알림 → 허용\n\n또는: Chrome 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
+          return
+        }
+        try {
+          const parts = time.split(':')
+          const resp = await api.get('/api/vapid-public-key')
+          const reg = await navigator.serviceWorker.ready
+          const existing = await reg.pushManager.getSubscription()
+          if (existing) await existing.unsubscribe()
+          const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(resp.key) })
+          const subJson = sub.toJSON()
+          subJson.notify_hour = parseInt(parts[0]); subJson.notify_minute = parseInt(parts[1])
+          const r = await api.post('/api/subscribe', subJson)
+          if (r.ok) { localStorage.setItem('notifyActive', '1'); setActive(true) }
+          else alert('서버 오류가 발생했습니다.')
+        } catch (e) {
+          if (e.name === 'NotAllowedError' || Notification.permission === 'denied')
+            alert('알림이 차단되어 있습니다.\n\n해제 방법: Android 설정 → 앱 → Gaegyebu → 알림 → 허용\n또는 Chrome → 설정 → 사이트 설정 → 알림 → gaegyebu.fly.dev → 허용')
+          else alert('오류: ' + e.message)
+        }
       }
     }
   }
@@ -208,15 +247,20 @@ export default function NotifySheet() {
   async function applyTime(newT) {
     setTime(newT); localStorage.setItem('notifyTime', newT)
     if (localStorage.getItem('notifyActive') !== '1') return
-    try {
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        const [h, m] = newT.split(':').map(Number)
-        const j = sub.toJSON(); j.notify_hour = h; j.notify_minute = m
-        await api.post('/api/subscribe', j)
-      }
-    } catch (e) { console.warn(e) }
+    const [h, m] = newT.split(':').map(Number)
+    if (isCapacitor()) {
+      const token = localStorage.getItem('fcmToken')
+      if (token) await api.post('/api/fcm-subscribe', { token, notify_hour: h, notify_minute: m })
+    } else {
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          const j = sub.toJSON(); j.notify_hour = h; j.notify_minute = m
+          await api.post('/api/subscribe', j)
+        }
+      } catch (e) { console.warn(e) }
+    }
   }
 
   const [h24, mn] = time.split(':').map(Number)

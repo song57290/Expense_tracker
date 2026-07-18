@@ -4,6 +4,14 @@ import App from './App.jsx'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import './index.css'
+import { Capacitor } from '@capacitor/core'
+
+if (Capacitor.isNativePlatform()) {
+  import('@capacitor/status-bar').then(({ StatusBar }) => {
+    StatusBar.setOverlaysWebView({ overlay: false })
+    StatusBar.setBackgroundColor({ color: '#b088f9' })
+  }).catch(() => {})
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
