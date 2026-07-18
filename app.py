@@ -2847,6 +2847,7 @@ def _do_send_push(sub, title='💰 나의 가계부', body='오늘 지출을 기
         vapid_private_key=priv_path,
         vapid_claims={'sub': 'mailto:song57290@gmail.com'},
         ttl=86400,
+        headers={'urgency': 'high'},
     )
 
 def _scheduled_price_update():
