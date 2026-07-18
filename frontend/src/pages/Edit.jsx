@@ -38,7 +38,7 @@ export default function Edit() {
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', padding: 0, color: '#444', fontSize: '2.4rem', lineHeight: 1, cursor: 'pointer', transform: 'translateY(-2px)' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-secondary)', fontSize: '2.4rem', lineHeight: 1, cursor: 'pointer', transform: 'translateY(-2px)' }}>
           ‹
         </button>
         <h5 className="mb-0 fw-bold">내역 수정</h5>

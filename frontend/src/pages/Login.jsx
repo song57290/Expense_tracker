@@ -82,26 +82,26 @@ export default function Login({ onLogin }) {
     }
   }
 
-  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid #e8e8e8', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', transition: 'border 0.2s' }
+  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border-light)', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', transition: 'border 0.2s', background: 'var(--input-bg)', color: 'var(--text-primary)' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg,#b088f9 0%,#7baff0 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
-      <div style={{ background: 'white', borderRadius: 24, width: '100%', maxWidth: 380, padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 24, width: '100%', maxWidth: 380, padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg,#b088f9,#7baff0)', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: '1.6rem' }}>
             💰
           </div>
-          <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#1c1c1e', margin: 0 }}>나의 가계부</h1>
+          <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>나의 가계부</h1>
         </div>
 
         {/* 탭 */}
         {tab !== 'reset' && (
-          <div style={{ display: 'flex', background: '#f0eeff', borderRadius: 14, padding: 4, marginBottom: 24 }}>
+          <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 14, padding: 4, marginBottom: 24 }}>
             {['login', 'register'].map(t => (
               <button key={t} onClick={() => switchTab(t)}
                 style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-                  background: tab === t ? 'white' : 'transparent',
-                  color: tab === t ? '#b088f9' : '#999',
+                  background: tab === t ? 'var(--bg-card)' : 'transparent',
+                  color: tab === t ? '#b088f9' : 'var(--text-muted)',
                   boxShadow: tab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
                 {t === 'login' ? '로그인' : '회원가입'}
               </button>
@@ -112,8 +112,8 @@ export default function Login({ onLogin }) {
         {/* 비밀번호 찾기 헤더 */}
         {tab === 'reset' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-            <button onClick={() => switchTab('login')} style={{ background: 'none', border: 'none', fontSize: '1.6rem', color: '#888', cursor: 'pointer', lineHeight: 1, padding: 0, transform: 'translateY(-1px)' }}>‹</button>
-            <span style={{ fontWeight: 700, fontSize: '1rem', color: '#1c1c1e' }}>비밀번호 찾기</span>
+            <button onClick={() => switchTab('login')} style={{ background: 'none', border: 'none', fontSize: '1.6rem', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1, padding: 0, transform: 'translateY(-1px)' }}>‹</button>
+            <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>비밀번호 찾기</span>
           </div>
         )}
 
@@ -127,18 +127,18 @@ export default function Login({ onLogin }) {
         {tab !== 'reset' && (
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>이메일</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="example@email.com"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
             </div>
             <div style={{ marginBottom: 8 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>비밀번호 {tab === 'register' && <span style={{ color: '#bbb' }}>(6자 이상)</span>}</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>비밀번호 {tab === 'register' && <span style={{ color: 'var(--text-muted)' }}>(6자 이상)</span>}</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
             </div>
             {tab === 'register' && (
               <div style={{ marginBottom: 8 }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>닉네임 <span style={{ color: '#bbb' }}>(선택)</span></label>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>닉네임 <span style={{ color: 'var(--text-muted)' }}>(선택)</span></label>
                 <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} placeholder="예: 홍길동"
                   style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
               </div>
@@ -161,9 +161,9 @@ export default function Login({ onLogin }) {
         {/* 비밀번호 찾기 - 1단계 */}
         {tab === 'reset' && resetStep === 1 && (
           <form onSubmit={handleResetRequest}>
-            <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: 16 }}>가입한 이메일로 인증번호를 발송합니다.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>가입한 이메일로 인증번호를 발송합니다.</p>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>이메일</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
               <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} required placeholder="example@email.com"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
             </div>
@@ -177,18 +177,18 @@ export default function Login({ onLogin }) {
         {/* 비밀번호 찾기 - 2단계 */}
         {tab === 'reset' && resetStep === 2 && (
           <form onSubmit={handleResetConfirm}>
-            <div style={{ background: '#f0eeff', borderRadius: 12, padding: '12px 16px', marginBottom: 20, textAlign: 'center' }}>
+            <div style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 16px', marginBottom: 20, textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', color: '#b088f9', fontWeight: 600 }}>📧 인증번호를 이메일로 발송했습니다</div>
-              <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 4 }}>{resetEmail} · 30분 이내 입력</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{resetEmail} · 30분 이내 입력</div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>인증번호 6자리</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>인증번호 6자리</label>
               <input type="text" inputMode="numeric" value={resetCodeInput} onChange={e => setResetCodeInput(e.target.value)} required placeholder="000000" maxLength={6}
                 style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.1rem' }}
                 onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus />
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>새 비밀번호 (6자 이상)</label>
+              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>새 비밀번호 (6자 이상)</label>
               <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} required placeholder="••••••••"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
             </div>

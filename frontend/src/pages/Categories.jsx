@@ -86,7 +86,7 @@ function SortableItem({ cat, onEdit, onDelete, isEditing }) {
         onMouseUp={isDragging ? undefined : onDragEnd}
         onMouseLeave={isDragging ? undefined : onDragEnd}
         style={{
-          background: 'white',
+          background: 'var(--bg-card)',
           transform: `translateX(${offsetX}px)`,
           transition: swiping ? 'none' : 'transform 0.2s, box-shadow 0.2s',
           display: 'flex', alignItems: 'center', padding: '12px 4px',
@@ -96,11 +96,11 @@ function SortableItem({ cat, onEdit, onDelete, isEditing }) {
           position: 'relative', zIndex: isEditing ? 2 : 1,
         }}
       >
-        <div {...listeners} style={{ cursor: 'grab', color: '#ccc', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
+        <div {...listeners} style={{ cursor: 'grab', color: 'var(--text-muted)', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
           <i className="bi bi-grip-vertical" />
         </div>
         <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
-        <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600, color: isEditing ? '#b088f9' : '#1c1c1e' }}>{cat.name}</span>
+        <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600, color: isEditing ? '#b088f9' : 'var(--text-primary)' }}>{cat.name}</span>
         {cat.exclude_perf && <span style={{ fontSize: '0.65rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 6 }}>실적제외</span>}
         {cat.exclude_stats && <span style={{ fontSize: '0.65rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 6 }}>통계제외</span>}
         {isEditing && <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem', color: '#b088f9', marginRight: 4 }} />}
@@ -169,8 +169,8 @@ export default function Categories() {
           <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab, exclude_perf: false, exclude_stats: false }) }} style={{ borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>취소</button>
         </div>
         {(form.type === 'expense' || (editCat && editCat.type === 'expense')) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f0f0f0' }}>
-            <label style={{ flex: 1, fontSize: '0.88rem', color: '#555', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-light)' }}>
+            <label style={{ flex: 1, fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
               💱 카드 실적에서 제외
             </label>
             <div className="ios-toggle" onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
@@ -179,8 +179,8 @@ export default function Categories() {
             </div>
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-          <label style={{ flex: 1, fontSize: '0.88rem', color: '#555', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-light)' }}>
+          <label style={{ flex: 1, fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
             📊 통계에서 제외
           </label>
           <div className="ios-toggle" onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
@@ -215,12 +215,12 @@ export default function Categories() {
       <div className="card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
         <div className="card-body">
           {cats.length === 0 ? (
-            <p style={{ color: '#aaa', textAlign: 'center' }}>카테고리가 없습니다</p>
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>카테고리가 없습니다</p>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={cats.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 {cats.map((cat, i) => (
-                  <div key={cat.id} style={{ borderBottom: i < cats.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                  <div key={cat.id} style={{ borderBottom: i < cats.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
                     <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type, exclude_perf: c.exclude_perf || false, exclude_stats: c.exclude_stats || false }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
                   </div>
                 ))}

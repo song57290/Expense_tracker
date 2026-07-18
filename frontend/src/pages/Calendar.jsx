@@ -20,11 +20,11 @@ function SlidingTabs({ options, value, onChange }) {
     }
   }, [value, options])
   return (
-    <div style={{ display: 'flex', background: '#f0eeff', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
-      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'white', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
+    <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
+      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
       {options.map(([val, label], i) => (
         <button key={val} ref={el => tabRefs.current[i] = el} onClick={() => onChange(val)}
-          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '3px 12px', fontSize: '0.8rem', background: 'transparent', color: value === val ? '#b088f9' : '#888', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s' }}>
+          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '3px 12px', fontSize: '0.8rem', background: 'transparent', color: value === val ? '#b088f9' : 'var(--text-muted)', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s' }}>
           {label}
         </button>
       ))}
@@ -120,13 +120,13 @@ export default function Calendar() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         <div className="d-flex align-items-center gap-1">
-          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.3rem', padding: '4px 10px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
+          <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.3rem', padding: '4px 10px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
             <i className="bi bi-chevron-left" />
           </button>
           <span onClick={openPicker} style={{ fontSize: '1.25rem', fontWeight: 700, cursor: 'pointer', userSelect: 'none', padding: '4px 10px' }}>
             {fmtMonth(yearMonth)}
           </span>
-          <button style={{ background: 'none', border: 'none', color: '#555', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goNext}>
+          <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.1rem', padding: '4px 8px', cursor: 'pointer', lineHeight: 1 }} onClick={goNext}>
             <i className="bi bi-chevron-right" />
           </button>
         </div>
@@ -186,18 +186,18 @@ export default function Calendar() {
         <div onClick={e => e.target === e.currentTarget && closeAdd()}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: addVisible ? 1 : 0, transition: 'opacity 0.22s' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(addForm.date)} 내역 추가</span>
-              <button onClick={closeAdd} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+              <button onClick={closeAdd} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
             {/* 탭 */}
-            <div style={{ display: 'flex', gap: 4, margin: '12px 20px 0', background: '#f0eeff', borderRadius: 12, padding: 4, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 4, margin: '12px 20px 0', background: 'var(--bg-accent)', borderRadius: 12, padding: 4, flexShrink: 0 }}>
               {[['manual', '✏️ 직접 입력'], ['text', '💬 문자 가져오기']].map(([t, label]) => (
                 <button key={t} type="button" onClick={() => setAddTab(t)}
                   style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-                    background: addTab === t ? 'white' : 'transparent',
-                    color: addTab === t ? '#b088f9' : '#999',
+                    background: addTab === t ? 'var(--bg-card)' : 'transparent',
+                    color: addTab === t ? '#b088f9' : 'var(--text-muted)',
                     boxShadow: addTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
                   {label}
                 </button>
@@ -230,7 +230,7 @@ export default function Calendar() {
                       <input className="form-control" inputMode="numeric" placeholder="금액" value={addAmountDisplay}
                         onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
                         required style={{ paddingRight: 36 }} />
-                      <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                      <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                     </div>
                     <div className="col-12">
                       <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
@@ -251,7 +251,7 @@ export default function Calendar() {
                 )
               ) : (
                 <form action="/import/text" method="post">
-                  <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: 12 }}>카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>카드·은행 문자 내역을 붙여넣으세요. 한 줄에 하나씩 인식합니다.</p>
                   <textarea name="text" className="form-control mb-3" rows={7}
                     placeholder={'예) [신한카드] 일시불 50,000원 스타벅스 2026-06-17'}
                     style={{ fontSize: '0.82rem', resize: 'vertical' }} />
@@ -271,15 +271,15 @@ export default function Calendar() {
       {pickerOpen && createPortal(
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
-          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
             {pickerMode === 'month' ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
                   <i className="bi bi-chevron-left" />
                 </button>
-                <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }} style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: '#f0eeff', color: '#b088f9' }}>{pickerYear}년 ▾</span>
-                <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#555', padding: '4px 10px' }}>
+                <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }} style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: 'var(--bg-accent)', color: '#b088f9' }}>{pickerYear}년 ▾</span>
+                <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
                   <i className="bi bi-chevron-right" />
                 </button>
               </div>
@@ -288,7 +288,7 @@ export default function Calendar() {
                   const isSel = pickerYear === curY && m === curM
                   return (
                     <button key={m} onClick={() => { setData(null); setYearMonth(`${pickerYear}-${String(m).padStart(2,'0')}`); setPickerOpen(false) }}
-                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
                       {m}월
                     </button>
                   )
@@ -298,8 +298,8 @@ export default function Calendar() {
           ) : pickerMode === 'decade' ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>연도 선택</span>
-                <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
+                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
+                <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {[2001, 2011, 2021, 2031].map(start => {
@@ -307,7 +307,7 @@ export default function Calendar() {
                   const isCur = pickerYear >= start && pickerYear <= end
                   return (
                     <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
-                      style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isCur ? 'white' : '#333' }}>
+                      style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isCur ? 'white' : 'var(--text-primary)' }}>
                       {start} ~ {end}
                     </button>
                   )
@@ -317,15 +317,15 @@ export default function Calendar() {
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem', color: '#555' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
-                <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: '#f0eeff', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
+                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
+                <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
                 {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
                   const isSel = y === pickerYear
                   return (
                     <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
-                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#f5f5f5', color: isSel ? 'white' : '#333' }}>
+                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
                       {y}
                     </button>
                   )
@@ -342,28 +342,28 @@ export default function Calendar() {
       {selected && createPortal(
         <div onClick={e => e.target === e.currentTarget && (setSelectedVisible(false), setTimeout(() => setSelected(null), 300))}
           style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: selectedVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
-          <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
-            <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); openAdd(selected) }, 280) }}
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: '0.8rem', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
                   + 추가
                 </button>
-                <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: '#f2f2f7', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: '#6e6e73', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+                <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
               </div>
             </div>
             <div style={{ overflowY: 'auto', padding: '8px 20px 40px' }}>
               {!selDay || selDay.length === 0 ? (
-                <p style={{ color: '#aaa', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
               ) : selDay.map((tx, i) => (
-                <div key={tx.id} style={{ padding: '10px 0', borderBottom: i < selDay.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                <div key={tx.id} style={{ padding: '10px 0', borderBottom: i < selDay.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
                   <TxItem tx={tx} emojiMap={data.emoji_map} />
                 </div>
               ))}
             </div>
             {selDay && selDay.length > 0 && (
-              <div style={{ padding: '10px 20px 16px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666', flexShrink: 0 }}>
+              <div style={{ padding: '10px 20px 16px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
                 <span>수입 <strong style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0))}원</strong></span>
                 <span>지출 <strong style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}원</strong></span>
               </div>
@@ -416,15 +416,15 @@ export default function Calendar() {
               </div>
             </div>
             {filtered.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#bbb', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
             ) : dates.map(date => (
               <div key={date} className="mb-2">
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#aaa', padding: '4px 0 2px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 0 2px' }}>
                   {fmtDate(date)}
                 </div>
-                <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--bg-card)', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                   {byDate[date].map((tx, i) => (
-                    <div key={tx.id} style={{ padding: '12px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                    <div key={tx.id} style={{ padding: '12px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
                       <TxItem tx={tx} emojiMap={data.emoji_map} />
                     </div>
                   ))}
