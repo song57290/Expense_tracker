@@ -4,6 +4,31 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
 
+function SlidingTabs({ options, value, onChange }) {
+  const tabRefs = useRef([])
+  const indRef = useRef(null)
+  useEffect(() => {
+    const idx = options.findIndex(o => o[0] === value)
+    const tab = tabRefs.current[idx]
+    const ind = indRef.current
+    if (tab && ind) {
+      ind.style.left = tab.offsetLeft + 'px'
+      ind.style.width = tab.offsetWidth + 'px'
+    }
+  }, [value, options])
+  return (
+    <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
+      <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
+      {options.map(([val, label], i) => (
+        <button key={val} ref={el => tabRefs.current[i] = el} onClick={() => onChange(val)}
+          style={{ position: 'relative', zIndex: 1, borderRadius: 16, padding: '5px 20px', fontSize: '0.85rem', background: 'transparent', color: value === val ? '#b088f9' : 'var(--text-muted)', border: 'none', fontWeight: value === val ? 600 : 400, transition: 'color 0.22s', cursor: 'pointer' }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function SortableItem({ cat, onEdit, onDelete, isEditing }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id })
   const sortStyle = {
@@ -96,13 +121,15 @@ function SortableItem({ cat, onEdit, onDelete, isEditing }) {
           position: 'relative', zIndex: isEditing ? 2 : 1,
         }}
       >
-        <div {...listeners} style={{ cursor: 'grab', color: 'var(--text-muted)', marginRight: 12, padding: '4px 8px', touchAction: 'none' }}>
+        <div {...listeners} style={{ cursor: 'grab', color: 'var(--text-muted)', marginRight: 8, padding: '4px 6px', touchAction: 'none' }}>
           <i className="bi bi-grip-vertical" />
         </div>
-        <span style={{ fontSize: '1.4rem', marginRight: 10 }}>{cat.icon}</span>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: isEditing ? 'rgba(176,136,249,0.18)' : 'var(--bg-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', marginRight: 12, flexShrink: 0, transition: 'background 0.2s' }}>
+          {cat.icon || '📦'}
+        </div>
         <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: 600, color: isEditing ? '#b088f9' : 'var(--text-primary)' }}>{cat.name}</span>
-        {cat.exclude_perf && <span style={{ fontSize: '0.65rem', background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 6 }}>실적제외</span>}
-        {cat.exclude_stats && <span style={{ fontSize: '0.65rem', background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 6 }}>통계제외</span>}
+        {cat.exclude_perf && <span style={{ fontSize: '0.65rem', background: 'rgba(220,53,69,0.12)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.3)', borderRadius: 6, padding: '2px 7px', fontWeight: 700, marginRight: 6 }}>실적제외</span>}
+        {cat.exclude_stats && <span style={{ fontSize: '0.65rem', background: 'rgba(90,127,212,0.12)', color: '#5a7fd4', border: '1px solid rgba(90,127,212,0.3)', borderRadius: 6, padding: '2px 7px', fontWeight: 700, marginRight: 6 }}>통계제외</span>}
         {isEditing && <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem', color: '#b088f9', marginRight: 4 }} />}
       </div>
     </div>
@@ -195,7 +222,10 @@ export default function Categories() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0 fw-bold">카테고리</h5>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h5 className="mb-0 fw-bold">카테고리</h5>
+          <span style={{ fontSize: '0.75rem', background: 'rgba(176,136,249,0.15)', color: '#b088f9', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{cats.length}</span>
+        </div>
         {!addOpen && !editCat && (
           <button className="btn btn-sm px-3" onClick={() => { setAddOpen(true); setForm({ name: '', icon: '', type: tab }) }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>
             <i className="bi bi-plus-lg me-1" />추가
@@ -203,10 +233,8 @@ export default function Categories() {
         )}
       </div>
 
-      <div className="d-flex gap-2 mb-3">
-        {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-          <button key={val} onClick={() => setTab(val)} className={`pill-btn ${tab === val ? 'pill-active' : 'pill-inactive'}`}>{label}</button>
-        ))}
+      <div className="mb-3">
+        <SlidingTabs options={[['expense', '지출'], ['income', '수입']]} value={tab} onChange={setTab} />
       </div>
 
       {addOpen && !editCat && formEl}
