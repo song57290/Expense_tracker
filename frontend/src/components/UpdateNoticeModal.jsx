@@ -27,17 +27,20 @@ export default function UpdateNoticeModal() {
   }, [])
 
   useEffect(() => {
-    if (localStorage.getItem('update_notice_never') === 'true') return
     const seen = localStorage.getItem('update_version_seen')
-    if (seen !== CURRENT_VERSION) setVisible(true)
+    const neverVer = localStorage.getItem('update_notice_never_version')
+    if (neverVer !== CURRENT_VERSION && seen !== CURRENT_VERSION) setVisible(true)
 
     fetch('/api/update-notice-config', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
-        if (d.version) {
+        if (d.version && d.version === CURRENT_VERSION) {
           setConfig(d)
-          if (localStorage.getItem('update_notice_never') !== 'true' && seen !== d.version) setVisible(true)
         }
+        const effectiveVersion = (d.version === CURRENT_VERSION ? d.version : CURRENT_VERSION)
+        const nv = localStorage.getItem('update_notice_never_version')
+        const s = localStorage.getItem('update_version_seen')
+        if (nv !== effectiveVersion && s !== effectiveVersion) setVisible(true)
       })
       .catch(() => {})
     fetch('/api/me', { credentials: 'same-origin' })
@@ -53,7 +56,7 @@ export default function UpdateNoticeModal() {
   }
 
   function dismissForever() {
-    localStorage.setItem('update_notice_never', 'true')
+    localStorage.setItem('update_notice_never_version', config.version || CURRENT_VERSION)
     localStorage.setItem('update_version_seen', config.version || CURRENT_VERSION)
     setVisible(false)
     setEditOpen(false)

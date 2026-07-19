@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
 
@@ -429,10 +429,38 @@ export default function Settings() {
     }
   }
 
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system')
+  const themeTabRefs = useRef([])
+  const themeIndRef = useRef(null)
+  const THEME_OPTIONS = ['light', 'dark', 'system']
+  useEffect(() => {
+    const idx = THEME_OPTIONS.indexOf(theme)
+    const tab = themeTabRefs.current[idx]
+    const ind = themeIndRef.current
+    if (tab && ind) {
+      ind.style.left = tab.offsetLeft + 'px'
+      ind.style.width = tab.offsetWidth + 'px'
+    }
+  }, [theme])
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpItem, setHelpItem] = useState(null)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+
+  function applyTheme(t) {
+    setTheme(t)
+    localStorage.setItem('theme', t)
+    document.documentElement.classList.add('theme-transitioning')
+    if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+    else if (t === 'light') document.documentElement.setAttribute('data-theme', 'light')
+    else document.documentElement.removeAttribute('data-theme')
+    setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 400)
+    const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+      StatusBar.setBackgroundColor({ color: isDark ? '#6b44b0' : '#b088f9' })
+      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })
+    }).catch(() => {})
+  }
 
   async function handleLogout() {
     await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' })
@@ -499,6 +527,34 @@ export default function Settings() {
         .s-collapse { overflow: hidden; transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1); }
       `}</style>
       <h5 className="fw-bold mb-3">설정</h5>
+
+      {/* 화면 테마 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>🌙 화면 테마</div>
+          <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 12, padding: 3, position: 'relative' }}>
+            <div ref={themeIndRef} className="theme-sel-ind" style={{
+              position: 'absolute', top: 3, bottom: 3,
+              background: 'var(--bg-card)', borderRadius: 9,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+              transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94), width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+              pointerEvents: 'none', zIndex: 0,
+            }} />
+            {[['light', '☀️ 라이트'], ['dark', '🌙 다크'], ['system', '⚙️ 시스템']].map(([val, label], i) => (
+              <button key={val} ref={el => themeTabRefs.current[i] = el} onClick={() => applyTheme(val)} style={{
+                flex: 1, padding: '9px 4px', borderRadius: 9, border: 'none', fontSize: '0.82rem',
+                fontWeight: theme === val ? 700 : 400,
+                background: 'transparent',
+                color: theme === val ? '#b088f9' : 'var(--text-muted)',
+                cursor: 'pointer', transition: 'color 0.28s', whiteSpace: 'nowrap',
+                position: 'relative', zIndex: 1,
+              }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* 도움말 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
