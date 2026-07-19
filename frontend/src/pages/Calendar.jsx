@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
 import { fmt, fmtMonth, fmtDate, bankColor } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
+import SwipeItem from '../components/SwipeItem.jsx'
+import CategoryPicker from '../components/CategoryPicker.jsx'
+import CardPicker from '../components/CardPicker.jsx'
 
 function SlidingTabs({ options, value, onChange }) {
   const tabRefs = useRef([])
@@ -33,8 +37,10 @@ function SlidingTabs({ options, value, onChange }) {
 }
 
 export default function Calendar() {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [confirmSheet, setConfirmSheet] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
   const [txFilter, setTxFilter] = useState('all')
   const [txSortAsc, setTxSortAsc] = useState(false)
@@ -94,6 +100,12 @@ export default function Calendar() {
   }, [])
 
   useEffect(() => { load(yearMonth) }, [yearMonth, load])
+
+  async function handleDelete(id) {
+    await api.delete(`/api/transactions/${id}`)
+    setConfirmSheet(null)
+    load(yearMonth)
+  }
 
   function goPrev() {
     const [y, m] = yearMonth.split('-').map(Number)
@@ -213,18 +225,27 @@ export default function Calendar() {
                       <input type="date" className="form-control" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} required />
                     </div>
                     <div className="col-6">
-                      <select className="form-select" value={addForm.type} onChange={e => setAddForm(f => ({ ...f, type: e.target.value, category: '', exclude_perf: false, exclude_stats: false }))}>
-                        <option value="expense">지출</option>
-                        <option value="income">수입</option>
-                      </select>
+                      <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-accent)', borderRadius: 10, padding: 3, height: 38 }}>
+                        <div style={{ position: 'absolute', top: 3, bottom: 3, width: 'calc(50% - 3px)', borderRadius: 8,
+                          background: addForm.type === 'expense' ? '#ff3b30' : '#34c759',
+                          transform: addForm.type === 'expense' ? 'translateX(0)' : 'translateX(calc(100% + 2px))',
+                          transition: 'transform 0.26s cubic-bezier(0.25,0.46,0.45,0.94), background 0.26s',
+                          boxShadow: addForm.type === 'expense' ? '0 2px 8px rgba(255,59,48,0.45)' : '0 2px 8px rgba(52,199,89,0.45)' }} />
+                        {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                          <button key={val} type="button" onClick={() => setAddForm(f => ({ ...f, type: val, category: '', exclude_perf: false, exclude_stats: false }))}
+                            style={{ flex: 1, position: 'relative', zIndex: 1, borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', background: 'transparent',
+                              color: addForm.type === val ? 'white' : 'var(--text-muted)', transition: 'color 0.26s' }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="col-12">
-                      <select className="form-select" value={addForm.category} onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))} required>
-                        <option value="">카테고리 선택</option>
-                        {(addForm.type === 'expense' ? homeData.expense_cats : homeData.income_cats).map(([name]) => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
+                      <CategoryPicker
+                        cats={addForm.type === 'expense' ? homeData.expense_cats : homeData.income_cats}
+                        value={addForm.category}
+                        onChange={cat => setAddForm(f => ({ ...f, category: cat }))}
+                      />
                     </div>
                     <div className="col-12" style={{ position: 'relative' }}>
                       <input className="form-control" inputMode="numeric" placeholder="금액" value={addAmountDisplay}
@@ -236,10 +257,11 @@ export default function Calendar() {
                       <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
                     </div>
                     <div className="col-12">
-                      <select className="form-select" value={addForm.card} onChange={e => setAddForm(f => ({ ...f, card: e.target.value }))}>
-                        <option value="">카드/계좌 선택</option>
-                        {(homeData.cards || []).map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <CardPicker
+                        cards={(homeData.card_list || []).filter(c => !c.is_loan)}
+                        value={addForm.card}
+                        onChange={name => setAddForm(f => ({ ...f, card: name }))}
+                      />
                     </div>
                     <div className="col-12 mt-1">
                       <button type="submit" className="btn w-100" disabled={addSaving}
@@ -405,9 +427,9 @@ export default function Calendar() {
         }, {})
         const dates = Object.keys(byDate).sort((a, b) => txSortAsc ? a.localeCompare(b) : b.localeCompare(a))
         return (
-          <div className="mt-3">
+          <div style={{ marginTop: 40 }}>
             <div className="d-flex justify-content-between align-items-center mb-2">
-              <h5 className="mb-0 fw-bold">내역 목록</h5>
+              <h3 className="mb-0 fw-bold">내역 목록</h3>
               <div className="d-flex align-items-center gap-2">
                 <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', whiteSpace: 'nowrap' }}>
                   {txSortAsc ? '과거순' : '최신순'}
@@ -419,14 +441,20 @@ export default function Calendar() {
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
             ) : dates.map(date => (
               <div key={date} className="mb-2">
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 0 2px' }}>
-                  {fmtDate(date)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
+                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                  <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {(() => { const s = byDate[date].reduce((a, t) => t.type === 'income' ? a + t.amount : a - t.amount, 0); return `${s >= 0 ? '+' : ''}${fmt(s)}원` })()}
+                  </span>
                 </div>
-                <div style={{ background: 'var(--bg-card)', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                   {byDate[date].map((tx, i) => (
-                    <div key={tx.id} style={{ padding: '12px 14px', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                      <TxItem tx={tx} emojiMap={data.emoji_map} />
-                    </div>
+                    <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
+                      <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                        <TxItem tx={tx} emojiMap={data.emoji_map} />
+                      </div>
+                    </SwipeItem>
                   ))}
                 </div>
               </div>
@@ -434,6 +462,18 @@ export default function Calendar() {
           </div>
         )
       })()}
+
+      {confirmSheet && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 6000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>삭제하시겠습니까?</p>
+            <div className="d-flex gap-2">
+              <button className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSheet(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,6 +4,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
+import CategoryPicker from '../components/CategoryPicker.jsx'
+import CardPicker from '../components/CardPicker.jsx'
+import SwipeItem from '../components/SwipeItem.jsx'
 
 // 슬라이딩 탭 인디케이터
 function SlidingTabs({ options, value, onChange }) {
@@ -31,78 +34,6 @@ function SlidingTabs({ options, value, onChange }) {
   )
 }
 
-// 스와이프 아이템 (좌=삭제, 우=수정)
-function SwipeItem({ children, onDelete, onEdit }) {
-  const startX = useRef(null)
-  const startY = useRef(null)
-  const [offsetX, setOffsetX] = useState(0)
-  const horiz = useRef(false)
-  const mouseDown = useRef(false)
-
-  const getClientXY = e => e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY]
-
-  const onDragStart = e => {
-    const [cx, cy] = getClientXY(e)
-    if (!e.touches) {
-      // PC: 엣지 제한 없이 드래그 허용
-      startX.current = cx
-      startY.current = cy
-      horiz.current = true
-      mouseDown.current = true
-      setOffsetX(0)
-      return
-    }
-    const wrap = e.currentTarget.closest('.page-wrap')
-    const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, width: window.innerWidth }
-    const relX = cx - rect.left
-    if (relX < 80 || relX > rect.width - 80) return
-    startX.current = cx
-    startY.current = cy
-    horiz.current = false
-    setOffsetX(0)
-  }
-
-  const onDragMove = e => {
-    if (startX.current === null) return
-    const [cx, cy] = getClientXY(e)
-    const dx = startX.current - cx
-    const dy = startY.current - cy
-    if (!horiz.current) {
-      if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
-      if (Math.abs(dx) > 8) horiz.current = true; else return
-    }
-    setOffsetX(Math.max(-110, Math.min(110, -dx)))
-  }
-
-  const onDragEnd = () => {
-    mouseDown.current = false
-    if (startX.current === null) return
-    const cur = offsetX
-    startX.current = null
-    if (cur < -60) { setOffsetX(0); onDelete() }
-    else if (cur > 60) { setOffsetX(0); onEdit() }
-    else setOffsetX(0)
-  }
-
-  const deleteWidth = Math.max(0, -offsetX)
-  const editWidth = Math.max(0, offsetX)
-
-  return (
-    <div style={{ position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: deleteWidth, background: '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
-        <i className="bi bi-trash" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>삭제</span>
-      </div>
-      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: editWidth, background: '#198754', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', textAlign: 'center', color: 'white', fontSize: '0.75rem', gap: 2, overflow: 'hidden' }}>
-        <i className="bi bi-pencil" style={{ fontSize: '1.15rem', display: 'block', flexShrink: 0 }} /><span>수정</span>
-      </div>
-      <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
-        {children}
-      </div>
-    </div>
-  )
-}
 
 export default function Home() {
   const [data, setData] = useState(null)
@@ -212,13 +143,15 @@ export default function Home() {
         <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{summaryOpen ? '▴' : '▾'}</span>
       </div>
       {summaryOpen && (
-        <div className="row mb-4">
-          {[['수입', data.income_total, 'text-success'], ['지출', data.expense_total, 'text-danger'], ['총계', data.balance, 'text-primary']].map(([label, val, cls]) => (
-            <div key={label} className="col-4">
-              <div className="card text-center"><div className="card-body">
-                <h6 className={`card-title fw-bold ${cls}`}>{label}</h6>
-                <p className="card-text fw-bold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{fmt(val)}원</p>
-              </div></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 24 }}>
+          {[
+            { label: '수입', color: '#34c759', amt: `+${fmt(data.income_total)}원` },
+            { label: '지출', color: '#ff3b30', amt: `-${fmt(data.expense_total)}원` },
+            { label: '총계', color: data.balance >= 0 ? '#409cff' : '#ff3b30', amt: `${data.balance >= 0 ? '+' : ''}${fmt(data.balance)}원` },
+          ].map(({ label, color, amt }) => (
+            <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
             </div>
           ))}
         </div>
@@ -297,20 +230,27 @@ export default function Home() {
                 <input type="date" className="form-control" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
               </div>
               <div className="col-6 col-lg-2">
-                <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, exclude_perf: false, exclude_stats: false }))}>
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                </select>
+                <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-accent)', borderRadius: 10, padding: 3, height: 38 }}>
+                  <div style={{ position: 'absolute', top: 3, bottom: 3, width: 'calc(50% - 3px)', borderRadius: 8,
+                    background: form.type === 'expense' ? '#ff3b30' : '#34c759',
+                    transform: form.type === 'expense' ? 'translateX(0)' : 'translateX(calc(100% + 2px))',
+                    transition: 'transform 0.26s cubic-bezier(0.25,0.46,0.45,0.94), background 0.26s',
+                    boxShadow: form.type === 'expense' ? '0 2px 8px rgba(255,59,48,0.45)' : '0 2px 8px rgba(52,199,89,0.45)' }} />
+                  {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => setForm(f => ({ ...f, type: val, exclude_perf: false, exclude_stats: false }))}
+                      style={{ flex: 1, position: 'relative', zIndex: 1, borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', background: 'transparent',
+                        color: form.type === val ? 'white' : 'var(--text-muted)', transition: 'color 0.26s' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="col-6 col-lg-2">
-                <select className="form-select" value={form.category} onChange={e => {
-                  const cat = e.target.value
+                <CategoryPicker cats={cats} value={form.category} onChange={cat => {
                   const autoExcl = form.type === 'expense' && (data.excl_cat_names || []).includes(cat)
                   const autoExclStats = (data.excl_stat_cat_names || []).includes(cat)
                   setForm(f => ({ ...f, category: cat, exclude_perf: autoExcl, exclude_stats: autoExclStats }))
-                }}>
-                  {cats.map(([name, icon]) => <option key={name} value={name}>{icon} {name}</option>)}
-                </select>
+                }} />
               </div>
               <div className="col-6 col-lg-2">
                 <div style={{ position: 'relative' }}>
@@ -333,12 +273,12 @@ export default function Home() {
                   </div>
                 ) : (
                   <>
-                    <select className="form-select" value={form.card}
-                      style={cardError ? { borderColor: '#dc3545' } : {}}
-                      onChange={e => { setForm(f => ({ ...f, card: e.target.value })); setCardError(false) }}>
-                      <option value="">카드 선택</option>
-                      {data.card_list.filter(c => !c.is_loan).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
+                    <CardPicker
+                      cards={data.card_list.filter(c => !c.is_loan)}
+                      value={form.card}
+                      onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
+                      error={cardError}
+                    />
                     {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
                   </>
                 )}
@@ -383,7 +323,7 @@ export default function Home() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setTxOpen(o => !o)}>
-              <h5 className="card-title mb-0">내역 목록</h5>
+              <h3 className="card-title mb-0">내역 목록</h3>
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{txOpen ? '▴' : '▾'}</span>
             </div>
             <div className="d-flex align-items-center gap-2">
@@ -405,8 +345,14 @@ export default function Home() {
               const dates = Object.keys(byDate).sort((a, b) => sortAsc ? a.localeCompare(b) : b.localeCompare(a))
               return dates.map(date => (
                 <div key={date} className="mb-2">
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', padding: '4px 2px 2px' }}>
-                    {fmtDate(date)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                    <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0) >= 0
+                        ? `+${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`
+                        : `${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`}
+                    </span>
                   </div>
                   <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     {byDate[date].map((tx, i) => (
