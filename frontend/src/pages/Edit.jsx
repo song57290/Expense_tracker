@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api.js'
+import DatePickerSheet from '../components/DatePickerSheet.jsx'
 
 export default function Edit() {
   const { id } = useParams()
@@ -49,7 +50,7 @@ export default function Edit() {
           <form onSubmit={handleSave}>
             <div className="mb-3">
               <label className="form-label fw-semibold">날짜</label>
-              <input type="date" className="form-control" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+              <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
             </div>
             <div className="mb-3">
               <label className="form-label fw-semibold">유형</label>
