@@ -300,14 +300,7 @@ with app.app_context():
     existing = AppConfig.query.get('update_notice')
     if existing is None:
         db.session.add(AppConfig(key='update_notice', value=json.dumps(_notice, ensure_ascii=False)))
-    else:
-        try:
-            cur = json.loads(existing.value)
-            if cur.get('version') != _notice_v:
-                existing.value = json.dumps(_notice, ensure_ascii=False)
-        except Exception:
-            existing.value = json.dumps(_notice, ensure_ascii=False)
-    db.session.commit()
+        db.session.commit()
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
