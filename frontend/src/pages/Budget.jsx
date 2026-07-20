@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, bankLogo, fmtMonth, today } from '../utils.js'
+import DatePickerSheet from '../components/DatePickerSheet.jsx'
 
 const BANKS = [
   ['신한은행', '/static/cards/sinhanbank.png', '신한은행'],
@@ -545,9 +546,9 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
               <input type="number" placeholder="금액" value={depForm.amount}
                 onChange={e => setDepForm(f => ({ ...f, amount: e.target.value }))} required
                 style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
-              <input type="date" value={depForm.date}
-                onChange={e => setDepForm(f => ({ ...f, date: e.target.value }))}
-                style={{ flex: 2, padding: '6px 8px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
+              <div style={{ flex: 2 }}>
+                <DatePickerSheet value={depForm.date} onChange={date => setDepForm(f => ({ ...f, date }))} />
+              </div>
               <button type="submit" disabled={depLoading}
                 style={{ flex: 1, borderRadius: 8, border: 'none', background: '#198754', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
                 등록
@@ -729,12 +730,12 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             <div className="d-flex gap-2 mb-2">
               <div className="flex-fill">
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>시작일</label>
-                <input type="date" className="form-control" value={startDate} onChange={e => setStartDate(e.target.value)} required style={{ borderRadius: 10 }} />
+                <DatePickerSheet value={startDate} onChange={setStartDate} />
               </div>
               {stype !== '청약' && (
                 <div className="flex-fill">
                   <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>만기일</label>
-                  <input type="date" className="form-control" value={endDate} onChange={e => setEndDate(e.target.value)} required style={{ borderRadius: 10 }} />
+                  <DatePickerSheet value={endDate} onChange={setEndDate} />
                 </div>
               )}
             </div>

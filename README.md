@@ -54,13 +54,15 @@ Expense_tracker/
 │       │   ├─ Layout.jsx            ← 네비바 + 바텀탭 + 좌우 스와이프 제스처
 │       │   ├─ Navbar.jsx            ← 상단 그라데이션 바 (닉네임의 가계부)
 │       │   ├─ BottomNav.jsx         ← 하단 탭 바 (홈/예산/캘린더/통계/월급/설정)
-│       │   ├─ Sidebar.jsx           ← PC 사이드 드로어 + 알림 토글
+│       │   ├─ Sidebar.jsx           ← PC 사이드 드로어 + 알림 토글 + 드럼 시간 피커
 │       │   ├─ NotifySheet.jsx       ← 알림 바텀시트
 │       │   ├─ UpdateNoticeModal.jsx ← 인앱 업데이트 공지 바텀시트 모달
 │       │   ├─ TxItem.jsx            ← 내역 항목 공통 컴포넌트 (카드배지·카테고리이모지·금액)
 │       │   ├─ SwipeItem.jsx         ← 스와이프 삭제·수정 공통 컴포넌트 (홈·캘린더 공유)
 │       │   ├─ CategoryPicker.jsx    ← 카테고리 선택 커스텀 바텀시트 (이모지·이름·스와이프 닫기)
-│       │   └─ CardPicker.jsx        ← 카드/계좌 선택 커스텀 바텀시트 (은행 로고·스와이프 닫기)
+│       │   ├─ CardPicker.jsx        ← 카드/계좌 선택 커스텀 바텀시트 (은행 로고·스와이프 닫기)
+│       │   ├─ DatePickerSheet.jsx   ← 커스텀 날짜 피커 팝업 (달력 그리드 + 연도 드럼, 전 탭 공용)
+│       │   └─ YearDrum.jsx          ← 연도 드럼 스크롤 피커 (1900~2100, 캘린더·통계·DatePickerSheet 공유)
 │       └─ pages/
 │           ├─ Home.jsx              ← 홈 (이번달 내역 목록, 스와이프 삭제·수정, 카테고리별 지출)
 │           ├─ Budget.jsx            ← 예산 (카드·예적금·청약·투자 잔고, 실적 추적, 연결 계좌)
@@ -410,6 +412,20 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 193 | 자동이체 건너뛰기 저장 — 건너뛰기 시 `skip_register_{type}_{id}_{date}` localStorage 저장, 당일 재진입 시 팝업 재표시 방지 |
 | 194 | 자동이체 내역명 띄어쓰기 ��� `[자동이체]농협은행` → `[자동이체] 농협은행` (TxItem 렌더링 정규식 + API description 수정) |
 | 195 | gitignore 보완 — `google-services.json`(android/app), `node_modules/`, `dist/`(frontend) 추가 |
+
+## 2026-07-20 — ver 2.34
+
+| # | 내용 |
+|---|------|
+| 219 | 커스텀 날짜 피커 전 탭 통일 — `DatePickerSheet.jsx` 신규 컴포넌트, 홈·캘린더·수정·예산 탭의 기본 날짜 입력을 커스텀 달력 팝업으로 교체 |
+| 220 | `YearDrum.jsx` 공유 컴포넌트 — 1900~2100 연도 드럼 스크롤 피커, scroll-snap-type mandatory, 120ms 디바운스 스냅 |
+| 221 | 캘린더·통계 연도 피커 드럼 방식 변경 — 기존 10년 단위 그리드 → YearDrum 드럼 스크롤로 교체 |
+| 222 | 날짜 피커 팝업 화면 중앙 배치 — 바텀시트 방식 제거, `position:fixed; align-items:center` 가운데 모달로 변경, scale 애니메이션 적용 |
+| 223 | 날짜 피커 화살표 월 옆으로 이동 — 이전/다음 월 화살표가 양 끝 → `[2026년 ▾] [‹ 7월 ›]` 레이아웃으로 재배치 |
+| 224 | 통계 탭 월 클릭 바로 이동 — 상단 월 표시를 클릭하면 드럼 피커로 원하는 달로 바로 이동, 화살표만 쓰던 방식 개선 |
+| 225 | 캘린더 실적 제외 / 통계 제외 토글 추가 — 캘린더 내역 추가 폼에 홈 탭과 동일한 iOS 토글 두 개 추가 |
+| 226 | PC 사이드바 알림 시간 드럼 피커 — 기본 시간 입력창(`input[type=time]`) → 오전/오후·시·분 드럼 피커로 교체, 모바일과 동일 |
+| 227 | 카테고리 피커 높이 통일 — 아이콘 28px→22px, height: minHeight:38→38px 고정으로 금액 입력 칸과 높이 일치 |
 
 ## 2026-07-19 — ver 2.33
 
