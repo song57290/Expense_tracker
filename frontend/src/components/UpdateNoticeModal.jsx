@@ -34,10 +34,8 @@ export default function UpdateNoticeModal() {
     fetch('/api/update-notice-config', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
-        if (d.version && d.version === CURRENT_VERSION) {
-          setConfig(d)
-        }
-        const effectiveVersion = (d.version === CURRENT_VERSION ? d.version : CURRENT_VERSION)
+        if (d.version) setConfig(d)
+        const effectiveVersion = d.version || CURRENT_VERSION
         const nv = localStorage.getItem('update_notice_never_version')
         const s = localStorage.getItem('update_version_seen')
         if (nv !== effectiveVersion && s !== effectiveVersion) setVisible(true)
@@ -50,7 +48,6 @@ export default function UpdateNoticeModal() {
   }, [])
 
   function close() {
-    localStorage.setItem('update_version_seen', config.version || CURRENT_VERSION)
     setVisible(false)
     setEditOpen(false)
   }
@@ -99,7 +96,16 @@ export default function UpdateNoticeModal() {
 
   if (!visible) return null
 
-  const allItems = config.updates.flatMap(s => s.items)
+  let previewUpdates = null
+  let previewValid = false
+  if (editOpen) {
+    try { previewUpdates = JSON.parse(editForm.updates); previewValid = true } catch {}
+  }
+  const displayUpdates = editOpen ? (previewUpdates || config.updates) : config.updates
+  const displayVersion = editOpen ? editForm.version : config.version
+  const displayDate = editOpen ? editForm.date : config.date
+
+  const allItems = displayUpdates.flatMap(s => s.items)
   const newCount = allItems.filter(i => i.tag === 'new').length
   const impCount = allItems.filter(i => i.tag === 'imp').length
   const fixCount = allItems.filter(i => i.tag === 'fix').length
@@ -137,7 +143,7 @@ export default function UpdateNoticeModal() {
             <div style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.3px', color: 'var(--text-primary)', lineHeight: 1.3 }}>
               <span style={{ background: 'linear-gradient(90deg,#b088f9,#7baff0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>업데이트</span> 안내
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 3 }}>{config.date}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 3 }}>{displayDate}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -147,7 +153,7 @@ export default function UpdateNoticeModal() {
                   편집
                 </button>
               )}
-              <div style={{ background: '#f0eaff', color: '#b088f9', fontSize: '0.68rem', fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>{config.version}</div>
+              <div style={{ background: '#f0eaff', color: '#b088f9', fontSize: '0.68rem', fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>{displayVersion}</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {[
@@ -197,7 +203,16 @@ export default function UpdateNoticeModal() {
 
         {/* 스크롤 본문 */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '12px 14px' }}>
-          {config.updates.map(sec => (
+          {editOpen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: previewValid ? '#b088f9' : '#dc3545', background: previewValid ? '#f0eaff' : '#fce7f3', padding: '2px 8px', borderRadius: 20 }}>
+                {previewValid ? '미리보기' : 'JSON 오류'}
+              </span>
+              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+            </div>
+          )}
+          {displayUpdates.map(sec => (
             <div key={sec.section} style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 14, marginBottom: 10, overflow: 'hidden' }}>
               <div style={{ padding: '10px 14px', background: 'var(--bg-section)', borderBottom: '1px solid var(--border)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
                 {sec.section}
@@ -209,7 +224,7 @@ export default function UpdateNoticeModal() {
                     <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#c8c0dc', marginTop: 6, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{item.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.desc}</div>
                     </div>
                     <div style={{ background: t.bg, color: t.color, fontSize: '0.63rem', fontWeight: 700, padding: '2px 6px', borderRadius: 5, flexShrink: 0, marginTop: 2 }}>
                       {t.label}
@@ -248,7 +263,7 @@ export default function UpdateNoticeModal() {
                             <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd8ee', marginTop: 6, flexShrink: 0 }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{item.title}</div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5 }}>{item.desc}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.desc}</div>
                             </div>
                             <div style={{ background: t.bg, color: t.color, fontSize: '0.6rem', fontWeight: 700, padding: '2px 5px', borderRadius: 5, flexShrink: 0, marginTop: 2, opacity: 0.8 }}>
                               {t.label}
@@ -265,28 +280,30 @@ export default function UpdateNoticeModal() {
         </div>
 
         {/* 하단 버튼 */}
-        <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-          <button
-            onClick={dismissForever}
-            style={{
-              flex: 1, padding: '13px 0', borderRadius: 14,
-              border: '1.5px solid var(--border-input)', background: 'var(--bg-card)',
-              color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-            }}
-          >
-            다시 안보기
-          </button>
-          <button
-            onClick={close}
-            style={{
-              flex: 1, padding: '13px 0', borderRadius: 14, border: 'none',
-              background: 'linear-gradient(135deg,#b088f9,#7baff0)',
-              color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
-            }}
-          >
-            확인
-          </button>
-        </div>
+        {!editOpen && (
+          <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+            <button
+              onClick={dismissForever}
+              style={{
+                flex: 1, padding: '13px 0', borderRadius: 14,
+                border: '1.5px solid var(--border-input)', background: 'var(--bg-card)',
+                color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
+              }}
+            >
+              다시 안보기
+            </button>
+            <button
+              onClick={close}
+              style={{
+                flex: 1, padding: '13px 0', borderRadius: 14, border: 'none',
+                background: 'linear-gradient(135deg,#b088f9,#7baff0)',
+                color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
+              }}
+            >
+              확인
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body
