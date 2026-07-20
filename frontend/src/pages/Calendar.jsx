@@ -10,6 +10,8 @@ import TxItem from '../components/TxItem.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import DatePickerSheet from '../components/DatePickerSheet.jsx'
+import YearDrum from '../components/YearDrum.jsx'
 
 function SlidingTabs({ options, value, onChange }) {
   const tabRefs = useRef([])
@@ -222,7 +224,7 @@ export default function Calendar() {
                 ) : (
                   <form onSubmit={handleAddSubmit} className="row g-2">
                     <div className="col-6">
-                      <input type="date" className="form-control" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} required />
+                      <DatePickerSheet value={addForm.date} onChange={date => setAddForm(f => ({ ...f, date }))} />
                     </div>
                     <div className="col-6">
                       <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-accent)', borderRadius: 10, padding: 3, height: 38 }}>
@@ -263,6 +265,26 @@ export default function Calendar() {
                         onChange={name => setAddForm(f => ({ ...f, card: name }))}
                       />
                     </div>
+                    {addForm.type === 'expense' && (
+                      <div className="col-12">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+                          <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>💱 카드 실적에서 제외</label>
+                          <div className="ios-toggle">
+                            <div className={`ios-track${addForm.exclude_perf ? ' on' : ''}`} />
+                            <div className={`ios-dot${addForm.exclude_perf ? ' on' : ''}`} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="col-12">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+                        <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                        <div className="ios-toggle">
+                          <div className={`ios-track${addForm.exclude_stats ? ' on' : ''}`} />
+                          <div className={`ios-dot${addForm.exclude_stats ? ' on' : ''}`} />
+                        </div>
+                      </div>
+                    </div>
                     <div className="col-12 mt-1">
                       <button type="submit" className="btn w-100" disabled={addSaving}
                         style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, borderRadius: 12, padding: '12px 0' }}>
@@ -294,67 +316,38 @@ export default function Calendar() {
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
-            {pickerMode === 'month' ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
-                  <i className="bi bi-chevron-left" />
-                </button>
-                <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }} style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: 'var(--bg-accent)', color: '#b088f9' }}>{pickerYear}년 ▾</span>
-                <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
-                  <i className="bi bi-chevron-right" />
-                </button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
-                  const isSel = pickerYear === curY && m === curM
-                  return (
-                    <button key={m} onClick={() => { setData(null); setYearMonth(`${pickerYear}-${String(m).padStart(2,'0')}`); setPickerOpen(false) }}
-                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
-                      {m}월
-                    </button>
-                  )
-                })}
-              </div>
-            </>
-          ) : pickerMode === 'decade' ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
-                <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {[2001, 2011, 2021, 2031].map(start => {
-                  const end = start + 9
-                  const isCur = pickerYear >= start && pickerYear <= end
-                  return (
-                    <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
-                      style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isCur ? 'white' : 'var(--text-primary)' }}>
-                      {start} ~ {end}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
-                <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
-                  const isSel = y === pickerYear
-                  return (
-                    <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
-                      style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
-                      {y}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
-          )}
+            {pickerMode === 'drumYear' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
+                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 12px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>완료</button>
+                </div>
+                <YearDrum value={pickerYear} onChange={setPickerYear} />
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
+                    <i className="bi bi-chevron-left" />
+                  </button>
+                  <span onClick={() => setPickerMode('drumYear')} style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: 'var(--bg-accent)', color: '#b088f9' }}>{pickerYear}년 ▾</span>
+                  <button onClick={() => setPickerYear(y => y + 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
+                    <i className="bi bi-chevron-right" />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                    const isSel = pickerYear === curY && m === curM
+                    return (
+                      <button key={m} onClick={() => { setData(null); setYearMonth(`${pickerYear}-${String(m).padStart(2,'0')}`); setPickerOpen(false) }}
+                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
+                        {m}월
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>,
         document.body

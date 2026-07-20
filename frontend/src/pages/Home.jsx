@@ -7,6 +7,7 @@ import TxItem from '../components/TxItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
+import DatePickerSheet from '../components/DatePickerSheet.jsx'
 
 // 슬라이딩 탭 인디케이터
 function SlidingTabs({ options, value, onChange }) {
@@ -227,7 +228,7 @@ export default function Home() {
           {addOpen && (
             <form onSubmit={handleAdd} className="row g-2 mt-1">
               <div className="col-6 col-lg-2">
-                <input type="date" className="form-control" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+                <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
               </div>
               <div className="col-6 col-lg-2">
                 <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-accent)', borderRadius: 10, padding: 3, height: 38 }}>

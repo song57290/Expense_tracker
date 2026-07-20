@@ -45,10 +45,10 @@ export default function CategoryPicker({ cats, value, onChange }) {
         width: '100%', display: 'flex', alignItems: 'center', gap: 10,
         background: 'var(--input-bg)', border: '1px solid var(--border-input)',
         borderRadius: 8, padding: '7px 12px', cursor: 'pointer',
-        color: selected ? 'var(--text-primary)' : 'var(--text-muted)', minHeight: 38,
+        color: selected ? 'var(--text-primary)' : 'var(--text-muted)', height: 38,
       }}>
         {selected && (
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(176,136,249,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(176,136,249,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>
             {selected[1] || '📦'}
           </div>
         )}

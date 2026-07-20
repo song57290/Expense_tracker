@@ -10,6 +10,7 @@ import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, bankLogo, fmtMonth } from '../utils.js'
+import YearDrum from '../components/YearDrum.jsx'
 
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler, ChartDataLabels)
 
@@ -89,7 +90,7 @@ export default function Stats() {
   }
 
   function openPicker(target) {
-    const cur = { barFrom, barTo, trendFrom, trendTo }[target]
+    const cur = target === 'main' ? month : { barFrom, barTo, trendFrom, trendTo }[target]
     const y = parseInt(cur.split('-')[0])
     setPickerTarget(target)
     setPickerYear(y)
@@ -100,7 +101,9 @@ export default function Stats() {
   function onPickerSelect(y, m) {
     const ym = `${y}-${String(m).padStart(2, '0')}`
     const now = nowYM()
-    if (pickerTarget === 'barFrom') {
+    if (pickerTarget === 'main') {
+      setMonth(ym > now ? now : ym)
+    } else if (pickerTarget === 'barFrom') {
       setBarFrom(ym > barTo ? barTo : ym)
     } else if (pickerTarget === 'barTo') {
       const capped = ym > now ? now : ym
@@ -160,13 +163,21 @@ export default function Stats() {
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, padding: '20px 16px 24px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
-            {pickerMode === 'month' ? (
+            {pickerMode === 'drumYear' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
+                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 12px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>완료</button>
+                </div>
+                <YearDrum value={pickerYear} onChange={setPickerYear} />
+              </>
+            ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <button onClick={() => setPickerYear(y => y - 1)} style={{ border: 'none', background: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 10px' }}>
                     <i className="bi bi-chevron-left" />
                   </button>
-                  <span onClick={() => { setPickerDecade(Math.floor((pickerYear - 1) / 10) * 10 + 1); setPickerMode('decade') }}
+                  <span onClick={() => setPickerMode('drumYear')}
                     style={{ fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', padding: '2px 8px', borderRadius: 8, background: 'var(--bg-accent)', color: '#b088f9' }}>
                     {pickerYear}년 ▾
                   </span>
@@ -177,48 +188,11 @@ export default function Stats() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                   {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
                     const ym = `${pickerYear}-${String(m).padStart(2,'0')}`
-                    const isSel = ym === { barFrom, barTo, trendFrom, trendTo }[pickerTarget]
+                    const isSel = ym === { barFrom, barTo, trendFrom, trendTo, main: month }[pickerTarget]
                     return (
                       <button key={m} onClick={() => onPickerSelect(pickerYear, m)}
                         style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.9rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
                         {m}월
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            ) : pickerMode === 'decade' ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
-                  <button onClick={() => setPickerMode('month')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>닫기</button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                  {[2001, 2011, 2021, 2031].map(start => {
-                    const end = start + 9
-                    const isCur = pickerYear >= start && pickerYear <= end
-                    return (
-                      <button key={start} onClick={() => { setPickerDecade(start); setPickerMode('year') }}
-                        style={{ padding: '14px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isCur ? 700 : 400, fontSize: '0.9rem', background: isCur ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isCur ? 'white' : 'var(--text-primary)' }}>
-                        {start} ~ {end}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>{pickerDecade} ~ {pickerDecade + 9}</span>
-                  <button onClick={() => setPickerMode('decade')} style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 10px', fontSize: '0.82rem', color: '#b088f9', cursor: 'pointer', fontWeight: 600 }}>뒤로</button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                  {Array.from({ length: 10 }, (_, i) => pickerDecade + i).map(y => {
-                    const isSel = y === pickerYear
-                    return (
-                      <button key={y} onClick={() => { setPickerYear(y); setPickerMode('month') }}
-                        style={{ padding: '10px 0', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: isSel ? 700 : 400, fontSize: '0.88rem', background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : 'var(--bg-section)', color: isSel ? 'white' : 'var(--text-primary)' }}>
-                        {y}
                       </button>
                     )
                   })}
@@ -235,7 +209,9 @@ export default function Stats() {
         <button onClick={() => setMonth(m => shiftMonth(m, -1))} className="btn btn-sm"
           style={{ background: 'rgba(176,136,249,0.15)', color: '#b088f9', border: '1.5px solid #b088f9', borderRadius: 20, padding: '2px 18px 6px', fontSize: '1.6rem', lineHeight: 1 }}>‹</button>
         <div className="text-center" style={{ position: 'relative' }}>
-          <div className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap' }}>{fmtMonth(month)}</div>
+          <div onClick={() => openPicker('main')} className="fw-bold" style={{ fontSize: '1.1rem', whiteSpace: 'nowrap', cursor: 'pointer', color: '#b088f9', background: 'rgba(176,136,249,0.10)', borderRadius: 20, padding: '3px 16px', display: 'inline-block' }}>
+            {fmtMonth(month)} ▾
+          </div>
           {!isCurrent && (
             <button onClick={() => setMonth(nowYM())}
               style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'none', border: 'none', padding: 0, position: 'absolute', left: '50%', top: '100%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', marginTop: 2 }}>현재로</button>
