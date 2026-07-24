@@ -2974,29 +2974,24 @@ def _send_savings_notifications():
             KST = timezone(timedelta(hours=9))
             now = datetime.now(KST)
             today_day = now.day
-            savings_list = Savings.query.filter_by(stype='청약').all()
+            savings_list = Savings.query.filter(Savings.stype.in_(['청약', '적금'])).all()
             subs = _load_subs()
             for s in savings_list:
                 nd = getattr(s, 'notify_day', None)
                 if nd and nd == today_day:
+                    icon = '🏠' if s.stype == '청약' else '🏦'
+                    title = f'{icon} {s.stype} 납입일 알림'
+                    body = f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.'
                     user_subs = [sub for sub in subs if sub.get('user_id') == s.user_id]
                     for sub in user_subs:
                         try:
-                            _do_send_push(
-                                sub,
-                                title='🏠 청약 납입일 알림',
-                                body=f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.',
-                            )
+                            _do_send_push(sub, title=title, body=body)
                         except Exception as e:
                             app.logger.error('Savings push failed uid=%s: %s', s.user_id, e)
                     user_tokens = [t for t in _load_fcm_tokens() if t.get('user_id') == s.user_id]
                     for tok in user_tokens:
                         try:
-                            _do_send_fcm(
-                                tok['token'],
-                                title='🏠 청약 납입일 알림',
-                                body=f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.',
-                            )
+                            _do_send_fcm(tok['token'], title=title, body=body)
                         except Exception as e:
                             app.logger.error('Savings FCM failed uid=%s: %s', s.user_id, e)
         except Exception as e:
@@ -3049,7 +3044,7 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         import atexit
         _scheduler = BackgroundScheduler()
         _scheduler.add_job(_send_push_notifications, 'cron', minute='*')
-        _scheduler.add_job(_send_savings_notifications, 'cron', hour=9, minute=0)
+        _scheduler.add_job(_send_savings_notifications, 'cron', hour=0, minute=0)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='mon-fri', hour=6, minute=35)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='tue-sat', hour=2, minute=15)
         _scheduler.start()

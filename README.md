@@ -413,6 +413,14 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 194 | 자동이체 내역명 띄어쓰기 ��� `[자동이체]농협은행` → `[자동이체] 농협은행` (TxItem 렌더링 정규식 + API description 수정) |
 | 195 | gitignore 보완 — `google-services.json`(android/app), `node_modules/`, `dist/`(frontend) 추가 |
 
+## 2026-07-25 — ver 2.35
+
+| # | 내용 |
+|---|------|
+| 234 | 적금 납입일 알림 추가 — `_send_savings_notifications`에 `stype='적금'` 포함, Budget.jsx 편집 폼에 notify_day 입력 칸·저장·배지 표시 추가 |
+| 235 | 알림 스케줄러 시간 수정 — `hour=9` UTC(오후 6시 KST) → `hour=0` UTC(오전 9시 KST)로 변경 |
+| 236 | 서버 메모리 256MB → 512MB 업그레이드 — 반복적인 OOM kill 해결 (`fly machine update --memory 512`) |
+
 ## 2026-07-20 — 업데이트 모달 개선
 
 | # | 내용 |

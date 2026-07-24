@@ -443,7 +443,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
             <span className="fw-semibold">{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
             {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: 'var(--bg-section)', color: 'var(--text-muted)' }}>{item.interest_type || '단리'}</span>}
-            {isCheongYak && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
+            {(isCheongYak || item.stype === '적금') && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
             {item.stype !== '예금' && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a' }}>⏸ 일시정지</span>}
           </div>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
@@ -634,7 +634,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       interest_rate: parseFloat(rate) || 0,
       start_date: startDate,
       end_date: isCheongYak ? '' : endDate,
-      notify_day: isCheongYak && notifyDay ? parseInt(notifyDay) : null,
+      notify_day: (isCheongYak || stype === '적금') && notifyDay ? parseInt(notifyDay) : null,
       auto_tx: (isCheongYak || stype === '적금') ? autoTx : false,
       auto_tx_day: autoTx && autoTxDay ? parseInt(autoTxDay) : null,
       auto_tx_card: autoTx ? autoTxCard : '',
@@ -749,7 +749,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 ))}
               </div>
             )}
-            {stype === '청약' && (
+            {(stype === '청약' || stype === '적금') && (
               <div className="mb-3">
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🔔 납입일 알림</label>
                 <div style={{ position: 'relative' }}>
