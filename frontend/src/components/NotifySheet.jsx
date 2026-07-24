@@ -328,7 +328,7 @@ export default function NotifySheet() {
                     <i className="bi bi-clock" style={{ fontSize: '0.85rem', color: '#b088f9' }} />
                   </div>
                   <span style={{ flex: 1, marginLeft: 12, fontSize: '0.95rem' }}>알림 시간</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-accent)', borderRadius: 20, padding: '6px 14px' }}>
                     <span style={{ color: '#b088f9', fontSize: '0.95rem', fontWeight: 600 }}>{fmt12(time)}</span>
                     <i className="bi bi-chevron-down" style={{ color: '#b088f9', fontSize: '0.78rem', display: 'inline-block', transform: pickerOpen ? 'rotate(180deg)' : '', transition: 'transform 0.25s' }} />
                   </div>
