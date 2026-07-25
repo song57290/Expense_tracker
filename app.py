@@ -51,6 +51,8 @@ def _seed_user_categories(uid):
         db.session.add(Category(name=name, icon=icon, position=i, cat_type='expense', user_id=uid))
     for i, (name, icon) in enumerate(defaults_income):
         db.session.add(Category(name=name, icon=icon, position=len(defaults_expense)+i, cat_type='income', user_id=uid))
+    db.session.add(Category(name='계좌 이체', icon='🔄', position=len(defaults_expense)+len(defaults_income),
+                            cat_type='expense', user_id=uid, exclude_perf=True, exclude_stats=True))
     db.session.commit()
 
 # ── Template filters ──────────────────────────────────────────────────────────
@@ -263,37 +265,27 @@ with app.app_context():
         db.session.add(AppConfig(key='fix_overseas_price_unit', value='done'))
         db.session.commit()
 
+    # one-time: seed 계좌 이체 category for all users
+    if AppConfig.query.get('seed_account_transfer_cat') is None:
+        for _u in User.query.all():
+            if not Category.query.filter_by(user_id=_u.id, name='계좌 이체').first():
+                _max_pos = db.session.query(db.func.max(Category.position)).filter_by(user_id=_u.id).scalar() or 0
+                db.session.add(Category(user_id=_u.id, name='계좌 이체', icon='🔄',
+                                        cat_type='expense', position=_max_pos + 1,
+                                        exclude_perf=True, exclude_stats=True))
+        db.session.add(AppConfig(key='seed_account_transfer_cat', value='done'))
+        db.session.commit()
+
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.29'
+    _notice_v = 'ver 2.37'
     _notice = {
         'version': _notice_v,
-        'date': '2026년 7월 11일',
+        'date': '2026년 7월 26일',
         'updates': [
-            {'section': '💰 월급', 'items': [
-                {'tag': 'new', 'title': '카테고리 순서 드래그 변경', 'desc': '월급 탭 예산 배분 카테고리를 ⠿ 핸들로 드래그하여 순서 변경 — 드래그 중 카드가 실시간으로 따라오는 미리보기 제공'},
-            ]},
-            {'section': '📅 캘린더', 'items': [
-                {'tag': 'new', 'title': '내역 정렬 버튼', 'desc': '월별 내역 목록에 최신순 / 오래된순 정렬 토글 버튼 추가 — 달 이동 시 최신순으로 초기화'},
-                {'tag': 'fix', 'title': '수입·지출·총계 통계제외 반영', 'desc': '캘린더 하단 수입/지출/총계 합계에 "통계에서 제외"한 내역이 포함되던 문제 수정'},
-            ]},
-            {'section': '📊 통계', 'items': [
-                {'tag': 'new', 'title': '자산 구성 바 클릭 → 예산 탭 이동', 'desc': '통계 탭 자산 구성 막대를 클릭하면 예산 탭의 해당 섹션(카드잔고·예금적금·투자)으로 바로 이동'},
-                {'tag': 'fix', 'title': '도넛 차트 툴팁 가시성 개선', 'desc': '카테고리 지출 도넛 차트의 툴팁 배경이 투명하여 글씨가 안 보이던 문제 수정 — 불투명 배경 적용'},
-            ]},
             {'section': '🎨 UI 개선', 'items': [
-                {'tag': 'imp', 'title': '내역 카테고리 이모지 표시', 'desc': '홈·캘린더 탭 내역 목록에서 카테고리 이름 앞에 설정된 이모지 표시'},
-                {'tag': 'imp', 'title': '홈·캘린더 내역 스타일 통일', 'desc': '캘린더 탭 날짜 클릭 팝업·월별 목록이 홈 탭과 동일한 스타일(카드배지·이모지·배지)로 표시'},
-                {'tag': 'imp', 'title': '실적제외·통계제외 배지 줄바꿈', 'desc': '내역 항목에 실적제외·통계제외 배지가 있을 경우 카테고리 줄 아래에 별도 줄로 표시 — 모바일에서 겹침 방지'},
-            ]},
-            {'section': '📄 포트폴리오', 'items': [
-                {'tag': 'imp', 'title': '자산 구성 순자산 표시', 'desc': '도넛 차트 중앙이 "총 자산" 대신 대출 차감 후 "순자산"으로 표시'},
-                {'tag': 'imp', 'title': '자산 구성 통장잔고 제외', 'desc': '포트폴리오 자산 구성 도넛에서 통장잔고 항목 제거 — 예금·적금/청약·투자 중심으로 표시'},
-                {'tag': 'imp', 'title': '청약 경과 기간 표시', 'desc': '청약 카드의 D-NaN·null개월 오류 수정 — 시작일 기준 경과 일수(D+X)와 경과 개월수로 정확히 표시'},
-            ]},
-            {'section': '🔧 버그 수정 · 개선', 'items': [
-                {'tag': 'fix', 'title': '통계 청약 추가입금 반영', 'desc': '청약 추가입금이 통계 탭 적금/청약 합계에 반영되지 않던 문제 수정'},
-                {'tag': 'fix', 'title': '홈·포트폴리오 통계제외 필터링', 'desc': '홈 탭 카테고리별 지출과 포트폴리오 이달 지출에 통계에서 제외한 내역이 포함되던 문제 수정'},
-                {'tag': 'imp', 'title': '자산 구성 대출 표시', 'desc': '통계 탭 자산 구성 "대출/빚" 레이블을 "대출"로 변경'},
+                {'tag': 'imp', 'title': '계좌 이체 피커 레이아웃 개선', 'desc': '계좌 이체 선택 UI에서 화살표(→)가 보내는·받는 계좌 라벨 사이로 이동\n— 레이아웃이 라벨 행 / 선택 행으로 분리되어 더 깔끔하게 표시'},
+                {'tag': 'imp', 'title': '카테고리 수정 폼 위치 개선', 'desc': '카테고리 수정 시 폼이 목록 맨 위 대신 수정 중인 항목 바로 아래에 인라인으로 표시\n— 어떤 항목을 수정 중인지 한눈에 파악 가능'},
+                {'tag': 'imp', 'title': '카테고리 수정 기본 설정 안내', 'desc': '카테고리 추가·수정 폼의 실적·통계 제외 토글 위에 "기본 설정 · 내역 추가 시 자동 적용" 구분선 안내 추가'},
             ]},
         ]
     }
@@ -301,6 +293,14 @@ with app.app_context():
     if existing is None:
         db.session.add(AppConfig(key='update_notice', value=json.dumps(_notice, ensure_ascii=False)))
         db.session.commit()
+    else:
+        try:
+            stored = json.loads(existing.value)
+            if stored.get('version') != _notice_v:
+                existing.value = json.dumps(_notice, ensure_ascii=False)
+                db.session.commit()
+        except Exception:
+            pass
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
@@ -834,6 +834,8 @@ def api_transaction(tx_id):
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in Card.query.filter_by(user_id=uid).all()],
+        'excl_cat_names': [c.name for c in expense_cats if c.exclude_perf],
+        'excl_stat_cat_names': [c.name for c in (expense_cats + income_cats) if c.exclude_stats],
     })
 
 @app.route('/api/cards', methods=['GET', 'POST'])
@@ -2091,7 +2093,8 @@ def api_savings_auto_register(sid):
     card = data.get('card', getattr(s, 'auto_tx_card', '')) or None
     tx = Transaction(date=today, type='expense',
                      category='저축', description=f'[자동이체] {s.name}',
-                     amount=s.amount, card=card, user_id=uid)
+                     amount=s.amount, card=card, user_id=uid,
+                     exclude_perf=True)
     db.session.add(tx)
     db.session.commit()
     return jsonify({'ok': True})

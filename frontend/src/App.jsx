@@ -160,11 +160,11 @@ export default function App() {
                 </div>
               </div>
               <div style={{ padding: '0 20px 20px', display: 'flex', gap: 8 }}>
-                <button onClick={dismiss} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
-                  건너뛰기
-                </button>
                 <button onClick={confirm} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>
                   등록
+                </button>
+                <button onClick={dismiss} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                  건너뛰기
                 </button>
               </div>
             </div>
