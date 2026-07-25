@@ -10,6 +10,7 @@ import TxItem from '../components/TxItem.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import TransferPicker from '../components/TransferPicker.jsx'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import YearDrum from '../components/YearDrum.jsx'
 
@@ -62,12 +63,16 @@ export default function Calendar() {
   const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [addAmountDisplay, setAddAmountDisplay] = useState('')
   const [addSaving, setAddSaving] = useState(false)
+  const [addTransferFrom, setAddTransferFrom] = useState('')
+  const [addTransferTo, setAddTransferTo] = useState('')
 
   function openAdd(date) {
     setAddOpen(true)
     setAddTab('manual')
     setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAddAmountDisplay('')
+    setAddTransferFrom('')
+    setAddTransferTo('')
     if (!homeData) api.get('/api/home').then(setHomeData).catch(console.error)
     requestAnimationFrame(() => requestAnimationFrame(() => setAddVisible(true)))
   }
@@ -246,7 +251,12 @@ export default function Calendar() {
                       <CategoryPicker
                         cats={addForm.type === 'expense' ? homeData.expense_cats : homeData.income_cats}
                         value={addForm.category}
-                        onChange={cat => setAddForm(f => ({ ...f, category: cat }))}
+                        onChange={cat => {
+                          const autoExcl = addForm.type === 'expense' && (homeData.excl_cat_names || []).includes(cat)
+                          const autoExclStats = (homeData.excl_stat_cat_names || []).includes(cat)
+                          if (cat !== '계좌 이체') { setAddTransferFrom(''); setAddTransferTo('') }
+                          setAddForm(f => ({ ...f, category: cat, exclude_perf: autoExcl, exclude_stats: autoExclStats, description: cat !== '계좌 이체' ? f.description : '' }))
+                        }}
                       />
                     </div>
                     <div className="col-12" style={{ position: 'relative' }}>
@@ -256,7 +266,17 @@ export default function Calendar() {
                       <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                     </div>
                     <div className="col-12">
-                      <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
+                      {addForm.category === '계좌 이체' ? (
+                        <TransferPicker
+                          accounts={homeData.card_list || []}
+                          from={addTransferFrom}
+                          to={addTransferTo}
+                          onFromChange={v => { setAddTransferFrom(v); setAddForm(f => ({ ...f, description: v && addTransferTo ? `${v} → ${addTransferTo}` : '' })) }}
+                          onToChange={v => { setAddTransferTo(v); setAddForm(f => ({ ...f, description: addTransferFrom && v ? `${addTransferFrom} → ${v}` : '' })) }}
+                        />
+                      ) : (
+                        <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
+                      )}
                     </div>
                     <div className="col-12">
                       <CardPicker

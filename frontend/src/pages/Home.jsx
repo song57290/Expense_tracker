@@ -6,6 +6,7 @@ import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import TransferPicker from '../components/TransferPicker.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 
@@ -53,6 +54,8 @@ export default function Home() {
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
+  const [transferFrom, setTransferFrom] = useState('')
+  const [transferTo, setTransferTo] = useState('')
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
@@ -100,8 +103,10 @@ export default function Home() {
     if (!form.card) { setCardError(true); return }
     setCardError(false)
     await api.post('/api/transactions', { ...form, amount: amt })
-    setForm(f => ({ ...f, amount: '', description: '', card: '' }))
+    setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAmountDisplay('')
+    setTransferFrom('')
+    setTransferTo('')
     load()
   }
 
@@ -250,7 +255,8 @@ export default function Home() {
                 <CategoryPicker cats={cats} value={form.category} onChange={cat => {
                   const autoExcl = form.type === 'expense' && (data.excl_cat_names || []).includes(cat)
                   const autoExclStats = (data.excl_stat_cat_names || []).includes(cat)
-                  setForm(f => ({ ...f, category: cat, exclude_perf: autoExcl, exclude_stats: autoExclStats }))
+                  if (cat !== '계좌 이체') { setTransferFrom(''); setTransferTo('') }
+                  setForm(f => ({ ...f, category: cat, exclude_perf: autoExcl, exclude_stats: autoExclStats, description: cat !== '계좌 이체' ? f.description : '' }))
                 }} />
               </div>
               <div className="col-6 col-lg-2">
@@ -261,7 +267,17 @@ export default function Home() {
                 </div>
               </div>
               <div className="col-12 col-lg-2">
-                <input className="form-control" placeholder="항목 설명" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+                {form.category === '계좌 이체' ? (
+                  <TransferPicker
+                    accounts={data.card_list}
+                    from={transferFrom}
+                    to={transferTo}
+                    onFromChange={v => { setTransferFrom(v); setForm(f => ({ ...f, description: v && transferTo ? `${v} → ${transferTo}` : '' })) }}
+                    onToChange={v => { setTransferTo(v); setForm(f => ({ ...f, description: transferFrom && v ? `${transferFrom} → ${v}` : '' })) }}
+                  />
+                ) : (
+                  <input className="form-control" placeholder="항목 설명" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+                )}
               </div>
               <div className="col-12 col-lg-2">
                 {data.card_list.length === 0 ? (
