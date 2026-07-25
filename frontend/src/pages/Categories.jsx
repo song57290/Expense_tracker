@@ -17,7 +17,7 @@ function SlidingTabs({ options, value, onChange }) {
     }
   }, [value, options])
   return (
-    <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
+    <div style={{ display: 'inline-flex', background: 'var(--bg-accent)', borderRadius: 20, padding: 3, gap: 2, position: 'relative' }}>
       <div ref={indRef} style={{ position: 'absolute', top: 3, bottom: 3, background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.12)', zIndex: 0, pointerEvents: 'none', transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94),width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }} />
       {options.map(([val, label], i) => (
         <button key={val} ref={el => tabRefs.current[i] = el} onClick={() => onChange(val)}
@@ -195,8 +195,13 @@ export default function Categories() {
           <button className="btn btn-sm" onClick={handleSave} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>저장</button>
           <button className="btn btn-sm btn-outline-secondary" onClick={() => { setEditCat(null); setAddOpen(false); setForm({ name: '', icon: '', type: tab, exclude_perf: false, exclude_stats: false }) }} style={{ borderRadius: 10, flexShrink: 0, height: 38, width: 52 }}>취소</button>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>기본 설정 · 내역 추가 시 자동 적용</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+        </div>
         {(form.type === 'expense' || (editCat && editCat.type === 'expense')) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
             <label style={{ flex: 1, fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
               💱 카드 실적에서 제외
             </label>
@@ -206,7 +211,7 @@ export default function Categories() {
             </div>
           </div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
           <label style={{ flex: 1, fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
             📊 통계에서 제외
           </label>
@@ -238,7 +243,6 @@ export default function Categories() {
       </div>
 
       {addOpen && !editCat && formEl}
-      {editCat && formEl}
 
       <div className="card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
         <div className="card-body">
@@ -248,8 +252,15 @@ export default function Categories() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={cats.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 {cats.map((cat, i) => (
-                  <div key={cat.id} style={{ borderBottom: i < cats.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                    <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type, exclude_perf: c.exclude_perf || false, exclude_stats: c.exclude_stats || false }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
+                  <div key={cat.id}>
+                    <div style={{ borderBottom: i < cats.length - 1 && editCat?.id !== cat.id ? '1px solid var(--border-light)' : 'none' }}>
+                      <SortableItem cat={cat} onEdit={c => { setEditCat(c); setAddOpen(false); setForm({ name: c.name, icon: c.icon, type: c.type, exclude_perf: c.exclude_perf || false, exclude_stats: c.exclude_stats || false }) }} onDelete={handleDelete} isEditing={editCat?.id === cat.id} />
+                    </div>
+                    {editCat?.id === cat.id && (
+                      <div style={{ padding: '10px 0 4px' }}>
+                        {formEl}
+                      </div>
+                    )}
                   </div>
                 ))}
               </SortableContext>
