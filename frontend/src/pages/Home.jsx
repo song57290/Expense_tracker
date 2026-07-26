@@ -51,6 +51,13 @@ export default function Home() {
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
+  const [cardSheetSortAsc, setCardSheetSortAsc] = useState(false)
+  const [hiddenCards, setHiddenCards] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('hidden_card_stats') || '[]')) }
+    catch { return new Set() }
+  })
+  const [hideCardConfirm, setHideCardConfirm] = useState(null)
+  const cardLongPressTimer = useRef(null)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
@@ -128,14 +135,37 @@ export default function Home() {
 
   function openCardSheet(name) {
     setCardSheet(name)
+    setCardSheetSortAsc(false)
     requestAnimationFrame(() => requestAnimationFrame(() => setCardSheetVisible(true)))
   }
   function closeCardSheet() {
     setCardSheetVisible(false)
     setTimeout(() => setCardSheet(null), 350)
   }
+  function startCardLongPress(name) {
+    cardLongPressTimer.current = setTimeout(() => setHideCardConfirm(name), 500)
+  }
+  function cancelCardLongPress() {
+    clearTimeout(cardLongPressTimer.current)
+  }
+  function hideCard(name) {
+    const next = new Set(hiddenCards)
+    next.add(name)
+    setHiddenCards(next)
+    localStorage.setItem('hidden_card_stats', JSON.stringify([...next]))
+    setHideCardConfirm(null)
+  }
+  function showCard(name) {
+    const next = new Set(hiddenCards)
+    next.delete(name)
+    setHiddenCards(next)
+    localStorage.setItem('hidden_card_stats', JSON.stringify([...next]))
+  }
 
-  const cardSheetTxs = cardSheet ? filtered.filter(tx => tx.card === cardSheet) : []
+  const cardSheetTxs = cardSheet
+    ? filtered.filter(tx => tx.card === cardSheet).sort((a, b) =>
+        cardSheetSortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+    : []
 
   return (
     <div>
@@ -174,24 +204,44 @@ export default function Home() {
               <h5 className="card-title mb-0">카드 실적</h5>
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{cardStatOpen ? '▴' : '▾'}</span>
             </div>
-            {cardStatOpen && data.card_stats.filter(cs => !cs.is_loan).map(cs => {
-              const logo = bankLogo(cs.name)
+            {cardStatOpen && (() => {
+              const visibleStats = data.card_stats.filter(cs => !cs.is_loan && !hiddenCards.has(cs.name))
+              const hiddenStats = data.card_stats.filter(cs => !cs.is_loan && hiddenCards.has(cs.name))
               return (
-                <div key={cs.name} className="mb-3 mt-2">
-                  <div className="d-flex justify-content-between align-items-center mb-1">
-                    <span className="d-flex align-items-center gap-2">
-                      {logo && <img src={logo} style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
-                      {cs.name}
-                    </span>
-                    <span className="text-nowrap">{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
-                  </div>
-                  <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => openCardSheet(cs.name)}>
-                    <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
-                    <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
-                  </div>
-                </div>
+                <>
+                  {visibleStats.map(cs => {
+                    const logo = bankLogo(cs.name)
+                    return (
+                      <div key={cs.name} className="mb-3 mt-2">
+                        <div className="d-flex justify-content-between align-items-center mb-1"
+                          style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                          onTouchStart={() => startCardLongPress(cs.name)} onTouchEnd={cancelCardLongPress} onTouchMove={cancelCardLongPress}
+                          onMouseDown={() => startCardLongPress(cs.name)} onMouseUp={cancelCardLongPress} onMouseLeave={cancelCardLongPress}
+                          onContextMenu={e => { e.preventDefault(); setHideCardConfirm(cs.name) }}>
+                          <span className="d-flex align-items-center gap-2">
+                            {logo && <img src={logo} style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
+                            {cs.name}
+                          </span>
+                          <span className="text-nowrap">{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
+                        </div>
+                        <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => openCardSheet(cs.name)}>
+                          <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
+                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {hiddenStats.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <button onClick={() => hiddenStats.forEach(cs => showCard(cs.name))}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', padding: '4px 0', cursor: 'pointer', textDecoration: 'underline' }}>
+                        숨겨진 카드 {hiddenStats.length}개 표시
+                      </button>
+                    </div>
+                  )}
+                </>
               )
-            })}
+            })()}
           </div>
         </div>
       )}
@@ -408,6 +458,19 @@ export default function Home() {
         </div>
       )}
 
+      {hideCardConfirm && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>{hideCardConfirm}</p>
+            <p className="text-center text-muted mb-4" style={{ fontSize: '0.85rem' }}>이 카드를 실적 목록에서 숨기겠습니까?</p>
+            <div className="d-flex gap-2">
+              <button className="btn flex-fill" onClick={() => hideCard(hideCardConfirm)} style={{ background: 'var(--bg-accent)', color: 'var(--text-primary)', border: 'none', borderRadius: 10 }}>숨기기</button>
+              <button className="btn flex-fill" onClick={() => setHideCardConfirm(null)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 카드 내역 시트 */}
       {cardSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3000, alignItems: 'flex-end', justifyContent: 'center', opacity: cardSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
@@ -415,7 +478,13 @@ export default function Home() {
           <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
-              <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+              <div className="d-flex align-items-center gap-2">
+                <button onClick={() => setCardSheetSortAsc(a => !a)}
+                  style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.78rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {cardSheetSortAsc ? '과거순' : '최신순'}
+                </button>
+                <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+              </div>
             </div>
             {cardSheetTxs.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>

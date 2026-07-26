@@ -47,6 +47,10 @@ export default function Calendar() {
   const [selectedVisible, setSelectedVisible] = useState(false)
   const [txFilter, setTxFilter] = useState('all')
   const [txSortAsc, setTxSortAsc] = useState(false)
+  const [cardFilter, setCardFilter] = useState('all')
+  const [txMenu, setTxMenu] = useState(null)
+  const [txMenuVisible, setTxMenuVisible] = useState(false)
+  const longPressTimer = useRef(null)
   const [yearMonth, setYearMonth] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -119,13 +123,28 @@ export default function Calendar() {
 
   function goPrev() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null); setTxFilter('all'); setTxSortAsc(false)
+    setData(null); setTxFilter('all'); setTxSortAsc(false); setCardFilter('all')
     setYearMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`)
   }
   function goNext() {
     const [y, m] = yearMonth.split('-').map(Number)
-    setData(null); setTxFilter('all'); setTxSortAsc(false)
+    setData(null); setTxFilter('all'); setTxSortAsc(false); setCardFilter('all')
     setYearMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`)
+  }
+
+  function openTxMenu(tx) {
+    setTxMenu(tx)
+    requestAnimationFrame(() => requestAnimationFrame(() => setTxMenuVisible(true)))
+  }
+  function closeTxMenu() {
+    setTxMenuVisible(false)
+    setTimeout(() => setTxMenu(null), 280)
+  }
+  function startLongPress(tx) {
+    longPressTimer.current = setTimeout(() => openTxMenu(tx), 500)
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer.current)
   }
   function openPicker() {
     setPickerYear(parseInt(yearMonth.split('-')[0]))
@@ -397,7 +416,11 @@ export default function Calendar() {
               {!selDay || selDay.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
               ) : selDay.map((tx, i) => (
-                <div key={tx.id} style={{ padding: '10px 0', borderBottom: i < selDay.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                <div key={tx.id}
+                  style={{ padding: '10px 0', borderBottom: i < selDay.length - 1 ? '1px solid var(--border-light)' : 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+                  onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
+                  onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                  onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
                   <TxItem tx={tx} emojiMap={data.emoji_map} />
                 </div>
               ))}
@@ -437,7 +460,11 @@ export default function Calendar() {
         const allTxs = Object.entries(data.day_transactions)
           .sort(([a], [b]) => b.localeCompare(a))
           .flatMap(([date, txs]) => txs.map(tx => ({ ...tx, date })))
-        const filtered = allTxs.filter(tx => txFilter === 'all' || tx.type === txFilter)
+        const allCards = [...new Set(allTxs.map(tx => tx.card).filter(Boolean))].sort()
+        const filtered = allTxs.filter(tx =>
+          (txFilter === 'all' || tx.type === txFilter) &&
+          (cardFilter === 'all' || tx.card === cardFilter)
+        )
         const byDate = filtered.reduce((acc, tx) => {
           if (!acc[tx.date]) acc[tx.date] = []
           acc[tx.date].push(tx)
@@ -455,6 +482,16 @@ export default function Calendar() {
                 <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
               </div>
             </div>
+            {allCards.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
+                {[['all', '전체'], ...allCards.map(c => [c, c])].map(([val, label]) => (
+                  <button key={val} onClick={() => setCardFilter(val)}
+                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: cardFilter === val ? 700 : 400, border: `1.5px solid ${cardFilter === val ? '#b088f9' : 'var(--border-light)'}`, background: cardFilter === val ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)', color: cardFilter === val ? '#b088f9' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             {filtered.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
             ) : dates.map(date => (
@@ -469,7 +506,11 @@ export default function Calendar() {
                 <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                   {byDate[date].map((tx, i) => (
                     <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
-                      <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                      <div
+                        style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+                        onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
+                        onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
+                        onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
                         <TxItem tx={tx} emojiMap={data.emoji_map} />
                       </div>
                     </SwipeItem>
@@ -491,6 +532,30 @@ export default function Calendar() {
             </div>
           </div>
         </div>
+      )}
+
+      {txMenu && createPortal(
+        <div onClick={closeTxMenu}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 7000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: txMenuVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', padding: '16px 16px 40px', transform: txMenuVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{txMenu.date}</span>
+              {txMenu.description ? ` · ${txMenu.description}` : ''} · <span style={{ color: txMenu.type === 'income' ? '#34c759' : '#ff3b30', fontWeight: 600 }}>{txMenu.type === 'income' ? '+' : '-'}{fmt(txMenu.amount)}원</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { closeTxMenu(); navigate(`/edit/${txMenu.id}`) }}
+                style={{ flex: 1, padding: '14px 0', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}>
+                ✏️ 수정
+              </button>
+              <button onClick={() => { closeTxMenu(); setConfirmSheet(txMenu.id) }}
+                style={{ flex: 1, padding: '14px 0', borderRadius: 14, border: '1.5px solid #dc3545', background: 'rgba(220,53,69,0.08)', color: '#dc3545', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}>
+                🗑️ 삭제
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
