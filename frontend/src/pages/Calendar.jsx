@@ -84,9 +84,12 @@ export default function Calendar() {
     e.preventDefault()
     const amt = parseInt(addAmountDisplay.replace(/,/g, ''))
     if (!amt || !addForm.category) return
+    const isTransfer = addForm.category === '계좌 이체'
     setAddSaving(true)
     try {
-      await api.post('/api/transactions', { ...addForm, amount: amt })
+      const payload = { ...addForm, amount: amt }
+      if (isTransfer && addTransferFrom) payload.card = addTransferFrom
+      await api.post('/api/transactions', payload)
       closeAdd()
       load(yearMonth)
     } finally {
@@ -278,13 +281,15 @@ export default function Calendar() {
                         <input className="form-control" placeholder="항목 설명" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} />
                       )}
                     </div>
-                    <div className="col-12">
-                      <CardPicker
-                        cards={(homeData.card_list || []).filter(c => !c.is_loan)}
-                        value={addForm.card}
-                        onChange={name => setAddForm(f => ({ ...f, card: name }))}
-                      />
-                    </div>
+                    {addForm.category !== '계좌 이체' && (
+                      <div className="col-12">
+                        <CardPicker
+                          cards={(homeData.card_list || []).filter(c => !c.is_loan)}
+                          value={addForm.card}
+                          onChange={name => setAddForm(f => ({ ...f, card: name }))}
+                        />
+                      </div>
+                    )}
                     {addForm.type === 'expense' && (
                       <div className="col-12">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>

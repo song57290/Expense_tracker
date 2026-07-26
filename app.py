@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -169,6 +169,7 @@ with app.app_context():
             conn.commit()
     except Exception:
         pass
+    db.create_all()  # creates loan_repayment table if not exists
     try:
         with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE investment ADD COLUMN exchange_rate FLOAT"))
@@ -277,15 +278,15 @@ with app.app_context():
         db.session.commit()
 
     # seed / upgrade update notice config
-    _notice_v = 'ver 2.37'
+    _notice_v = 'ver 2.38'
     _notice = {
         'version': _notice_v,
         'date': '2026년 7월 26일',
         'updates': [
-            {'section': '🎨 UI 개선', 'items': [
-                {'tag': 'imp', 'title': '계좌 이체 피커 레이아웃 개선', 'desc': '계좌 이체 선택 UI에서 화살표(→)가 보내는·받는 계좌 라벨 사이로 이동\n— 레이아웃이 라벨 행 / 선택 행으로 분리되어 더 깔끔하게 표시'},
-                {'tag': 'imp', 'title': '카테고리 수정 폼 위치 개선', 'desc': '카테고리 수정 시 폼이 목록 맨 위 대신 수정 중인 항목 바로 아래에 인라인으로 표시\n— 어떤 항목을 수정 중인지 한눈에 파악 가능'},
-                {'tag': 'imp', 'title': '카테고리 수정 기본 설정 안내', 'desc': '카테고리 추가·수정 폼의 실적·통계 제외 토글 위에 "기본 설정 · 내역 추가 시 자동 적용" 구분선 안내 추가'},
+            {'section': '💸 대출 일부 상환', 'items': [
+                {'tag': 'new', 'title': '일부 상환 기록 추가', 'desc': '대출 카드에 "💰 일부 상환" 버튼 추가\n— 금액·날짜·메모 입력 후 상환 내역 저장 및 삭제 가능'},
+                {'tag': 'new', 'title': '대출 잔액 자동 반영', 'desc': '상환 등록 시 대출 잔액이 자동으로 감소\n— 삭제 시 롤백하여 이전 잔액으로 복원'},
+                {'tag': 'new', 'title': '이달 상환 합계 표시', 'desc': '대출 카드에서 이번 달 상환 합계가 "이달 상환"으로 표시'},
             ]},
         ]
     }
@@ -458,7 +459,7 @@ def _savings_stats(s, extra_deposit=0):
             start = datetime.strptime(s.start_date, '%Y-%m-%d').date()
         except Exception:
             start = today
-        months_elapsed_auto = max(0, (today.year - start.year) * 12 + (today.month - start.month))
+        months_elapsed_auto = max(0, (today.year - start.year) * 12 + (today.month - start.month) + 1)
         manual_count = getattr(s, 'manual_count', None)
         months_elapsed = manual_count if manual_count is not None else months_elapsed_auto
         current_paid = s.amount * months_elapsed + extra_deposit
@@ -788,15 +789,29 @@ def _sync_salary_if_needed(uid, category, tx_type, amount):
 def api_add_transaction():
     uid = session['user_id']
     data = request.json or {}
+    is_transfer = data.get('category') == '계좌 이체'
+    desc = data.get('description', '')
+    card = data.get('card') or None
+    if is_transfer and ' → ' in desc and not card:
+        card = desc.split(' → ')[0].strip() or None
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
-        description=data.get('description', ''), amount=int(data['amount']),
-        card=data.get('card') or None,
+        description=desc, amount=int(data['amount']),
+        card=card,
         exclude_perf=bool(data.get('exclude_perf', False)),
         exclude_stats=bool(data.get('exclude_stats', False)),
         user_id=uid,
     )
     db.session.add(tx)
+    if is_transfer and ' → ' in desc:
+        to_card = desc.split(' → ')[1].strip() or None
+        paired = Transaction(
+            date=data['date'], type='income', category='계좌 이체',
+            description=desc, amount=int(data['amount']),
+            card=to_card, exclude_perf=True, exclude_stats=True,
+            user_id=uid,
+        )
+        db.session.add(paired)
     db.session.commit()
     _sync_salary_if_needed(uid, tx.category, tx.type, tx.amount)
     return jsonify({'ok': True, 'id': tx.id})
@@ -897,6 +912,35 @@ def api_card(card_id):
         card.linked_account_id = data['linked_account_id'] or None
     db.session.commit()
     return jsonify({'ok': True})
+
+@app.route('/api/cards/<int:card_id>/repayments', methods=['GET', 'POST'])
+@login_required
+def api_card_repayments(card_id):
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    if request.method == 'GET':
+        reps = LoanRepayment.query.filter_by(card_id=card_id, user_id=uid).order_by(LoanRepayment.date.desc(), LoanRepayment.id.desc()).all()
+        return jsonify([{'id': r.id, 'amount': r.amount, 'date': r.date, 'memo': r.memo or ''} for r in reps])
+    data = request.json or {}
+    amt = int(data.get('amount', 0))
+    if amt <= 0:
+        return jsonify({'error': 'invalid amount'}), 400
+    rep = LoanRepayment(card_id=card_id, user_id=uid, amount=amt, date=data.get('date', ''), memo=data.get('memo', ''))
+    card.account_balance = (card.account_balance or 0) + amt
+    db.session.add(rep)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': rep.id, 'balance': card.account_balance})
+
+@app.route('/api/cards/repayments/<int:rid>', methods=['DELETE'])
+@login_required
+def api_delete_repayment(rid):
+    uid = session['user_id']
+    rep = LoanRepayment.query.filter_by(id=rid, user_id=uid).first_or_404()
+    card = Card.query.filter_by(id=rep.card_id, user_id=uid).first_or_404()
+    card.account_balance = (card.account_balance or 0) - rep.amount
+    db.session.delete(rep)
+    db.session.commit()
+    return jsonify({'ok': True, 'balance': card.account_balance})
 
 @app.route('/api/calendar')
 @login_required
@@ -1626,6 +1670,11 @@ def api_budget():
         if c.linked_account_id:
             linked_names.setdefault(c.linked_account_id, []).append(c.name)
 
+    loan_repayments_this_month = {}
+    for r in LoanRepayment.query.filter_by(user_id=uid).all():
+        if r.date.startswith(current_month):
+            loan_repayments_this_month[r.card_id] = loan_repayments_this_month.get(r.card_id, 0) + r.amount
+
     card_stats = []
     for card in cards:
         initial_balance = card.account_balance or 0
@@ -1639,6 +1688,7 @@ def api_budget():
                 'spent': 0, 'target': card.monthly_target or 0, 'percent': 0,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': True, 'linked_account_id': linked_account_id,
+                'total_repaid': loan_repayments_this_month.get(card.id, 0),
             })
         else:
             card_txs = [tx for tx in all_txs if tx.card == card.name]

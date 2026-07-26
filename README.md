@@ -414,6 +414,15 @@ Dockerfile 내에서 npm build가 자동 실행됨 — 별도 빌드 불필요.
 | 194 | 자동이체 내역명 띄어쓰기 ��� `[자동이체]농협은행` → `[자동이체] 농협은행` (TxItem 렌더링 정규식 + API description 수정) |
 | 195 | gitignore 보완 — `google-services.json`(android/app), `node_modules/`, `dist/`(frontend) 추가 |
 
+## 2026-07-26 — ver 2.38
+
+| # | 내용 |
+|---|------|
+| 241 | 대출 일부 상환 — 대출 카드에 "💰 일부 상환" 버튼 추가, 금액·날짜·메모 입력 후 상환 내역 저장 및 삭제 가능 |
+| 242 | 대출 잔액 자동 반영 — 일부 상환 등록 시 카드 잔액(`account_balance`) 자동 증가(부채 감소), 삭제 시 롤백 |
+| 243 | LoanRepayment 모델 추가 — `loan_repayment` 테이블 (`card_id`, `user_id`, `amount`, `date`, `memo`) |
+| 244 | 대출 이달 상환 표시 — 예산 탭 대출 카드에 이번 달 상환 합계(`total_repaid`) 표시 |
+
 ## 2026-07-26 — ver 2.37
 
 | # | 내용 |
