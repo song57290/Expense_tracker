@@ -100,9 +100,12 @@ export default function Home() {
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
     if (!amt || !form.category) return
     if (data.card_list.length === 0) { navigate('/budget'); return }
-    if (!form.card) { setCardError(true); return }
+    const isTransfer = form.category === '계좌 이체'
+    if (!isTransfer && !form.card) { setCardError(true); return }
     setCardError(false)
-    await api.post('/api/transactions', { ...form, amount: amt })
+    const payload = { ...form, amount: amt }
+    if (isTransfer && transferFrom) payload.card = transferFrom
+    await api.post('/api/transactions', payload)
     setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAmountDisplay('')
     setTransferFrom('')
@@ -290,13 +293,17 @@ export default function Home() {
                   </div>
                 ) : (
                   <>
-                    <CardPicker
-                      cards={data.card_list.filter(c => !c.is_loan)}
-                      value={form.card}
-                      onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
-                      error={cardError}
-                    />
-                    {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
+                    {form.category !== '계좌 이체' && (
+                      <>
+                        <CardPicker
+                          cards={data.card_list.filter(c => !c.is_loan)}
+                          value={form.card}
+                          onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
+                          error={cardError}
+                        />
+                        {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
+                      </>
+                    )}
                   </>
                 )}
               </div>
