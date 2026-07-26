@@ -103,7 +103,13 @@ export default function Home() {
     (filter === 'all' || tx.type === filter) &&
     (cardFilter === 'all' || tx.card === cardFilter)
   )
-  filtered = [...filtered].sort((a, b) => sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+  filtered = [...filtered].sort((a, b) => {
+    const d = sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)
+    if (d !== 0) return d
+    return sortAsc
+      ? ((a.time || '').localeCompare(b.time || '') || a.id - b.id)
+      : ((b.time || '').localeCompare(a.time || '') || b.id - a.id)
+  })
   const allCards = [...new Set(data.transactions.map(tx => tx.card).filter(Boolean))].sort()
 
   const catSum = Object.values(data.category_totals).reduce((s, v) => s + v, 0)
@@ -142,7 +148,7 @@ export default function Home() {
 
   function openCardSheet(name) {
     setCardSheet(name)
-    setCardSheetSortAsc(false)
+    setCardSheetSortAsc(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setCardSheetVisible(true)))
   }
   function closeCardSheet() {
@@ -179,8 +185,13 @@ export default function Home() {
   }
 
   const cardSheetTxs = cardSheet
-    ? filtered.filter(tx => tx.card === cardSheet).sort((a, b) =>
-        cardSheetSortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+    ? filtered.filter(tx => tx.card === cardSheet).sort((a, b) => {
+        const d = cardSheetSortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)
+        if (d !== 0) return d
+        return cardSheetSortAsc
+          ? ((a.time || '').localeCompare(b.time || '') || a.id - b.id)
+          : ((b.time || '').localeCompare(a.time || '') || b.id - a.id)
+      })
     : []
 
   return (
@@ -513,7 +524,7 @@ export default function Home() {
               <div className="d-flex align-items-center gap-2">
                 <button onClick={() => setCardSheetSortAsc(a => !a)}
                   style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.78rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  {cardSheetSortAsc ? '과거순' : '최신순'}
+                  {cardSheetSortAsc ? '최신순' : '과거순'}
                 </button>
                 <button onClick={closeCardSheet} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
               </div>

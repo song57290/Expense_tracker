@@ -128,7 +128,9 @@ function buildPortfolioHTML(d, sections) {
     return ''
   }
 
-  const cardsHtml = cards.length === 0 ? '<div class="empty">등록된 카드/계좌가 없습니다</div>' : cards.map(c => `
+  const normalCards = cards.filter(c => !c.is_loan)
+  const loanCards = cards.filter(c => c.is_loan)
+  const normalCardsHtml = normalCards.map(c => `
     <div class="cp">
       <div class="cn2" style="display:flex;align-items:center;gap:10px">${bankLogoTag(c.name)}<span>${c.name}</span></div>
       <div class="ig">
@@ -148,6 +150,27 @@ function buildPortfolioHTML(d, sections) {
       </div>` : ''}
     </div>
   `).join('')
+  const loanCardsHtml = loanCards.map(c => {
+    const repaidPct = c.balance ? Math.min(100, Math.round((c.total_repaid || 0) / Math.abs(c.balance) * 100)) : 0
+    return `
+    <div class="cp">
+      <div class="cn2" style="display:flex;align-items:center;gap:10px">${bankLogoTag(c.name)}<span style="color:#dc3545">${c.name}</span></div>
+      <div class="ig">
+        <div class="ic"><div class="l">대출 잔액</div><div class="v ce">-${f(Math.abs(c.balance))}원</div></div>
+        <div class="ic"><div class="l">이달 상환</div><div class="v ci">${f(c.total_repaid || 0)}원</div></div>
+        <div class="ic"><div class="l">상환률</div><div class="v" style="color:#b088f9">${repaidPct}%</div></div>
+      </div>
+      ${c.interest_rate != null ? `<div class="ig"><div class="ic"><div class="l">연 이자율</div><div class="v ce">${c.interest_rate}%</div></div></div>` : ''}
+    </div>`
+  }).join('')
+  const loanDivider = loanCards.length > 0 ? `
+    <div style="display:flex;align-items:center;gap:10px;margin:20px 0 12px">
+      <span style="font-size:0.82rem;font-weight:700;color:#dc3545;white-space:nowrap">💸 대출</span>
+      <div style="flex:1;height:2px;background:#fde8e8;border-radius:1px"></div>
+    </div>${loanCardsHtml}` : ''
+  const cardsHtml = cards.length === 0
+    ? '<div class="empty">등록된 카드/계좌가 없습니다</div>'
+    : normalCardsHtml + loanDivider
 
   const savingsHtml = savings.length === 0 ? '<div class="empty">등록된 예적금이 없습니다</div>' : savings.map(s => `
     <div class="sp">
