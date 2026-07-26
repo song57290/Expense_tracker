@@ -49,6 +49,7 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState('text')
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
+  const [cardFilter, setCardFilter] = useState('all')
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
   const [cardSheetSortAsc, setCardSheetSortAsc] = useState(false)
@@ -98,8 +99,12 @@ export default function Home() {
 
   const cats = form.type === 'expense' ? data.expense_cats : data.income_cats
 
-  let filtered = data.transactions.filter(tx => filter === 'all' || tx.type === filter)
+  let filtered = data.transactions.filter(tx =>
+    (filter === 'all' || tx.type === filter) &&
+    (cardFilter === 'all' || tx.card === cardFilter)
+  )
   filtered = [...filtered].sort((a, b) => sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+  const allCards = [...new Set(data.transactions.map(tx => tx.card).filter(Boolean))].sort()
 
   const catSum = Object.values(data.category_totals).reduce((s, v) => s + v, 0)
   const budgetPct = data.budget_amount > 0 ? Math.min(Math.round(data.expense_total / data.budget_amount * 100), 100) : 0
@@ -419,6 +424,16 @@ export default function Home() {
               <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={filter} onChange={setFilter} />
             </div>
           </div>
+          {allCards.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
+              {[['all', '전체'], ...allCards.map(c => [c, c])].map(([val, label]) => (
+                <button key={val} onClick={() => setCardFilter(val)}
+                  style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: cardFilter === val ? 700 : 400, border: `1.5px solid ${cardFilter === val ? '#b088f9' : 'var(--border-light)'}`, background: cardFilter === val ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)', color: cardFilter === val ? '#b088f9' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {txOpen && (
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
