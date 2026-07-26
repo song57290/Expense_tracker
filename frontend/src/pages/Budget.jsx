@@ -55,6 +55,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   const [tier3, setTier3] = useState(80)
   const [tierOpen, setTierOpen] = useState(false)
   const [linkedAccountId, setLinkedAccountId] = useState('')
+  const [addInterestRate, setAddInterestRate] = useState('')
 
   function pick(cardName) { setSelected(cardName); setName(cardName) }
 
@@ -62,7 +63,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
     setAssetType(t)
     setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
     setInitialBalance(t === 'loan' ? '-' : '')
-    setLinkedAccountId('')
+    setLinkedAccountId(''); setAddInterestRate('')
   }
 
   async function handleSubmit(e) {
@@ -72,9 +73,11 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
     await api.post('/api/cards', {
       name, target: t, url, tier1, tier2, tier3, account_balance: ib,
       linked_account_id: linkedAccountId ? Number(linkedAccountId) : null,
+      interest_rate: addInterestRate ? parseFloat(addInterestRate) : null,
     })
     setAssetType('card'); setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
     setTier1(20); setTier2(50); setTier3(80); setTierOpen(false); setLinkedAccountId('')
+    setAddInterestRate('')
     onSaved(); onClose()
   }
 
@@ -151,6 +154,13 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                 }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
+            {assetType === 'loan' && (
+              <div className="mb-2" style={{ position: 'relative' }}>
+                <input type="number" className="form-control" placeholder="연 이자율 (선택, 예: 3.5)" inputMode="decimal"
+                  value={addInterestRate} onChange={e => setAddInterestRate(e.target.value)} style={{ borderRadius: 10, paddingRight: 36 }} step="0.1" min="0" max="100" />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>%</span>
+              </div>
+            )}
             {assetType === 'card' && (
               <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
                 value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
@@ -183,13 +193,43 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
+function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
   const horiz = useRef(false)
   const cardRef = useRef(null)
   const mouseDown = useRef(false)
+  const [repayOpen, setRepayOpen] = useState(false)
+  const [repayments, setRepayments] = useState([])
+  const [repayForm, setRepayForm] = useState({ amount: '', date: today(), memo: '' })
+  const [repayLoading, setRepayLoading] = useState(false)
+
+  async function loadRepayments() {
+    const res = await api.get(`/api/cards/${card.id}/repayments`)
+    setRepayments(res || [])
+  }
+  function toggleRepay(e) {
+    e.stopPropagation()
+    if (!repayOpen) loadRepayments()
+    setRepayOpen(o => !o)
+  }
+  async function addRepay(e) {
+    e.preventDefault()
+    const amt = parseInt(repayForm.amount.replace(/,/g, ''))
+    if (!amt) return
+    setRepayLoading(true)
+    await api.post(`/api/cards/${card.id}/repayments`, { amount: amt, date: repayForm.date, memo: repayForm.memo })
+    setRepayForm({ amount: '', date: today(), memo: '' })
+    await loadRepayments()
+    setRepayLoading(false)
+    if (onRepayChange) onRepayChange()
+  }
+  async function deleteRepay(rid) {
+    await api.delete(`/api/cards/repayments/${rid}`)
+    await loadRepayments()
+    if (onRepayChange) onRepayChange()
+  }
 
   const onDragStart = e => {
     if (e.touches) {
@@ -236,9 +276,9 @@ function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
     return 'bg-danger'
   }
 
-  const logo = bankLogo(card.name)
-  const isCash = !logo && (card.name.includes('현금') || card.name.includes('지갑'))
-  const isLoan = !logo && !isCash && card.initial_balance < 0
+  const isLoan = !!card.is_loan
+  const logo = !isLoan && bankLogo(card.name)
+  const isCash = !isLoan && !logo && (card.name.includes('현금') || card.name.includes('지갑'))
   const deleteWidth = Math.max(0, -offsetX)
   const editWidth = Math.max(0, offsetX)
 
@@ -276,8 +316,23 @@ function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
             </div>
           </div>
         </div>
-        {!isLoan && (
-          <div className="d-flex mb-3" style={{ gap: 1 }}>
+        <div className="d-flex mb-3" style={{ gap: 1 }}>
+          {isLoan ? (<>
+            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기 대출금액</div>
+              <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(Math.abs(card.initial_balance))}</div>
+            </div>
+            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}</div>
+            </div>
+            <div className="text-center flex-fill">
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>상환률</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#b088f9' }}>
+                {card.initial_balance ? Math.min(100, Math.round((card.total_repaid || 0) / Math.abs(card.initial_balance) * 100)) : 0}%
+              </div>
+            </div>
+          </>) : (<>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(card.initial_balance)}</div>
@@ -290,13 +345,61 @@ function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
               <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
             </div>
-          </div>
-        )}
+          </>)}
+        </div>
         <div className="border-top pt-2">
           {isLoan ? (
-            <div className="d-flex justify-content-between align-items-center">
-              <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</span>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}원</span>
+            <div>
+              {(() => {
+                const loanAmt = Math.abs(card.initial_balance || 0)
+                const repaid = card.total_repaid || 0
+                const pct = loanAmt ? Math.min(100, Math.round(repaid / loanAmt * 100)) : 0
+                return (<>
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>상환 현황</span>
+                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(repaid)} / {fmt(loanAmt)}원</span>
+                  </div>
+                  <div className="progress" style={{ height: 7, borderRadius: 4 }}>
+                    <div className="progress-bar bg-success" style={{ width: `${pct}%`, borderRadius: 4 }} />
+                  </div>
+                  <div className="text-end mt-1" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{pct}%</div>
+                </>)
+              })()}
+              <div className="mt-2" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onPointerDown={e => e.stopPropagation()} onClick={toggleRepay}
+                  style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: repayOpen ? '#f0eaff' : 'rgba(176,136,249,0.12)', color: '#b088f9', fontWeight: 700, cursor: 'pointer' }}>
+                  {repayOpen ? '닫기' : '💰 상환'}
+                </button>
+              </div>
+              {repayOpen && (
+                <div style={{ marginTop: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
+                  <form onSubmit={addRepay} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                    <div style={{ flex: 2 }}>
+                      <DatePickerSheet value={repayForm.date} onChange={date => setRepayForm(f => ({ ...f, date }))} />
+                    </div>
+                    <input type="text" inputMode="numeric" placeholder="금액" value={repayForm.amount} required
+                      onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRepayForm(f => ({ ...f, amount: raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '' })) }}
+                      style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d5ff', fontSize: '0.82rem', background: 'var(--bg-accent)', color: 'var(--text-primary)' }} />
+                    <button type="submit" disabled={repayLoading}
+                      style={{ flex: 1, borderRadius: 8, border: 'none', background: '#b088f9', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
+                      {repayLoading ? '...' : '등록'}
+                    </button>
+                  </form>
+                  {repayments.length === 0
+                    ? <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>상환 내역 없음</div>
+                    : repayments.map(r => (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border-light)', gap: 6 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flexShrink: 0 }}>{r.date}</span>
+                        {r.memo && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.memo}</span>}
+                        {!r.memo && <span style={{ flex: 1 }} />}
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#b088f9', flexShrink: 0 }}>-{fmt(r.amount)}원</span>
+                        <button onClick={() => deleteRepay(r.id)}
+                          style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, border: 'none', background: '#fff0f0', color: '#dc3545', cursor: 'pointer', flexShrink: 0 }}>삭제</button>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -543,12 +646,12 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
         {isCheongYak && depositOpen && (
           <div style={{ marginTop: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
             <form onSubmit={addDeposit} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-              <input type="number" placeholder="금액" value={depForm.amount}
-                onChange={e => setDepForm(f => ({ ...f, amount: e.target.value }))} required
-                style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
               <div style={{ flex: 2 }}>
                 <DatePickerSheet value={depForm.date} onChange={date => setDepForm(f => ({ ...f, date }))} />
               </div>
+              <input type="number" placeholder="금액" value={depForm.amount}
+                onChange={e => setDepForm(f => ({ ...f, amount: e.target.value }))} required
+                style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #c3f0d0', fontSize: '0.82rem' }} />
               <button type="submit" disabled={depLoading}
                 style={{ flex: 1, borderRadius: 8, border: 'none', background: '#198754', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
                 등록
@@ -1170,6 +1273,7 @@ export default function Budget() {
   const [editTier1, setEditTier1] = useState(20)
   const [editTier2, setEditTier2] = useState(50)
   const [editTier3, setEditTier3] = useState(80)
+  const [editInterestRate, setEditInterestRate] = useState('')
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editSheetVisible, setEditSheetVisible] = useState(false)
   const [addSheetOpen, setAddSheetOpen] = useState(false)
@@ -1182,13 +1286,6 @@ export default function Budget() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
-  const [repayCardId, setRepayCardId] = useState(null)
-  const [repayments, setRepayments] = useState({})
-  const [repayDate, setRepayDate] = useState(today())
-  const [repayAmtDisp, setRepayAmtDisp] = useState('')
-  const [repayMemo, setRepayMemo] = useState('')
-  const [repayLoading, setRepayLoading] = useState(false)
-
   const load = useCallback(() => api.get('/api/budget').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
@@ -1228,40 +1325,13 @@ export default function Budget() {
     setEditTier1(card.tier1 || 20)
     setEditTier2(card.tier2 || 50)
     setEditTier3(card.tier3 || 80)
+    setEditInterestRate(card.interest_rate != null ? String(card.interest_rate) : '')
     setEditSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setEditSheetVisible(true)))
   }
   function closeEdit() {
     setEditSheetVisible(false)
     setTimeout(() => setEditSheetOpen(false), 350)
-  }
-
-  async function openRepay(cardId) {
-    setRepayCardId(cardId)
-    setRepayDate(today())
-    setRepayAmtDisp('')
-    setRepayMemo('')
-    const res = await api.get(`/api/cards/${cardId}/repayments`)
-    setRepayments(prev => ({ ...prev, [cardId]: res || [] }))
-  }
-  function closeRepay() { setRepayCardId(null) }
-  async function handleRepay(cardId) {
-    const amt = parseInt(repayAmtDisp.replace(/,/g, ''))
-    if (!amt || amt <= 0) return
-    setRepayLoading(true)
-    await api.post(`/api/cards/${cardId}/repayments`, { amount: amt, date: repayDate, memo: repayMemo })
-    setRepayLoading(false)
-    setRepayAmtDisp('')
-    setRepayMemo('')
-    const res = await api.get(`/api/cards/${cardId}/repayments`)
-    setRepayments(prev => ({ ...prev, [cardId]: res || [] }))
-    load()
-  }
-  async function deleteRepay(cardId, rid) {
-    await api.delete(`/api/cards/repayments/${rid}`)
-    const res = await api.get(`/api/cards/${cardId}/repayments`)
-    setRepayments(prev => ({ ...prev, [cardId]: res || [] }))
-    load()
   }
 
   async function handleEditSave(e) {
@@ -1272,6 +1342,7 @@ export default function Budget() {
       name: editCard.name, target,
       tier1: editTier1, tier2: editTier2, tier3: editTier3,
       account_balance: initial, url: editUrl,
+      interest_rate: editInterestRate ? parseFloat(editInterestRate) : null,
     })
     closeEdit(); load()
   }
@@ -1347,8 +1418,8 @@ export default function Budget() {
           </div>
         </div>
       ) : (() => {
-        const allNormalCards = data.card_stats.filter(c => c.initial_balance >= 0)
-        const loanCards = data.card_stats.filter(c => c.initial_balance < 0)
+        const allNormalCards = data.card_stats.filter(c => !c.is_loan)
+        const loanCards = data.card_stats.filter(c => c.is_loan)
         const accountCards = allNormalCards.filter(c => !c.linked_account_id)
         const linkedByAccount = {}
         allNormalCards.filter(c => c.linked_account_id).forEach(c => {
@@ -1375,52 +1446,7 @@ export default function Budget() {
                   <div style={{ flex: 1, height: 1, background: '#fde8e8' }} />
                 </div>
                 {loanCards.map(card => (
-                  <div key={card.id}>
-                    <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
-                    <button type="button" onClick={() => repayCardId === card.id ? closeRepay() : openRepay(card.id)}
-                      style={{ display: 'block', width: '100%', marginTop: -4, marginBottom: 4, padding: '9px 0', background: repayCardId === card.id ? 'rgba(176,136,249,0.18)' : 'rgba(176,136,249,0.10)', border: '1.5px solid #b088f9', borderRadius: '0 0 14px 14px', color: '#b088f9', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' }}>
-                      {repayCardId === card.id ? '▲ 닫기' : '💰 일부 상환'}
-                    </button>
-                    {repayCardId === card.id && (
-                      <div style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 14px', marginTop: -6, marginBottom: 12 }}>
-                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>💰 일부 상환 기록</div>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                          <input type="text" inputMode="numeric" placeholder="금액" value={repayAmtDisp}
-                            onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRepayAmtDisp(raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '') }}
-                            style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }} />
-                          <input type="date" value={repayDate} onChange={e => setRepayDate(e.target.value)}
-                            style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                          <input type="text" placeholder="메모 (선택)" value={repayMemo} onChange={e => setRepayMemo(e.target.value)}
-                            style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }} />
-                          <button type="button" onClick={() => handleRepay(card.id)} disabled={repayLoading}
-                            style={{ padding: '6px 14px', borderRadius: 8, background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0 }}>
-                            {repayLoading ? '...' : '추가'}
-                          </button>
-                        </div>
-                        {(repayments[card.id] || []).length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {(repayments[card.id] || []).map(r => (
-                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
-                                <div>
-                                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>-{fmt(r.amount)}원</span>
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 8 }}>{r.date}</span>
-                                  {r.memo && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 6 }}>{r.memo}</span>}
-                                </div>
-                                <button type="button" onClick={() => deleteRepay(card.id, r.id)}
-                                  style={{ background: 'none', border: 'none', color: '#dc3545', padding: '2px 6px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                  <i className="bi bi-x-circle" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem', padding: '8px 0' }}>상환 내역이 없습니다</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} />
                 ))}
               </>
             )}
@@ -1430,15 +1456,15 @@ export default function Budget() {
 
       {/* 자산별 잔고 종합 */}
       {data.card_stats.length > 0 && (() => {
-        const allNormalCards = data.card_stats.filter(c => c.initial_balance >= 0)
-        const loanCards = data.card_stats.filter(c => c.initial_balance < 0)
+        const allNormalCards = data.card_stats.filter(c => !c.is_loan)
+        const loanCards = data.card_stats.filter(c => c.is_loan)
         // exclude linked cards from balance sum to avoid double-counting
         const accountCards = allNormalCards.filter(c => !c.linked_account_id)
         const totalBalance = accountCards.reduce((s, c) => s + c.balance, 0)
         const totalSpent = allNormalCards.reduce((s, c) => s + c.spent, 0)
         const totalTarget = allNormalCards.reduce((s, c) => s + c.target, 0)
         const totalLoan = loanCards.reduce((s, c) => s + Math.abs(c.balance), 0)
-        const totalRepaid = loanCards.reduce((s, c) => s + c.total_expense, 0)
+        const totalRepaid = loanCards.reduce((s, c) => s + (c.total_repaid || 0), 0)
         return (
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
             <div className="card-body py-3">
@@ -1663,16 +1689,28 @@ export default function Budget() {
                     <span className="badge" style={{ background: '#198754' }}>초록</span>
                   </div>
                 </div>
-                <div className="mb-2">
-                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>
-                  <input type="url" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }} placeholder="https://..."
-                    value={editUrl} onChange={e => setEditUrl(e.target.value)} />
-                </div>
-                {editUrl && (
+                {!editCard?.is_loan && (
+                  <div className="mb-2">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>
+                    <input type="url" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }} placeholder="https://..."
+                      value={editUrl} onChange={e => setEditUrl(e.target.value)} />
+                  </div>
+                )}
+                {!editCard?.is_loan && editUrl && (
                   <a href={editUrl} target="_blank" rel="noreferrer"
                     style={{ display: 'inline-block', fontSize: '0.82rem', color: '#b088f9', textDecoration: 'none', marginBottom: 8 }}>
                     🔗 혜택 사이트 바로가기
                   </a>
+                )}
+                {editCard?.is_loan && (
+                  <div className="mb-2">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>연 이자율 (선택)</label>
+                    <div style={{ position: 'relative' }}>
+                      <input type="number" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }} placeholder="예: 3.5"
+                        value={editInterestRate} onChange={e => setEditInterestRate(e.target.value)} step="0.1" min="0" max="100" inputMode="decimal" />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>%</span>
+                    </div>
+                  </div>
                 )}
               </form>
             </div>

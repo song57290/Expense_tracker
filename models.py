@@ -28,6 +28,7 @@ class Transaction(db.Model):
     user_id = db.Column(db.Integer, nullable=True)
     exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
+    time = db.Column(db.String(5), nullable=True)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,6 +57,7 @@ class Card(db.Model):
     account_balance = db.Column(db.Integer, nullable=False, default=0)
     user_id = db.Column(db.Integer, nullable=True)
     linked_account_id = db.Column(db.Integer, nullable=True)
+    interest_rate = db.Column(db.Float, nullable=True)
 
 class Savings(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -29,6 +29,7 @@ export default function TxItem({ tx, emojiMap = {}, large }) {
         <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: sz.amt }}>
           {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
         </div>
+        {tx.time && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 1, opacity: 0.7 }}>{tx.time}</div>}
       </div>
     </div>
   )

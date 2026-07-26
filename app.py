@@ -223,6 +223,8 @@ with app.app_context():
         "ALTER TABLE card ADD COLUMN linked_account_id INTEGER",
         'ALTER TABLE "transaction" ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE category ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0",
+        'ALTER TABLE "transaction" ADD COLUMN time VARCHAR(5)',
+        'ALTER TABLE card ADD COLUMN interest_rate FLOAT',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -760,7 +762,7 @@ def api_home():
     category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
     return jsonify({
-        'transactions': [{'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
+        'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                           'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)} for tx in month_txs],
         'income_total': income_total,
@@ -797,12 +799,14 @@ def api_add_transaction():
     card = data.get('card') or None
     if is_transfer and ' → ' in desc and not card:
         card = desc.split(' → ')[0].strip() or None
+    now_time = datetime.now().strftime('%H:%M')
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
         description=desc, amount=int(data['amount']),
         card=card,
         exclude_perf=bool(data.get('exclude_perf', False)),
         exclude_stats=bool(data.get('exclude_stats', False)),
+        time=now_time,
         user_id=uid,
     )
     db.session.add(tx)
@@ -812,6 +816,7 @@ def api_add_transaction():
             date=data['date'], type='income', category='계좌 이체',
             description=desc, amount=int(data['amount']),
             card=to_card, exclude_perf=True, exclude_stats=True,
+            time=now_time,
             user_id=uid,
         )
         db.session.add(paired)
@@ -846,7 +851,7 @@ def api_transaction(tx_id):
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
     return jsonify({
-        'transaction': {'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
+        'transaction': {'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                         'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
@@ -888,7 +893,8 @@ def api_cards():
     return jsonify({
         'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target, 'url': c.url or '',
                    'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80,
-                   'account_balance': c.account_balance or 0, 'linked_account_id': c.linked_account_id} for c in cards],
+                   'account_balance': c.account_balance or 0, 'linked_account_id': c.linked_account_id,
+                   'interest_rate': c.interest_rate} for c in cards],
         'stats': stats,
     })
 
@@ -913,6 +919,8 @@ def api_card(card_id):
         card.url = data['url'] or None
     if 'linked_account_id' in data:
         card.linked_account_id = data['linked_account_id'] or None
+    if 'interest_rate' in data:
+        card.interest_rate = float(data['interest_rate']) if data['interest_rate'] not in (None, '') else None
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -962,7 +970,7 @@ def api_calendar():
     for tx in transactions:
         day_totals[tx.date][tx.type] += tx.amount
         day_transactions[tx.date].append({
-            'id': tx.id, 'type': tx.type, 'category': tx.category,
+            'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
             'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
             'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
         })
@@ -1103,7 +1111,7 @@ def api_stats():
     deposit_total = sum(s.amount for s in savings_list if s.stype == '예금')
     installment_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype == '적금')
     subscription_total = sum(_savings_stats(s, extra_deposits_stats.get(s.id, 0))['current_paid'] for s in savings_list if s.stype == '청약')
-    total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + subscription_total + inv_total_now  # 순자산 (현금·대출 반영)
+    total_assets_now = card_balance_now + cash_total + deposit_total + installment_total + subscription_total + inv_total_now
 
     portfolio_breakdown = []
     if card_pos > 0:
@@ -1216,7 +1224,14 @@ def api_portfolio_pdf():
                     and _is_perf_tx(tx, excl_cats_report) and _is_stats_tx(tx, excl_stat_cats_report))
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial, 'balance': balance,
-                           'spent': spent, 'target': card.monthly_target, 'percent': percent})
+                           'spent': spent, 'target': card.monthly_target, 'percent': percent,
+                           'interest_rate': card.interest_rate,
+                           'total_repaid': loan_repayments_pdf.get(card.id, 0)})
+
+    loan_repayments_pdf = {}
+    for r in LoanRepayment.query.filter_by(user_id=uid).all():
+        if r.date.startswith(current_month):
+            loan_repayments_pdf[r.card_id] = loan_repayments_pdf.get(r.card_id, 0) + r.amount
 
     extra_deposits_pdf = {}
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
@@ -1227,20 +1242,22 @@ def api_portfolio_pdf():
     inv_gain_total = sum(i['profit'] for i in investments)
     inv_cost_total = sum(i['purchase_value'] for i in investments)
     inv_return_rate = round(inv_gain_total / inv_cost_total * 100, 2) if inv_cost_total else 0
-    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in sav_stats) + inv_total
+    loan_bal_pdf = sum((c.account_balance or 0) for c in cards if (c.account_balance or 0) < 0)
+    net_worth = loan_bal_pdf + sum(s['current_paid'] for s in sav_stats) + inv_total
 
-    card_bal_total = sum(c['balance'] for c in card_stats)
     deposit_total = sum(s['amount'] for s in sav_stats if s['stype'] == '예금')
     install_total = sum(s['current_paid'] for s in sav_stats if s['stype'] == '적금')
+    sub_total_pdf = sum(s['current_paid'] for s in sav_stats if s['stype'] == '청약')
     portfolio = []
-    if card_bal_total > 0: portfolio.append(('카드잔고', card_bal_total))
     if deposit_total > 0: portfolio.append(('예금', deposit_total))
     if install_total > 0: portfolio.append(('적금', install_total))
+    if sub_total_pdf > 0: portfolio.append(('청약', sub_total_pdf))
     inv_by_type = {}
     for inv in investments:
         inv_by_type[inv['itype']] = inv_by_type.get(inv['itype'], 0) + inv['current_value']
     for k, v in inv_by_type.items():
         if v > 0: portfolio.append((k, v))
+    if loan_bal_pdf < 0: portfolio.append(('대출', loan_bal_pdf))
     total_assets = sum(v for _, v in portfolio)
 
     tt_y, tt_m = today.year, today.month
@@ -1390,6 +1407,23 @@ def api_portfolio_pdf():
             '</div>' + target_html + '</div>'
         )
 
+    def loan_panel(c):
+        logo = bank_logo_tag(c['name'])
+        rate = c.get('interest_rate')
+        rate_html = f'<div class="ic"><div class="l">연 이자율</div><div class="v">{rate}%</div></div>' if rate else ''
+        repaid = c.get('total_repaid', 0)
+        tgt = c.get('target', 0)
+        tgt_html = f'<div class="ic"><div class="l">월 상환 목표</div><div class="v">{fmt(tgt)}원</div></div>' if tgt else ''
+        return (
+            '<div class="cp">'
+            f'<div class="cn2" style="display:flex;align-items:center;gap:10px">{logo}<span style="color:#dc3545">{c["name"]}</span></div>'
+            '<div class="ig">'
+            f'<div class="ic"><div class="l">대출 잔액</div><div class="v ce">-{fmt(abs(c["balance"]))}원</div></div>'
+            f'<div class="ic"><div class="l">이달 상환</div><div class="v ci">{fmt(repaid)}원</div></div>'
+            + tgt_html + rate_html +
+            '</div></div>'
+        )
+
     def sav_panel(s):
         amt_label = '예치금액' if s['stype'] == '예금' else '월 납입액'
         badge_cls = 'by' if s['stype'] == '예금' else 'bj'
@@ -1452,7 +1486,20 @@ def api_portfolio_pdf():
     else:
         bar_chart = ''
 
-    cards_html = ''.join(card_panel(c) for c in card_stats) if card_stats else '<div class="empty">등록된 카드/계좌가 없습니다</div>'
+    _normal_cards = [c for c in card_stats if c['initial_balance'] >= 0]
+    _loan_cards   = [c for c in card_stats if c['initial_balance'] < 0]
+    if not card_stats:
+        cards_html = '<div class="empty">등록된 카드/계좌가 없습니다</div>'
+    else:
+        cards_html = ''.join(card_panel(c) for c in _normal_cards)
+        if _loan_cards:
+            cards_html += (
+                '<div style="margin:24px 0 12px;display:flex;align-items:center;gap:10px">'
+                '<span style="font-size:0.82rem;font-weight:700;color:#dc3545;white-space:nowrap">💸 대출</span>'
+                '<div style="flex:1;height:2px;background:#fde8e8;border-radius:1px"></div>'
+                '</div>'
+                + ''.join(loan_panel(c) for c in _loan_cards)
+            )
     savings_html = ''.join(sav_panel(s) for s in sav_stats) if sav_stats else '<div class="empty">등록된 예적금이 없습니다</div>'
 
     sav_summary_html = ''
@@ -2205,20 +2252,28 @@ def api_portfolio():
     income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and _is_stats_tx(tx, excl_stat_cats_port))
     expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and _is_stats_tx(tx, excl_stat_cats_port))
     cards = Card.query.filter_by(user_id=uid).all()
+    port_loan_repayments = {}
+    for r in LoanRepayment.query.filter_by(user_id=uid).all():
+        if r.date.startswith(current_month):
+            port_loan_repayments[r.card_id] = port_loan_repayments.get(r.card_id, 0) + r.amount
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in transactions if tx.card == card.name]
-        current_balance = card.account_balance or 0
+        initial_balance = card.account_balance or 0
+        is_loan = initial_balance < 0
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
+        month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
         spent = sum(tx.amount for tx in card_txs
                     if tx.type == 'expense' and tx.date.startswith(current_month)
                     and _is_stats_tx(tx, excl_stat_cats_port))
-        initial_balance = current_balance - month_income + spent
+        balance = initial_balance + month_income - month_expense
         percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial_balance,
-                           'balance': current_balance,
-                           'month_income': month_income, 'spent': spent,
-                           'target': card.monthly_target, 'percent': percent})
+                           'balance': balance,
+                           'month_income': month_income, 'spent': month_expense,
+                           'target': card.monthly_target, 'percent': percent,
+                           'is_loan': is_loan, 'interest_rate': card.interest_rate,
+                           'total_repaid': port_loan_repayments.get(card.id, 0) if is_loan else 0})
     savings_list = Savings.query.filter_by(user_id=uid).all()
     extra_deposits_port = {}
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
@@ -2228,7 +2283,8 @@ def api_portfolio():
     _auto_fetch_investment_prices(inv_list)
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     investments = [_investment_stats(i) for i in inv_list]
-    net_worth = sum(c['balance'] for c in card_stats) + sum(s['current_paid'] for s in savings_stats) + sum(i['current_value'] for i in investments)
+    loan_bal_port = sum((c.account_balance or 0) for c in cards if (c.account_balance or 0) < 0)
+    net_worth = loan_bal_port + sum(s['current_paid'] for s in savings_stats) + sum(i['current_value'] for i in investments)
     inv_total = sum(i['current_value'] for i in investments)
     inv_gain_total = sum(i['profit'] for i in investments)
     inv_cost_total = sum(i['purchase_value'] for i in investments)
