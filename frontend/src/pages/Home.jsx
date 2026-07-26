@@ -57,7 +57,9 @@ export default function Home() {
     catch { return new Set() }
   })
   const [hideCardConfirm, setHideCardConfirm] = useState(null)
+  const [hideCardVisible, setHideCardVisible] = useState(false)
   const cardLongPressTimer = useRef(null)
+  const wasLongPress = useRef(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
@@ -143,17 +145,26 @@ export default function Home() {
     setTimeout(() => setCardSheet(null), 350)
   }
   function startCardLongPress(name) {
-    cardLongPressTimer.current = setTimeout(() => setHideCardConfirm(name), 500)
+    wasLongPress.current = false
+    cardLongPressTimer.current = setTimeout(() => {
+      wasLongPress.current = true
+      setHideCardConfirm(name)
+      requestAnimationFrame(() => requestAnimationFrame(() => setHideCardVisible(true)))
+    }, 500)
   }
   function cancelCardLongPress() {
     clearTimeout(cardLongPressTimer.current)
+  }
+  function closeHideCard() {
+    setHideCardVisible(false)
+    setTimeout(() => setHideCardConfirm(null), 260)
   }
   function hideCard(name) {
     const next = new Set(hiddenCards)
     next.add(name)
     setHiddenCards(next)
     localStorage.setItem('hidden_card_stats', JSON.stringify([...next]))
-    setHideCardConfirm(null)
+    closeHideCard()
   }
   function showCard(name) {
     const next = new Set(hiddenCards)
@@ -212,19 +223,20 @@ export default function Home() {
                   {visibleStats.map(cs => {
                     const logo = bankLogo(cs.name)
                     return (
-                      <div key={cs.name} className="mb-3 mt-2">
-                        <div className="d-flex justify-content-between align-items-center mb-1"
-                          style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-                          onTouchStart={() => startCardLongPress(cs.name)} onTouchEnd={cancelCardLongPress} onTouchMove={cancelCardLongPress}
-                          onMouseDown={() => startCardLongPress(cs.name)} onMouseUp={cancelCardLongPress} onMouseLeave={cancelCardLongPress}
-                          onContextMenu={e => { e.preventDefault(); setHideCardConfirm(cs.name) }}>
+                      <div key={cs.name} className="mb-3 mt-2"
+                        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                        onTouchStart={() => startCardLongPress(cs.name)} onTouchEnd={cancelCardLongPress} onTouchMove={cancelCardLongPress}
+                        onMouseDown={() => startCardLongPress(cs.name)} onMouseUp={cancelCardLongPress} onMouseLeave={cancelCardLongPress}
+                        onContextMenu={e => { e.preventDefault(); wasLongPress.current = true; setHideCardConfirm(cs.name); requestAnimationFrame(() => requestAnimationFrame(() => setHideCardVisible(true))) }}>
+                        <div className="d-flex justify-content-between align-items-center mb-1">
                           <span className="d-flex align-items-center gap-2">
                             {logo && <img src={logo} style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
                             {cs.name}
                           </span>
                           <span className="text-nowrap">{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
                         </div>
-                        <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }} onClick={() => openCardSheet(cs.name)}>
+                        <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }}
+                          onClick={() => { if (!wasLongPress.current) openCardSheet(cs.name); wasLongPress.current = false }}>
                           <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
                           <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
                         </div>
@@ -459,13 +471,18 @@ export default function Home() {
       )}
 
       {hideCardConfirm && (
-        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <div onClick={closeHideCard}
+          style={{ display: 'flex', position: 'fixed', inset: 0, zIndex: 2000, alignItems: 'center', justifyContent: 'center',
+            background: `rgba(0,0,0,${hideCardVisible ? 0.35 : 0})`, transition: 'background 0.22s ease' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+              opacity: hideCardVisible ? 1 : 0, transform: hideCardVisible ? 'scale(1) translateY(0)' : 'scale(0.88) translateY(14px)',
+              transition: 'opacity 0.24s ease, transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>{hideCardConfirm}</p>
             <p className="text-center text-muted mb-4" style={{ fontSize: '0.85rem' }}>이 카드를 실적 목록에서 숨기겠습니까?</p>
             <div className="d-flex gap-2">
               <button className="btn flex-fill" onClick={() => hideCard(hideCardConfirm)} style={{ background: 'var(--bg-accent)', color: 'var(--text-primary)', border: 'none', borderRadius: 10 }}>숨기기</button>
-              <button className="btn flex-fill" onClick={() => setHideCardConfirm(null)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>취소</button>
+              <button className="btn flex-fill" onClick={closeHideCard} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>취소</button>
             </div>
           </div>
         </div>
