@@ -2,21 +2,38 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.38'
+export const CURRENT_VERSION = 'ver 2.39'
 export const UPDATE_DATE = '2026년 7월 26일'
 
 export const UPDATES = [
   {
-    section: '💸 대출 일부 상환',
+    section: '📅 캘린더 개선',
     items: [
-      { tag: 'new', title: '일부 상환 기록 추가', desc: '대출 카드에 "💰 일부 상환" 버튼 추가\n— 금액·날짜·메모 입력 후 상환 내역 저장 및 삭제 가능' },
-      { tag: 'new', title: '대출 잔액 자동 반영', desc: '상환 등록 시 대출 잔액이 자동으로 감소\n— 삭제 시 롤백하여 이전 잔액으로 복원' },
-      { tag: 'new', title: '이달 상환 합계 표시', desc: '대출 카드에서 이번 달 상환 합계가 "이달 상환"으로 표시' },
+      { tag: 'new', title: '내역 꾹 누르기 → 수정·삭제', desc: '날짜 클릭 팝업과 월별 목록 모두에서 내역을 꾹 누르면 수정·삭제 바텀시트 표시\n— 스와이프 없이 빠르게 접근 가능' },
+      { tag: 'new', title: '카드별 필터', desc: '월별 내역 목록 위에 가로 스크롤 칩 행 추가\n— 해당 달에 사용한 카드별로 내역 필터링 가능' },
+    ],
+  },
+  {
+    section: '🏠 홈 탭 개선',
+    items: [
+      { tag: 'new', title: '실적바 카드 숨기기', desc: '카드명을 꾹 누르면 숨기기 확인 팝업 표시\n— 목돈 계좌 등 실적이 필요 없는 카드 숨기기 가능, 재시작 후에도 유지되며 하단 링크로 복원' },
+      { tag: 'new', title: '카드 내역 최신순·과거순 정렬', desc: '카드 실적바 클릭 시 나오는 내역 시트에 최신순 / 과거순 토글 버튼 추가' },
     ],
   },
 ]
 
 export const VERSION_HISTORY = [
+  {
+    version: 'ver 2.38',
+    date: '2026년 7월 26일',
+    updates: [
+      { section: '💸 대출 일부 상환', items: [
+        { tag: 'new', title: '일부 상환 기록 추가', desc: '대출 카드에 "💰 일부 상환" 버튼 추가\n— 금액·날짜·메모 입력 후 상환 내역 저장 및 삭제 가능' },
+        { tag: 'new', title: '대출 잔액 자동 반영', desc: '상환 등록 시 대출 잔액이 자동으로 감소\n— 삭제 시 롤백하여 이전 잔액으로 복원' },
+        { tag: 'new', title: '이달 상환 합계 표시', desc: '대출 카드에서 이번 달 상환 합계가 "이달 상환"으로 표시' },
+      ]},
+    ],
+  },
   {
     version: 'ver 2.37',
     date: '2026년 7월 26일',
