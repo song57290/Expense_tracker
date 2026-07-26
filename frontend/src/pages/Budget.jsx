@@ -183,7 +183,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onRepay, linkedAccountName }) {
+function SwipeCard({ card, onEdit, onDelete, linkedAccountName }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -294,19 +294,9 @@ function SwipeCard({ card, onEdit, onDelete, onRepay, linkedAccountName }) {
         )}
         <div className="border-top pt-2">
           {isLoan ? (
-            <div>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</span>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}원</span>
-              </div>
-              {onRepay && (
-                <button type="button"
-                  onPointerDown={e => e.stopPropagation()}
-                  onClick={e => { e.stopPropagation(); onRepay() }}
-                  style={{ width: '100%', padding: '6px 0', background: 'rgba(176,136,249,0.12)', border: '1.5px solid #b088f9', borderRadius: 8, color: '#b088f9', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                  💰 일부 상환
-                </button>
-              )}
+            <div className="d-flex justify-content-between align-items-center">
+              <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}원</span>
             </div>
           ) : (
             <>
@@ -1386,8 +1376,11 @@ export default function Budget() {
                 </div>
                 {loanCards.map(card => (
                   <div key={card.id}>
-                    <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)}
-                      onRepay={() => repayCardId === card.id ? closeRepay() : openRepay(card.id)} />
+                    <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
+                    <button type="button" onClick={() => repayCardId === card.id ? closeRepay() : openRepay(card.id)}
+                      style={{ display: 'block', width: '100%', marginTop: -4, marginBottom: 4, padding: '9px 0', background: repayCardId === card.id ? 'rgba(176,136,249,0.18)' : 'rgba(176,136,249,0.10)', border: '1.5px solid #b088f9', borderRadius: '0 0 14px 14px', color: '#b088f9', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' }}>
+                      {repayCardId === card.id ? '▲ 닫기' : '💰 일부 상환'}
+                    </button>
                     {repayCardId === card.id && (
                       <div style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 14px', marginTop: -6, marginBottom: 12 }}>
                         <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>💰 일부 상환 기록</div>
