@@ -46,7 +46,7 @@ export default function Calendar() {
   const [confirmSheet, setConfirmSheet] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
   const [txFilter, setTxFilter] = useState('all')
-  const [txSortAsc, setTxSortAsc] = useState(false)
+  const [txSortAsc, setTxSortAsc] = useState(true)
   const [cardFilter, setCardFilter] = useState('all')
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
@@ -471,13 +471,19 @@ export default function Calendar() {
           return acc
         }, {})
         const dates = Object.keys(byDate).sort((a, b) => txSortAsc ? a.localeCompare(b) : b.localeCompare(a))
+        dates.forEach(d => {
+          byDate[d].sort((a, b) => txSortAsc
+            ? ((a.time || '').localeCompare(b.time || '') || a.id - b.id)
+            : ((b.time || '').localeCompare(a.time || '') || b.id - a.id)
+          )
+        })
         return (
           <div style={{ marginTop: 40 }}>
             <div className="d-flex justify-content-between align-items-center mb-2">
               <h3 className="mb-0 fw-bold">내역 목록</h3>
               <div className="d-flex align-items-center gap-2">
                 <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', whiteSpace: 'nowrap' }}>
-                  {txSortAsc ? '과거순' : '최신순'}
+                  {txSortAsc ? '최신순' : '과거순'}
                 </button>
                 <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
               </div>
