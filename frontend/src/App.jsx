@@ -6,6 +6,7 @@ import Calendar from './pages/Calendar.jsx'
 import Stats from './pages/Stats.jsx'
 import Budget from './pages/Budget.jsx'
 import Categories from './pages/Categories.jsx'
+import Routines from './pages/Routines.jsx'
 import Edit from './pages/Edit.jsx'
 import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
@@ -180,6 +181,7 @@ export default function App() {
           <Route path="/stats" element={<Stats />} />
           <Route path="/budget" element={<Budget />} />
           <Route path="/categories" element={<Categories />} />
+          <Route path="/routines" element={<Routines />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/salary" element={<Salary />} />
           <Route path="/edit/:id" element={<Edit />} />

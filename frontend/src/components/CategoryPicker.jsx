@@ -61,7 +61,7 @@ export default function CategoryPicker({ cats, value, onChange }) {
       {open && createPortal(
         <div
           onClick={e => e.target === e.currentTarget && closeSheet()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}
         >
           <div
             onTouchStart={onTouchStart}

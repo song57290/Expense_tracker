@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -108,6 +108,17 @@ def bank_logo_filter(card_name):
 with app.app_context():
     db.create_all()
     from sqlalchemy import text
+    # routine 테이블이 구 스키마(category NOT NULL)이면 드롭 후 재생성
+    try:
+        with db.engine.connect() as conn:
+            cols = [row[1] for row in conn.execute(text("PRAGMA table_info(routine)")).fetchall()]
+            if 'category' in cols:
+                conn.execute(text("DROP TABLE IF EXISTS routine_item"))
+                conn.execute(text("DROP TABLE IF EXISTS routine"))
+                conn.commit()
+    except Exception:
+        pass
+    db.create_all()
     for col, default in [('tier1', 20), ('tier2', 50), ('tier3', 80)]:
         try:
             with db.engine.connect() as conn:
@@ -214,6 +225,7 @@ with app.app_context():
         except Exception:
             pass
     for _sql in [
+        "ALTER TABLE loan_repayment ADD COLUMN transaction_id INTEGER",
         "ALTER TABLE fixed_expense ADD COLUMN auto_register BOOLEAN DEFAULT 0",
         "ALTER TABLE fixed_expense ADD COLUMN tx_type VARCHAR(20) DEFAULT 'expense'",
         "ALTER TABLE fixed_expense ADD COLUMN tx_card VARCHAR(50) DEFAULT ''",
@@ -761,6 +773,8 @@ def api_home():
             category_totals[tx.category] += tx.amount
     category_totals = dict(sorted(category_totals.items(), key=lambda x: x[1], reverse=True))
 
+    routines = Routine.query.filter_by(user_id=uid).order_by(Routine.position, Routine.id).all()
+    by_routine = _routine_items(uid)
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
@@ -778,6 +792,7 @@ def api_home():
         'category_totals': category_totals,
         'excl_cat_names': list(excl_cats),
         'excl_stat_cat_names': list(excl_stat_cats),
+        'routines': [{'id': r.id, 'name': r.name, 'card': r.card or '', 'items': by_routine.get(r.id, [])} for r in routines],
     })
 
 def _sync_salary_if_needed(uid, category, tx_type, amount):
@@ -799,7 +814,7 @@ def api_add_transaction():
     card = data.get('card') or None
     if is_transfer and ' → ' in desc and not card:
         card = desc.split(' → ')[0].strip() or None
-    now_time = datetime.now().strftime('%H:%M')
+    now_time = datetime.now(_KST).strftime('%H:%M')
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
         description=desc, amount=int(data['amount']),
@@ -936,7 +951,21 @@ def api_card_repayments(card_id):
     amt = int(data.get('amount', 0))
     if amt <= 0:
         return jsonify({'error': 'invalid amount'}), 400
-    rep = LoanRepayment(card_id=card_id, user_id=uid, amount=amt, date=data.get('date', ''), memo=data.get('memo', ''))
+    tx_id = None
+    deduct_card = data.get('deduct_card', '')
+    if deduct_card:
+        now_time = datetime.now(_KST).strftime('%H:%M')
+        tx = Transaction(
+            user_id=uid, date=data.get('date', ''), time=now_time,
+            type='expense', category='대출 상환',
+            description=f'{card.name} 대출 상환',
+            amount=amt, card=deduct_card,
+            exclude_perf=True, exclude_stats=True,
+        )
+        db.session.add(tx)
+        db.session.flush()
+        tx_id = tx.id
+    rep = LoanRepayment(card_id=card_id, user_id=uid, amount=amt, date=data.get('date', ''), memo=data.get('memo', ''), transaction_id=tx_id)
     card.account_balance = (card.account_balance or 0) + amt
     db.session.add(rep)
     db.session.commit()
@@ -949,6 +978,10 @@ def api_delete_repayment(rid):
     rep = LoanRepayment.query.filter_by(id=rid, user_id=uid).first_or_404()
     card = Card.query.filter_by(id=rep.card_id, user_id=uid).first_or_404()
     card.account_balance = (card.account_balance or 0) - rep.amount
+    if rep.transaction_id:
+        tx = Transaction.query.filter_by(id=rep.transaction_id, user_id=uid).first()
+        if tx:
+            db.session.delete(tx)
     db.session.delete(rep)
     db.session.commit()
     return jsonify({'ok': True, 'balance': card.account_balance})
@@ -1709,10 +1742,14 @@ def api_budget():
         return jsonify({'ok': True})
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     all_txs = Transaction.query.filter_by(user_id=uid).all()
-    expense_total = sum(tx.amount for tx in all_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+    all_cats_budget = Category.query.filter_by(user_id=uid).all()
+    excl_cats_budget = {c.name for c in all_cats_budget if c.exclude_perf}
+    excl_stat_cats_budget = {c.name for c in all_cats_budget if c.exclude_stats}
+    expense_total = sum(tx.amount for tx in all_txs
+                        if tx.type == 'expense' and tx.date.startswith(current_month)
+                        and _is_stats_tx(tx, excl_stat_cats_budget))
 
     cards = Card.query.filter_by(user_id=uid).all()
-    excl_cats_budget = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
     card_by_id = {c.id: c for c in cards}
     # linked_names[account_id] = [card_name, ...]
     linked_names = {}
@@ -1744,6 +1781,8 @@ def api_budget():
             card_txs = [tx for tx in all_txs if tx.card == card.name]
             month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
             month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+            display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
+            display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             perf_spent = sum(tx.amount for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
                              and _is_perf_tx(tx, excl_cats_budget))
@@ -1753,6 +1792,8 @@ def api_budget():
                     ltxs = [tx for tx in all_txs if tx.card == lname]
                     month_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month))
                     month_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month))
+                    display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
+                    display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             # linked card: show account card's balance
             if linked_account_id and linked_account_id in card_by_id:
                 acc = card_by_id[linked_account_id]
@@ -1766,8 +1807,8 @@ def api_budget():
             percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
             card_stats.append({
                 'id': card.id, 'name': card.name,
-                'initial_balance': initial_balance, 'total_income': month_income,
-                'total_expense': month_expense, 'balance': balance,
+                'initial_balance': initial_balance, 'total_income': display_income,
+                'total_expense': display_expense, 'balance': balance,
                 'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': False, 'linked_account_id': linked_account_id,
@@ -2263,14 +2304,13 @@ def api_portfolio():
         is_loan = initial_balance < 0
         month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
         month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
-        spent = sum(tx.amount for tx in card_txs
-                    if tx.type == 'expense' and tx.date.startswith(current_month)
-                    and _is_stats_tx(tx, excl_stat_cats_port))
+        display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
+        display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         balance = initial_balance + month_income - month_expense
-        percent = min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
+        percent = min(int(display_expense / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial_balance,
                            'balance': balance,
-                           'month_income': month_income, 'spent': month_expense,
+                           'month_income': display_income, 'spent': display_expense,
                            'target': card.monthly_target, 'percent': percent,
                            'is_loan': is_loan, 'interest_rate': card.interest_rate,
                            'total_repaid': port_loan_repayments.get(card.id, 0) if is_loan else 0})
@@ -2309,6 +2349,80 @@ def api_portfolio():
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''}
                          for tx in transactions],
     })
+
+def _routine_items(uid):
+    items = RoutineItem.query.filter_by(user_id=uid).order_by(RoutineItem.position, RoutineItem.id).all()
+    by_routine = {}
+    for it in items:
+        by_routine.setdefault(it.routine_id, []).append({'id': it.id, 'category': it.category, 'cat_type': it.cat_type})
+    return by_routine
+
+@app.route('/api/routines', methods=['GET', 'POST'])
+@login_required
+def api_routines():
+    uid = session['user_id']
+    if request.method == 'POST':
+        data = request.json or {}
+        max_pos = db.session.query(db.func.max(Routine.position)).filter(Routine.user_id == uid).scalar() or 0
+        r = Routine(user_id=uid, name=data.get('name', '').strip(),
+                    card=data.get('card', '') or '', position=max_pos + 1)
+        db.session.add(r)
+        db.session.flush()
+        for i, it in enumerate(data.get('items', [])):
+            if it.get('category'):
+                db.session.add(RoutineItem(routine_id=r.id, user_id=uid,
+                                           category=it['category'], cat_type=it.get('cat_type', 'expense'), position=i))
+        db.session.commit()
+        return jsonify({'ok': True, 'id': r.id})
+    routines = Routine.query.filter_by(user_id=uid).order_by(Routine.position, Routine.id).all()
+    by_routine = _routine_items(uid)
+    return jsonify([{'id': r.id, 'name': r.name, 'card': r.card or '', 'position': r.position,
+                     'items': by_routine.get(r.id, [])} for r in routines])
+
+@app.route('/api/routines/suggestions')
+@login_required
+def api_routine_suggestions():
+    uid = session['user_id']
+    from datetime import date, timedelta
+    cutoff = (date.today() - timedelta(days=30)).strftime('%Y-%m-%d')
+    txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date >= cutoff).all()
+    existing_cats = {it.category for it in RoutineItem.query.filter_by(user_id=uid).all()}
+    from collections import defaultdict
+    week_sets = defaultdict(set)
+    for tx in txs:
+        try:
+            d = datetime.strptime(tx.date, '%Y-%m-%d')
+            week_sets[(tx.category, tx.type)].add(d.strftime('%Y-W%W'))
+        except Exception:
+            pass
+    suggestions = [{'category': cat, 'cat_type': ctype, 'week_count': len(weeks)}
+                   for (cat, ctype), weeks in week_sets.items()
+                   if len(weeks) >= 3 and cat not in existing_cats]
+    suggestions.sort(key=lambda x: x['week_count'], reverse=True)
+    return jsonify(suggestions[:3])
+
+@app.route('/api/routines/<int:rid>', methods=['PUT', 'DELETE'])
+@login_required
+def api_routine(rid):
+    uid = session['user_id']
+    r = Routine.query.filter_by(id=rid, user_id=uid).first_or_404()
+    if request.method == 'DELETE':
+        RoutineItem.query.filter_by(routine_id=rid, user_id=uid).delete()
+        db.session.delete(r)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    if 'name' in data: r.name = data['name'].strip()
+    if 'card' in data: r.card = data['card'] or ''
+    if 'position' in data: r.position = data['position']
+    if 'items' in data:
+        RoutineItem.query.filter_by(routine_id=rid, user_id=uid).delete()
+        for i, it in enumerate(data['items']):
+            if it.get('category'):
+                db.session.add(RoutineItem(routine_id=rid, user_id=uid,
+                                           category=it['category'], cat_type=it.get('cat_type', 'expense'), position=i))
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/categories', methods=['GET', 'POST'])
 @login_required
