@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 
-export default function SwipeItem({ children, onDelete, onEdit }) {
+export default function SwipeItem({ children, onDelete, onEdit, borderRadius = 0 }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -45,7 +45,7 @@ export default function SwipeItem({ children, onDelete, onEdit }) {
   const editWidth = Math.max(0, offsetX)
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', overflow: 'hidden', borderRadius }}>
       <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', width: deleteWidth, background: '#dc3545', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', color: 'white', fontSize: '0.82rem', fontWeight: 600, gap: 6, overflow: 'hidden' }}>
         <i className="bi bi-trash" style={{ fontSize: '1rem', flexShrink: 0 }} /><span style={{ whiteSpace: 'nowrap' }}>삭제</span>
       </div>

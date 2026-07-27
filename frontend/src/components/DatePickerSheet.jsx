@@ -144,7 +144,7 @@ export default function DatePickerSheet({ value, onChange }) {
         color: value ? 'var(--text-primary)' : 'var(--text-muted)',
       }}>
         <i className="bi bi-calendar3" style={{ color: '#b088f9', fontSize: '0.85rem', flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: '0.9rem', textAlign: 'left' }}>{displayDate}</span>
+        <span style={{ flex: 1, fontSize: '0.88rem', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayDate}</span>
       </button>
 
       {open && createPortal(

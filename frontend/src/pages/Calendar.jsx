@@ -485,7 +485,7 @@ export default function Calendar() {
                 <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', whiteSpace: 'nowrap' }}>
                   {txSortAsc ? '최신순' : '과거순'}
                 </button>
-                <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={txFilter} onChange={setTxFilter} />
+                <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={txFilter} onChange={setTxFilter} />
               </div>
             </div>
             {allCards.length > 0 && (

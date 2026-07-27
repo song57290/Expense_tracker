@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import api from '../api.js'
 import { fmt, bankLogo, fmtMonth, today } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
+import CardPicker from '../components/CardPicker.jsx'
 
 const BANKS = [
   ['신한은행', '/static/cards/sinhanbank.png', '신한은행'],
@@ -193,7 +194,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName }) {
+function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, accountCards = [] }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -202,7 +203,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName })
   const mouseDown = useRef(false)
   const [repayOpen, setRepayOpen] = useState(false)
   const [repayments, setRepayments] = useState([])
-  const [repayForm, setRepayForm] = useState({ amount: '', date: today(), memo: '' })
+  const [repayForm, setRepayForm] = useState({ amount: '', date: today(), memo: '', card: '' })
   const [repayLoading, setRepayLoading] = useState(false)
 
   async function loadRepayments() {
@@ -219,8 +220,8 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName })
     const amt = parseInt(repayForm.amount.replace(/,/g, ''))
     if (!amt) return
     setRepayLoading(true)
-    await api.post(`/api/cards/${card.id}/repayments`, { amount: amt, date: repayForm.date, memo: repayForm.memo })
-    setRepayForm({ amount: '', date: today(), memo: '' })
+    await api.post(`/api/cards/${card.id}/repayments`, { amount: amt, date: repayForm.date, memo: repayForm.memo, deduct_card: repayForm.card || '' })
+    setRepayForm({ amount: '', date: today(), memo: '', card: '' })
     await loadRepayments()
     setRepayLoading(false)
     if (onRepayChange) onRepayChange()
@@ -373,17 +374,35 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName })
               </div>
               {repayOpen && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
-                  <form onSubmit={addRepay} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                    <div style={{ flex: 2 }}>
-                      <DatePickerSheet value={repayForm.date} onChange={date => setRepayForm(f => ({ ...f, date }))} />
+                  <form onSubmit={addRepay} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: accountCards.length > 0 ? 6 : 0 }}>
+                      <div style={{ flex: 2 }}>
+                        <DatePickerSheet value={repayForm.date} onChange={date => setRepayForm(f => ({ ...f, date }))} />
+                      </div>
+                      <input type="text" inputMode="numeric" placeholder="금액" value={repayForm.amount} required
+                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRepayForm(f => ({ ...f, amount: raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '' })) }}
+                        style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d5ff', fontSize: '0.82rem', background: 'var(--bg-accent)', color: 'var(--text-primary)' }} />
+                      <button type="submit" disabled={repayLoading}
+                        style={{ flex: 1, borderRadius: 8, border: 'none', background: '#b088f9', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
+                        {repayLoading ? '...' : '등록'}
+                      </button>
                     </div>
-                    <input type="text" inputMode="numeric" placeholder="금액" value={repayForm.amount} required
-                      onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRepayForm(f => ({ ...f, amount: raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '' })) }}
-                      style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d5ff', fontSize: '0.82rem', background: 'var(--bg-accent)', color: 'var(--text-primary)' }} />
-                    <button type="submit" disabled={repayLoading}
-                      style={{ flex: 1, borderRadius: 8, border: 'none', background: '#b088f9', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
-                      {repayLoading ? '...' : '등록'}
-                    </button>
+                    {accountCards.length > 0 && (
+                      <div style={{ position: 'relative' }}>
+                        <CardPicker
+                          cards={accountCards}
+                          value={repayForm.card}
+                          onChange={name => setRepayForm(f => ({ ...f, card: name }))}
+                          placeholder="카드/계좌 (선택사항)"
+                        />
+                        {repayForm.card && (
+                          <button type="button" onClick={() => setRepayForm(f => ({ ...f, card: '' }))}
+                            style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px', zIndex: 1 }}>
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </form>
                   {repayments.length === 0
                     ? <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 0' }}>상환 내역 없음</div>
@@ -1446,7 +1465,7 @@ export default function Budget() {
                   <div style={{ flex: 1, height: 1, background: '#fde8e8' }} />
                 </div>
                 {loanCards.map(card => (
-                  <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} />
+                  <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} />
                 ))}
               </>
             )}

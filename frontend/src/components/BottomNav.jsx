@@ -13,6 +13,7 @@ export default function BottomNav() {
   const { pathname } = useLocation()
   const tabRefs = useRef([])
   const indRef = useRef(null)
+  const navRef = useRef(null)
   const prevIdxRef = useRef(null)
 
   const currentIdx = ITEMS.findIndex(it => it.path === pathname)
@@ -43,8 +44,36 @@ export default function BottomNav() {
     prevIdxRef.current = currentIdx
   }, [currentIdx])
 
+  // 키보드가 열릴 때 하단바가 올라오지 않도록 고정
+  // 이전 visualViewport 방식은 레이아웃 뷰포트가 줄어드는 경우 0으로 잘못 계산됨
+  // window.innerHeight 기준으로 초기 높이 대비 차이를 직접 계산
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+
+    let baseH = window.innerHeight
+    let baseW = window.innerWidth
+
+    const update = () => {
+      const curW = window.innerWidth
+      // 화면 회전 등으로 가로폭이 바뀌면 기준 높이 재설정
+      if (Math.abs(curW - baseW) > 50) {
+        baseH = window.innerHeight
+        baseW = curW
+        el.style.transform = ''
+        return
+      }
+      // 키보드가 열리면 window.innerHeight가 줄어듦 → 줄어든 만큼 아래로 밀어 제자리 고정
+      const keyboardH = Math.max(0, baseH - window.innerHeight)
+      el.style.transform = keyboardH > 150 ? `translateY(${keyboardH}px)` : ''
+    }
+
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
   return (
-    <nav className="bottom-nav d-lg-none">
+    <nav ref={navRef} className="bottom-nav d-lg-none">
       <div className="d-flex justify-content-around py-2" style={{ position: 'relative' }}>
         <div ref={indRef} style={{
           position: 'absolute', top: 4, bottom: 4,

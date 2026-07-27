@@ -6,6 +6,7 @@ import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+
 import TransferPicker from '../components/TransferPicker.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
@@ -61,6 +62,13 @@ export default function Home() {
   const [hideCardVisible, setHideCardVisible] = useState(false)
   const cardLongPressTimer = useRef(null)
   const wasLongPress = useRef(false)
+  const amountRef = useRef(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [routineSheet, setRoutineSheet] = useState(null)
+  const [routineSheetVisible, setRoutineSheetVisible] = useState(false)
+  const [routineSheetDate, setRoutineSheetDate] = useState('')
+  const [routineSheetCard, setRoutineSheetCard] = useState('')
+  const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
@@ -71,6 +79,15 @@ export default function Home() {
 
   const load = useCallback(() => api.get('/api/home').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    api.get('/api/routines/suggestions').then(sugg => {
+      const dismissed = new Set(JSON.parse(localStorage.getItem('routine_dismissed') || '[]'))
+      const snoozed = JSON.parse(localStorage.getItem('routine_snoozed') || '{}')
+      const now = Date.now()
+      setSuggestions(sugg.filter(s => !dismissed.has(s.category) && (!snoozed[s.category] || snoozed[s.category] < now)))
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const d = params.get('date')
@@ -114,6 +131,9 @@ export default function Home() {
 
   const catSum = Object.values(data.category_totals).reduce((s, v) => s + v, 0)
   const budgetPct = data.budget_amount > 0 ? Math.min(Math.round(data.expense_total / data.budget_amount * 100), 100) : 0
+
+  const existingRoutineCats = new Set((data.routines || []).map(r => r.category))
+  const activeSuggestion = suggestions.find(s => !existingRoutineCats.has(s.category))
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -182,6 +202,60 @@ export default function Home() {
     next.delete(name)
     setHiddenCards(next)
     localStorage.setItem('hidden_card_stats', JSON.stringify([...next]))
+  }
+
+  function openRoutineSheet(r) {
+    setRoutineSheet(r)
+    setRoutineSheetDate(today())
+    setRoutineSheetCard(r.card || '')
+    setRoutineSheetAmounts((r.items || []).map(() => ({ amount: '', description: '' })))
+    requestAnimationFrame(() => requestAnimationFrame(() => setRoutineSheetVisible(true)))
+  }
+  function closeRoutineSheet() {
+    setRoutineSheetVisible(false)
+    setTimeout(() => setRoutineSheet(null), 350)
+  }
+  async function submitRoutineSheet() {
+    if (!routineSheet) return
+    const toSave = (routineSheet.items || [])
+      .map((item, i) => {
+        const raw = (routineSheetAmounts[i]?.amount || '').replace(/,/g, '')
+        return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '' }
+      })
+      .filter(item => item.amount > 0)
+    if (!toSave.length) { alert('금액을 하나 이상 입력해 주세요.'); return }
+    try {
+      for (const item of toSave) {
+        await api.post('/api/transactions', {
+          date: routineSheetDate, type: item.cat_type, category: item.category,
+          description: item.description, amount: item.amount,
+          card: routineSheetCard, exclude_perf: false, exclude_stats: false,
+        })
+      }
+      closeRoutineSheet()
+      load()
+    } catch (e) {
+      alert('저장 중 오류가 발생했습니다.')
+    }
+  }
+
+  function dismissRoutine(category) {
+    const dismissed = JSON.parse(localStorage.getItem('routine_dismissed') || '[]')
+    if (!dismissed.includes(category)) localStorage.setItem('routine_dismissed', JSON.stringify([...dismissed, category]))
+    setSuggestions(s => s.filter(x => x.category !== category))
+  }
+
+  function snoozeRoutine(category) {
+    const snoozed = JSON.parse(localStorage.getItem('routine_snoozed') || '{}')
+    snoozed[category] = Date.now() + 7 * 24 * 60 * 60 * 1000
+    localStorage.setItem('routine_snoozed', JSON.stringify(snoozed))
+    setSuggestions(s => s.filter(x => x.category !== category))
+  }
+
+  async function addRoutineFromSuggestion(s) {
+    await api.post('/api/routines', { name: s.category, card: '', items: [{ category: s.category, cat_type: s.cat_type }] })
+    dismissRoutine(s.category)
+    load()
   }
 
   const cardSheetTxs = cardSheet
@@ -304,6 +378,29 @@ export default function Home() {
         </div>
       )}
 
+      {/* 루틴 제안 배너 */}
+      {activeSuggestion && (
+        <div style={{ background: 'rgba(176,136,249,0.1)', border: '1px solid rgba(176,136,249,0.25)', borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: '0.84rem', marginBottom: 8, color: 'var(--text-primary)' }}>
+            🔄 <b>{data.emoji_map[activeSuggestion.category] || '📦'} {activeSuggestion.category}</b>이(가) 최근 자주 등장합니다. 루틴으로 등록할까요?
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => addRoutineFromSuggestion(activeSuggestion)}
+              style={{ flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+              ✓ 등록
+            </button>
+            <button onClick={() => snoozeRoutine(activeSuggestion.category)}
+              style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(176,136,249,0.4)', background: 'transparent', color: '#b088f9', fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              1주일 안보기
+            </button>
+            <button onClick={() => dismissRoutine(activeSuggestion.category)}
+              style={{ padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
+              ✕ 무시
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 내역 추가 */}
       <div className="card mb-4">
         <div className="card-body">
@@ -311,6 +408,16 @@ export default function Home() {
             <h5 className="card-title mb-0">내역 추가</h5>
             <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{addOpen ? '▴' : '▾'}</span>
           </div>
+          {addOpen && data.routines?.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 10, marginBottom: 2 }}>
+              {data.routines.map(r => (
+                <button key={r.id} type="button" onClick={() => openRoutineSheet(r)}
+                  style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.78rem', border: '1.5px solid rgba(176,136,249,0.35)', background: 'var(--bg-accent)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {data.emoji_map[r.category] || '📦'} {r.name}
+                </button>
+              ))}
+            </div>
+          )}
           {addOpen && (
             <form onSubmit={handleAdd} className="row g-2 mt-1">
               <div className="col-6 col-lg-2">
@@ -342,7 +449,7 @@ export default function Home() {
               </div>
               <div className="col-6 col-lg-2">
                 <div style={{ position: 'relative' }}>
-                  <input className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
+                  <input ref={amountRef} className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
                     onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ paddingRight: 36 }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
@@ -432,7 +539,7 @@ export default function Home() {
               <button className="btn btn-sm" onClick={() => setSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent' }}>
                 {sortAsc ? '과거순' : '최신순'}
               </button>
-              <SlidingTabs options={[['all', '전체'], ['expense', '지출'], ['income', '수입']]} value={filter} onChange={setFilter} />
+              <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
             </div>
           </div>
           {allCards.length > 0 && (
@@ -482,6 +589,75 @@ export default function Home() {
         </div>
       </div>
       <div className="d-lg-none" style={{ height: 90 }} />
+
+      {/* 루틴 바텀시트 */}
+      {routineSheet && createPortal(
+        <div onClick={e => e.target === e.currentTarget && closeRoutineSheet()}
+          style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${routineSheetVisible ? 0.45 : 0})`, zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', transition: 'background 0.3s ease' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '80vh', display: 'flex', flexDirection: 'column', transform: routineSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 14px', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>📋 {routineSheet.name}</span>
+              <button onClick={closeRoutineSheet} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, padding: '14px 16px' }}>
+              {/* 날짜·카드 */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <DatePickerSheet value={routineSheetDate} onChange={setRoutineSheetDate} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <CardPicker
+                    cards={data.card_list.filter(c => !c.is_loan)}
+                    value={routineSheetCard}
+                    onChange={setRoutineSheetCard}
+                  />
+                </div>
+              </div>
+              {/* 카테고리별 금액 입력 */}
+              {!(routineSheet.items?.length) && (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  카테고리가 없습니다. 설정에서 루틴을 수정해 주세요.
+                </div>
+              )}
+              {(routineSheet.items || []).map((item, i) => {
+                const icon = data.emoji_map[item.category] || '📦'
+                return (
+                  <div key={i} style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 14px', marginBottom: 10 }}>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8, color: item.cat_type === 'income' ? '#34c759' : 'var(--text-primary)' }}>
+                      {icon} {item.category}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <input inputMode="numeric" placeholder="금액" value={routineSheetAmounts[i]?.amount || ''}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9]/g, '')
+                            const val = raw ? parseInt(raw).toLocaleString('ko-KR') : ''
+                            setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, amount: val } : x))
+                          }}
+                          style={{ width: '100%', padding: '8px 36px 8px 12px', borderRadius: 10, border: '1px solid var(--border-input)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.8rem', pointerEvents: 'none' }}>원</span>
+                      </div>
+                      <input placeholder="설명 (선택)" value={routineSheetAmounts[i]?.description || ''}
+                        onChange={e => setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+                        style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border-input)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ padding: '12px 16px 32px', flexShrink: 0, borderTop: '1px solid var(--border-light)' }}>
+              <button onClick={submitRoutineSheet}
+                style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}>
+                저장
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* 삭제 확인 */}
       {confirmSheet && (
