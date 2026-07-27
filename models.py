@@ -135,6 +135,7 @@ class LoanRepayment(db.Model):
     amount = db.Column(db.Integer, nullable=False)
     date = db.Column(db.String(10), nullable=False)
     memo = db.Column(db.String(100), nullable=True, default='')
+    transaction_id = db.Column(db.Integer, nullable=True)
 
 class Investment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -149,3 +150,18 @@ class Investment(db.Model):
     memo = db.Column(db.String(200), nullable=True, default='')
     price_updated_at = db.Column(db.DateTime, nullable=True)
     account_type = db.Column(db.String(20), nullable=False, default='일반')
+
+class Routine(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    card = db.Column(db.String(50), nullable=True, default='')
+    position = db.Column(db.Integer, nullable=False, default=0)
+
+class RoutineItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    routine_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    cat_type = db.Column(db.String(10), nullable=False, default='expense')
+    position = db.Column(db.Integer, nullable=False, default=0)

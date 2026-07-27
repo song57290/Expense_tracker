@@ -19,6 +19,7 @@ export default function UpdateNoticeModal() {
   const [editForm, setEditForm] = useState({ version: '', date: '', updates: '' })
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [snoozeWeek, setSnoozeWeek] = useState(false)
 
   useEffect(() => {
     const handler = () => setVisible(true)
@@ -33,11 +34,22 @@ export default function UpdateNoticeModal() {
         if (d.version) setConfig(d)
         const effectiveVersion = d.version || CURRENT_VERSION
         const neverVer = localStorage.getItem('update_notice_never_version')
-        if (neverVer !== effectiveVersion) setVisible(true)
+        if (neverVer === effectiveVersion) return
+        try {
+          const snooze = JSON.parse(localStorage.getItem('update_notice_snooze') || '{}')
+          if (snooze.version === effectiveVersion && snooze.expiry > Date.now()) return
+        } catch {}
+        setVisible(true)
       })
       .catch(() => {
+        const effectiveVersion = CURRENT_VERSION
         const neverVer = localStorage.getItem('update_notice_never_version')
-        if (neverVer !== CURRENT_VERSION) setVisible(true)
+        if (neverVer === effectiveVersion) return
+        try {
+          const snooze = JSON.parse(localStorage.getItem('update_notice_snooze') || '{}')
+          if (snooze.version === effectiveVersion && snooze.expiry > Date.now()) return
+        } catch {}
+        setVisible(true)
       })
     fetch('/api/me', { credentials: 'same-origin' })
       .then(r => r.json())
@@ -52,6 +64,13 @@ export default function UpdateNoticeModal() {
 
   function dismissForever() {
     localStorage.setItem('update_notice_never_version', config.version || CURRENT_VERSION)
+    setVisible(false)
+    setEditOpen(false)
+  }
+
+  function dismissWeek() {
+    const version = config.version || CURRENT_VERSION
+    localStorage.setItem('update_notice_snooze', JSON.stringify({ version, expiry: Date.now() + 7 * 24 * 60 * 60 * 1000 }))
     setVisible(false)
     setEditOpen(false)
   }
@@ -278,21 +297,32 @@ export default function UpdateNoticeModal() {
 
         {/* 하단 버튼 */}
         {!editOpen && (
-          <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+          <div style={{ padding: '12px 14px 24px', flexShrink: 0, background: 'var(--bg-elevated)', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={snoozeWeek}
+                  onChange={e => setSnoozeWeek(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#b088f9', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>1주일 동안 안보기</span>
+              </label>
+              <button
+                onClick={dismissForever}
+                style={{
+                  padding: '6px 14px', borderRadius: 10,
+                  border: '1.5px solid var(--border-input)', background: 'var(--bg-card)',
+                  color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
+                }}
+              >
+                다시 안보기
+              </button>
+            </div>
             <button
-              onClick={dismissForever}
+              onClick={() => snoozeWeek ? dismissWeek() : close()}
               style={{
-                flex: 1, padding: '13px 0', borderRadius: 14,
-                border: '1.5px solid var(--border-input)', background: 'var(--bg-card)',
-                color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer',
-              }}
-            >
-              다시 안보기
-            </button>
-            <button
-              onClick={close}
-              style={{
-                flex: 1, padding: '13px 0', borderRadius: 14, border: 'none',
+                width: '100%', padding: '13px 0', borderRadius: 14, border: 'none',
                 background: 'linear-gradient(135deg,#b088f9,#7baff0)',
                 color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
               }}

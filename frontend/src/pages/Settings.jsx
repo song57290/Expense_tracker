@@ -386,6 +386,7 @@ export default function Settings() {
   const loadNotices = () => api.get('/api/notices').then(setNotices).catch(() => {})
   const loadHelp = () => api.get('/api/help').then(setHelpItems).catch(() => {})
 
+
   useEffect(() => {
     api.get('/api/me').then(d => { setUser(d.user); setNicknameVal(d.user?.nickname || '') }).catch(() => {})
     loadNotices()
@@ -397,6 +398,7 @@ export default function Settings() {
     setEditHelpId(null)
     loadHelp()
   }
+
 
   async function submitNotice(e) {
     e.preventDefault()
@@ -852,7 +854,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* 카테고리 관리 */}
+      {/* 카테고리 + 루틴 관리 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
           <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>카테고리</div>
@@ -861,6 +863,15 @@ export default function Settings() {
             style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             카테고리 관리
           </button>
+
+          <div style={{ borderTop: '1px solid var(--border-light)', margin: '16px -16px 0', paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
+            <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>루틴</div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>자주 쓰는 내역 카테고리를 루틴으로 저장합니다. 홈 탭에서 빠르게 불러올 수 있습니다.</p>
+            <button onClick={() => navigate('/routines')}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+              루틴 관리
+            </button>
+          </div>
         </div>
       </div>
 

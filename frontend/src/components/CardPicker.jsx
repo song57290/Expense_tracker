@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { bankLogo } from '../utils.js'
 
-export default function CardPicker({ cards, value, onChange, error }) {
+export default function CardPicker({ cards, value, onChange, error, placeholder = '카드/계좌 선택' }) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const [drag, setDrag] = useState(0)
@@ -53,7 +53,7 @@ export default function CardPicker({ cards, value, onChange, error }) {
           <img src={selectedLogo} style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }} />
         )}
         <span style={{ flex: 1, fontSize: '0.9rem', textAlign: 'left' }}>
-          {selected ? selected.name : '카드/계좌 선택'}
+          {selected ? selected.name : placeholder}
         </span>
         <i className="bi bi-chevron-down" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0 }} />
       </button>
@@ -61,7 +61,7 @@ export default function CardPicker({ cards, value, onChange, error }) {
       {open && createPortal(
         <div
           onClick={e => e.target === e.currentTarget && closeSheet()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}
         >
           <div
             onTouchStart={onTouchStart}
