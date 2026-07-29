@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api.js'
+import CategoryPicker from '../components/CategoryPicker.jsx'
+import CardPicker from '../components/CardPicker.jsx'
 
 const fmt = n => Number(n || 0).toLocaleString()
 
@@ -431,24 +433,32 @@ export default function Salary() {
                   <input type="number" placeholder="결제일" value={fixedForm.day_of_month}
                     onChange={e => setFixedForm(f => ({ ...f, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
                 </div>
-                <select value={fixedForm.category} onChange={e => setFixedForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
-                  <option value="">카테고리 선택</option>
-                  {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
-                </select>
+                <CategoryPicker
+                  cats={categories.map(c => [c.name, c.icon])}
+                  value={fixedForm.category}
+                  onChange={name => setFixedForm(f => ({ ...f, category: name }))}
+                />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={fixedForm.auto_register} onChange={e => setFixedForm(f => ({ ...f, auto_register: e.target.checked }))} />
                   지정일에 자동 거래 등록
                 </label>
                 {fixedForm.auto_register && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <select value={fixedForm.tx_type} onChange={e => setFixedForm(f => ({ ...f, tx_type: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
-                      <option value="expense">지출</option>
-                      <option value="income">수입</option>
-                    </select>
-                    <select value={fixedForm.tx_card} onChange={e => setFixedForm(f => ({ ...f, tx_card: e.target.value }))} style={{ ...inputStyle, flex: 2 }}>
-                      <option value="">카드/계좌 선택</option>
-                      {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 9, padding: 2, gap: 2 }}>
+                      {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                        <button key={val} type="button"
+                          onClick={() => setFixedForm(f => ({ ...f, tx_type: val }))}
+                          style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', fontSize: '0.82rem', fontWeight: fixedForm.tx_type === val ? 700 : 500, cursor: 'pointer', background: fixedForm.tx_type === val ? 'var(--bg-card)' : 'transparent', color: fixedForm.tx_type === val ? '#b088f9' : 'var(--text-muted)', boxShadow: fixedForm.tx_type === val ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 0.18s' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <CardPicker
+                      cards={cards}
+                      value={fixedForm.tx_card}
+                      onChange={name => setFixedForm(f => ({ ...f, tx_card: name }))}
+                      placeholder="카드/계좌 선택"
+                    />
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -474,24 +484,32 @@ export default function Salary() {
                       <input type="number" placeholder="결제일" value={editFixedForm.day_of_month || ''}
                         onChange={e => setEditFixedForm(x => ({ ...x, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
                     </div>
-                    <select value={editFixedForm.category || ''} onChange={e => setEditFixedForm(x => ({ ...x, category: e.target.value }))} style={inputStyle}>
-                      <option value="">카테고리 선택</option>
-                      {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
-                    </select>
+                    <CategoryPicker
+                      cats={categories.map(c => [c.name, c.icon])}
+                      value={editFixedForm.category || ''}
+                      onChange={name => setEditFixedForm(x => ({ ...x, category: name }))}
+                    />
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={!!editFixedForm.auto_register} onChange={e => setEditFixedForm(x => ({ ...x, auto_register: e.target.checked }))} />
                       지정일에 자동 거래 등록
                     </label>
                     {editFixedForm.auto_register && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <select value={editFixedForm.tx_type || 'expense'} onChange={e => setEditFixedForm(x => ({ ...x, tx_type: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
-                          <option value="expense">지출</option>
-                          <option value="income">수입</option>
-                        </select>
-                        <select value={editFixedForm.tx_card || ''} onChange={e => setEditFixedForm(x => ({ ...x, tx_card: e.target.value }))} style={{ ...inputStyle, flex: 2 }}>
-                          <option value="">카드/계좌 선택</option>
-                          {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                        </select>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 9, padding: 2, gap: 2 }}>
+                          {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                            <button key={val} type="button"
+                              onClick={() => setEditFixedForm(x => ({ ...x, tx_type: val }))}
+                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', fontSize: '0.82rem', fontWeight: (editFixedForm.tx_type || 'expense') === val ? 700 : 500, cursor: 'pointer', background: (editFixedForm.tx_type || 'expense') === val ? 'var(--bg-card)' : 'transparent', color: (editFixedForm.tx_type || 'expense') === val ? '#b088f9' : 'var(--text-muted)', boxShadow: (editFixedForm.tx_type || 'expense') === val ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 0.18s' }}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <CardPicker
+                          cards={cards}
+                          value={editFixedForm.tx_card || ''}
+                          onChange={name => setEditFixedForm(x => ({ ...x, tx_card: name }))}
+                          placeholder="카드/계좌 선택"
+                        />
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>

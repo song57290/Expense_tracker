@@ -638,10 +638,14 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{item.end_date}</span>
             </div>
             {item.stype === '적금' && (
-              <div className="mt-1" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div className="mt-1" style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
                 <button onClick={handlePauseToggle}
                   style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: item.is_paused ? '#fff0e0' : 'var(--bg-section)', color: item.is_paused ? '#c8630a' : 'var(--text-muted)', fontWeight: 700, cursor: 'pointer' }}>
                   {item.is_paused ? '▶ 재개' : '⏸ 일시정지'}
+                </button>
+                <button onClick={e => { e.stopPropagation(); toggleDeposit() }}
+                  style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 8, border: 'none', background: '#e8fdf0', color: '#198754', fontWeight: 700, cursor: 'pointer' }}>
+                  {depositOpen ? '닫기' : '+ 추가 입금'}
                 </button>
               </div>
             )}
@@ -662,7 +666,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
             </div>
           </div>
         )}
-        {isCheongYak && depositOpen && (
+        {(isCheongYak || item.stype === '적금') && depositOpen && (
           <div style={{ marginTop: 10, borderTop: '1px solid var(--border-light)', paddingTop: 10 }} onClick={e => e.stopPropagation()}>
             <form onSubmit={addDeposit} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
               <div style={{ flex: 2 }}>
@@ -907,11 +911,12 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                         style={{ borderRadius: 10, paddingRight: 36, fontSize: '0.88rem' }} />
                       <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
                     </div>
-                    <select className="form-select" value={autoTxCard} onChange={e => setAutoTxCard(e.target.value)}
-                      style={{ borderRadius: 10, fontSize: '0.88rem' }}>
-                      <option value="">카드/계좌 선택 (선택사항)</option>
-                      {cards.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    </select>
+                    <CardPicker
+                      cards={cards}
+                      value={autoTxCard}
+                      onChange={setAutoTxCard}
+                      placeholder="카드/계좌 선택 (선택사항)"
+                    />
                   </div>
                 )}
               </div>
