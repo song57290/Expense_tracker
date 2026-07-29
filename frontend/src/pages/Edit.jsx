@@ -14,6 +14,7 @@ export default function Edit() {
   const [amountDisplay, setAmountDisplay] = useState('')
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   useEffect(() => {
     api.get(`/api/transactions/${id}`).then(d => {
@@ -50,18 +51,18 @@ export default function Edit() {
   }
 
   async function handleDelete() {
-    if (!confirm('이 내역을 삭제할까요?')) return
     await api.delete(`/api/transactions/${id}`)
     navigate('/')
   }
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.5rem' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-secondary)', fontSize: '2.4rem', lineHeight: 1, cursor: 'pointer', transform: 'translateY(-2px)' }}>
-          ‹
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: '1.5rem' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
+          <span style={{ fontSize: '0.95rem' }}>뒤로</span>
         </button>
-        <h5 className="mb-0 fw-bold">내역 수정</h5>
+        <h5 className="mb-0 fw-bold" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '1.2rem' }}>내역 수정</h5>
       </div>
 
       <div className="card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
@@ -137,7 +138,7 @@ export default function Edit() {
               </div>
             </div>
             <div className="d-flex justify-content-between gap-2">
-              <button type="button" className="btn btn-outline-danger" onClick={handleDelete}>삭제</button>
+              <button type="button" className="btn btn-outline-danger" onClick={() => setDeleteConfirm(true)}>삭제</button>
               <div className="d-flex gap-2">
                 <button type="submit" className="btn px-4" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
                 <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(-1)}>취소</button>
@@ -146,6 +147,22 @@ export default function Edit() {
           </form>
         </div>
       </div>
+
+      {deleteConfirm && (
+        <div onClick={() => setDeleteConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
+              <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>내역 삭제</div>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>이 내역을 삭제할까요?</div>
+            </div>
+            <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
+              <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+              <button onClick={handleDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
