@@ -1,147 +1,623 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>문자 내역 가져오기 — 확인</title>
-    <link rel="icon" href="/static/icon-192.png?v=2" type="image/png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        .row-card { border-radius: 12px; border: 1.5px solid #eee; padding: 12px 14px; margin-bottom: 8px; background: white; transition: border-color 0.15s; }
-        .row-card.excluded { opacity: 0.4; }
-        .row-card input, .row-card select { font-size: 0.82rem; border-radius: 8px; }
-        .row-num { font-size: 0.72rem; color: #bbb; min-width: 18px; }
-    </style>
-</head>
-<body class="bg-light">
-<div class="px-3 pt-3">
-    <nav class="navbar mb-4" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);border-radius:20px;padding:12px 20px;box-shadow:0 4px 20px rgba(123,107,224,0.3);">
-        <a class="navbar-brand fw-bold fs-5" href="/" style="color:white;text-shadow:0 0 16px rgba(255,255,255,0.7);">나의 가계부</a>
-        <a href="/" style="color:white;"><i class="bi bi-house" style="font-size:1.6rem;"></i></a>
-    </nav>
-</div>
+{% extends 'import_base.html' %}
+{% block title %}문자 내역 확인{% endblock %}
+{% block head_css %}
+<style>
+  .main { padding: 16px 16px; max-width: 600px; margin: 0 auto; }
 
-<div class="container" style="max-width:700px;">
-    <div class="card mb-4">
-        <div class="card-body">
-            <h5 class="card-title mb-1"><i class="bi bi-chat-text text-primary"></i> 내역 확인</h5>
-            <p class="text-muted mb-3" style="font-size:0.85rem;">
-                인식된 내역을 확인하고 수정한 뒤 가져오세요. 체크 해제하면 해당 항목은 제외됩니다.
-            </p>
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .count-badge {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: var(--bg-section);
+    border-radius: 12px;
+    padding: 3px 10px;
+  }
 
-            <form action="/import/text/confirm" method="post">
-                <input type="hidden" name="tmp" value="{{ tmp }}">
+  .check-all-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
 
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="text-muted" style="font-size:0.82rem;">{{ parsed | length }}건 인식됨</span>
-                    <label style="font-size:0.82rem;cursor:pointer;">
-                        <input type="checkbox" id="checkAll" checked> 전체 선택
-                    </label>
-                </div>
+  .row-card {
+    background: var(--bg-card);
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    transition: opacity 0.2s;
+  }
+  .row-card.excluded { opacity: 0.35; }
 
-                {% for tx in parsed %}
-                <div class="row-card" id="rowcard-{{ loop.index0 }}">
-                    <div class="d-flex align-items-start gap-2 mb-2">
-                        <input type="checkbox" name="include" value="{{ loop.index0 }}"
-                               class="row-check form-check-input mt-1" checked>
-                        <span class="row-num">{{ loop.index }}</span>
-                        <div class="row g-2 flex-fill">
-                            <div class="col-6 col-md-3">
-                                <input type="date" name="date" value="{{ tx.date }}"
-                                       class="form-control form-control-sm" required>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <select name="type" class="form-select form-select-sm">
-                                    <option value="expense" {{ 'selected' if tx.type == 'expense' }}>지출</option>
-                                    <option value="income"  {{ 'selected' if tx.type == 'income'  }}>수입</option>
-                                </select>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <input type="text" name="amount" value="{{ '{:,}'.format(tx.amount) }}"
-                                       class="form-control form-control-sm" placeholder="금액" inputmode="numeric">
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <select name="card" class="form-select form-select-sm">
-                                    <option value="">카드 없음</option>
-                                    {% for card in card_list %}
-                                    <option value="{{ card.name }}" {{ 'selected' if tx.card_matched == card.name }}>{{ card.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-8 col-md-9">
-                                <input type="text" name="description" value="{{ tx.description }}"
-                                       class="form-control form-control-sm" placeholder="설명">
-                            </div>
-                            <div class="col-4 col-md-3">
-                                <select name="category" class="form-select form-select-sm cat-select" data-current="{{ tx.category }}">
-                                    {% for cat in categories if cat.cat_type == tx.type %}
-                                    <option value="{{ cat.name }}" {{ 'selected' if tx.category == cat.name }}>{{ cat.icon }} {{ cat.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
+  .row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .row-num {
+    font-size: 0.7rem;
+    color: #b088f9;
+    font-weight: 700;
+    background: rgba(176,136,249,0.12);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
 
-                <div class="d-flex gap-2 justify-content-end mt-3">
-                    <a href="/" class="btn btn-outline-secondary" style="border-radius:10px;">취소</a>
-                    <button type="submit" class="btn" style="background:linear-gradient(135deg,#b088f9 0%,#7baff0 100%);color:white;border:none;border-radius:10px;">
-                        <i class="bi bi-download"></i> 가져오기
-                    </button>
-                </div>
-            </form>
-        </div>
+  .custom-cb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border-input);
+    background: var(--input-bg);
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .custom-cb:checked { background: #b088f9; border-color: #b088f9; }
+  .custom-cb:checked::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: white;
+    border-radius: 50%;
+  }
+
+  .field-row { display: grid; gap: 7px; margin-bottom: 7px; }
+  .field-row-2 { grid-template-columns: 1fr 1fr; }
+  .field-row-date-type { grid-template-columns: 1fr auto; }
+
+  input[type="date"], input[type="text"] {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    padding: 7px 10px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input[type="date"]:focus, input[type="text"]:focus { border-color: #b088f9; }
+  input[type="date"] { color-scheme: light dark; }
+
+  .type-toggle {
+    display: flex;
+    background: var(--bg-section);
+    border-radius: 9px;
+    padding: 2px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .type-btn {
+    padding: 5px 12px;
+    border-radius: 7px;
+    border: none;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: inherit;
+    transition: all 0.18s;
+  }
+  .type-btn.active {
+    background: var(--bg-card);
+    color: #b088f9;
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+
+  .picker-btn {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 9px;
+    padding: 7px 10px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
+    transition: border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .picker-btn:active { border-color: #b088f9; }
+  .picker-btn .pb-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picker-btn .pb-caret { color: var(--text-muted); font-size: 0.72rem; flex-shrink: 0; }
+  .picker-btn.placeholder .pb-text { color: var(--text-muted); }
+  .picker-btn .pb-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+  .picker-btn .pb-init {
+    width: 20px; height: 20px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.62rem; font-weight: 700; color: white; flex-shrink: 0;
+  }
+
+  #sheet-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 5000;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  #sheet-overlay.open { display: flex; }
+  #sheet-overlay.visible { opacity: 1; }
+
+  #sheet-panel {
+    background: var(--bg-card);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-height: 72vh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94);
+    padding-bottom: 32px;
+  }
+  #sheet-overlay.visible #sheet-panel { transform: translateY(0); }
+
+  .sheet-handle-wrap { display: flex; justify-content: center; padding: 10px 0 6px; }
+  .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); }
+  .sheet-title {
+    padding: 6px 20px 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+  }
+  .sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sheet-item:active { background: var(--bg-accent); }
+  .sheet-item.selected { background: rgba(176,136,249,0.07); }
+  .sheet-item-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sheet-item-icon img { width: 36px; height: 36px; object-fit: contain; }
+  .sheet-item-icon .init {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82rem; font-weight: 700; color: white;
+  }
+  .sheet-item-icon .emoji { font-size: 1.5rem; line-height: 1; }
+  .sheet-item-name { flex: 1; font-size: 0.95rem; color: var(--text-primary); }
+  .sheet-item.selected .sheet-item-name { font-weight: 600; color: #b088f9; }
+  .sheet-item-check { color: #b088f9; font-size: 1.1rem; flex-shrink: 0; }
+
+  .action-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-cancel {
+    flex: 1;
+    padding: 13px 0;
+    border-radius: 13px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-submit {
+    flex: 2;
+    padding: 13px 0;
+    border-radius: 13px;
+    border: none;
+    background: linear-gradient(135deg, #b088f9, #7baff0);
+    color: white;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-submit:active { opacity: 0.88; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="main">
+
+  <form action="/import/text/confirm" method="post" id="mainForm">
+    <input type="hidden" name="tmp" value="{{ tmp }}">
+
+    <div style="margin-bottom:10px;">
+      <div class="section-title" style="margin-bottom:3px;">
+        <i class="bi bi-chat-text" style="color:#b088f9;margin-right:6px;"></i>내역 확인
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);">확인하고 수정한 뒤 가져오세요</div>
     </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+      <label class="check-all-row">
+        <input type="checkbox" id="checkAll" checked
+          style="width:16px;height:16px;accent-color:#b088f9;cursor:pointer;">
+        <span id="checkAllLabel" style="font-size:0.88rem;color:var(--text-primary);font-weight:700;">전체 선택</span>
+      </label>
+      <span style="font-size:0.78rem;color:var(--text-muted);">{{ parsed | length }}건 인식됨</span>
+    </div>
+
+    {% for tx in parsed %}
+    {% set i = loop.index0 %}
+    {% set matched_cats = categories | selectattr('name', 'equalto', tx.category) | selectattr('cat_type', 'equalto', tx.type) | list %}
+    <div class="row-card" id="rowcard-{{ i }}">
+      <div class="row-top">
+        <input type="checkbox" name="include" value="{{ i }}"
+               class="row-check custom-cb" checked>
+        <span class="row-num">{{ loop.index }}</span>
+      </div>
+
+      <input type="hidden" name="type" value="{{ tx.type }}" id="type-{{ i }}">
+      <input type="hidden" name="card" id="card-val-{{ i }}"
+             value="{{ tx.card_matched if tx.card_matched else '' }}">
+      <input type="hidden" name="category" id="cat-val-{{ i }}" value="{{ tx.category }}">
+
+      <div class="field-row field-row-date-type">
+        <input type="date" name="date" value="{{ tx.date }}" required>
+        <div class="type-toggle" data-row="{{ i }}">
+          <button type="button" class="type-btn {% if tx.type == 'expense' %}active{% endif %}"
+                  data-val="expense" onclick="setType({{ i }}, 'expense', this)">지출</button>
+          <button type="button" class="type-btn {% if tx.type == 'income' %}active{% endif %}"
+                  data-val="income" onclick="setType({{ i }}, 'income', this)">수입</button>
+        </div>
+      </div>
+
+      <div class="field-row field-row-2">
+        <input type="text" name="amount" value="{{ '{:,}'.format(tx.amount) }}"
+               inputmode="numeric" placeholder="금액" class="amt-input">
+        <button type="button" class="picker-btn {% if not tx.card_matched %}placeholder{% endif %}"
+                id="card-btn-{{ i }}"
+                onclick="openCardPicker({{ i }})">
+          <span class="pb-icon-wrap" id="card-icon-{{ i }}"></span>
+          <span class="pb-text" id="card-label-{{ i }}">{{ tx.card_matched if tx.card_matched else '카드/계좌' }}</span>
+          <i class="bi bi-chevron-down pb-caret"></i>
+        </button>
+      </div>
+
+      <div class="field-row field-row-2">
+        <input type="text" name="description" value="{{ tx.description }}" placeholder="설명">
+        <button type="button" class="picker-btn"
+                id="cat-btn-{{ i }}"
+                onclick="openCatPicker({{ i }})">
+          <span class="pb-text" id="cat-label-{{ i }}">{% if matched_cats %}{{ matched_cats[0].icon }} {{ matched_cats[0].name }}{% else %}📦 {{ tx.category }}{% endif %}</span>
+          <i class="bi bi-chevron-down pb-caret"></i>
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="action-row">
+      <a href="/" class="btn-cancel">취소</a>
+      <button type="submit" class="btn-submit">
+        <i class="bi bi-download"></i> 가져오기
+      </button>
+    </div>
+  </form>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Bottom Sheet -->
+<div id="sheet-overlay" onclick="handleOverlayClick(event)">
+  <div id="sheet-panel"
+       ontouchstart="sheetTouchStart(event)"
+       ontouchmove="sheetTouchMove(event)"
+       ontouchend="sheetTouchEnd(event)">
+    <div class="sheet-handle-wrap"><div class="sheet-handle"></div></div>
+    <div class="sheet-title" id="sheet-title"></div>
+    <div id="sheet-items"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
 <script>
-    var expCats = {{ expense_cats_json | tojson }};
-    var incCats = {{ income_cats_json | tojson }};
+var expCats = {{ expense_cats_json | tojson }};
+var incCats = {{ income_cats_json | tojson }};
+var cardList = [{% for card in card_list %}{"name":{{ card.name | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
 
-    function rebuildCatSelect(typeSelect) {
-        var rowCard = typeSelect.closest('.row-card');
-        var catSelect = rowCard.querySelector('.cat-select');
-        if (!catSelect) return;
-        var cats = typeSelect.value === 'expense' ? expCats : incCats;
-        var prev = catSelect.dataset.current || catSelect.value;
-        catSelect.innerHTML = cats.map(function(c) {
-            return '<option value="' + c[0] + '"' + (c[0] === prev ? ' selected' : '') + '>' + c[1] + ' ' + c[0] + '</option>';
-        }).join('');
-        catSelect.dataset.current = '';
+var BANK_LOGOS = [
+  ['신한', '/static/cards/sinhanbank.png'], ['KB', '/static/cards/kbbank.png'],
+  ['국민', '/static/cards/kbbank.png'], ['농협', '/static/cards/nhbank.png'],
+  ['NH', '/static/cards/nhbank.png'], ['하나', '/static/cards/hanabank.png'],
+  ['우리', '/static/cards/wooribank.png'], ['기업', '/static/cards/ibkbank.png'],
+  ['IBK', '/static/cards/ibkbank.png'], ['카카오', '/static/cards/kakaobank.png'],
+  ['토스', '/static/cards/tossbank.png'], ['케이뱅크', '/static/cards/kbank.png'],
+  ['K뱅크', '/static/cards/kbank.png'], ['SC', '/static/cards/scbank.png'],
+  ['제일', '/static/cards/scbank.png'], ['씨티', '/static/cards/citibank.png'],
+  ['iM', '/static/cards/imbank.png'], ['IM', '/static/cards/imbank.png'],
+  ['수협', '/static/cards/suhyupbank.png'], ['KDB', '/static/cards/kdbbank.png'],
+  ['산업', '/static/cards/kdbbank.png'], ['BNK', '/static/cards/bnkbank.png'],
+  ['부산', '/static/cards/bnkbank.png'], ['우체국', '/static/cards/epostbank.png'],
+  ['SBI', '/static/cards/sbibank.png'], ['신협', '/static/cards/cubank.png'],
+  ['BC', '/static/banks/bccard.png'], ['현대', '/static/banks/hyundaicard.png'],
+  ['롯데', '/static/banks/lottecard.png'], ['삼성', '/static/banks/samsungcard.png'],
+];
+var BANK_COLORS = [
+  ['신한', '#0046A0'], ['KB', '#FFB800'], ['국민', '#FFB800'], ['농협', '#009900'],
+  ['NH', '#009900'], ['하나', '#009A8C'], ['우리', '#0069C8'], ['기업', '#005BB5'],
+  ['IBK', '#005BB5'], ['카카오', '#FAE100'], ['토스', '#0064FF'], ['케이뱅크', '#00B4B4'],
+  ['K뱅크', '#00B4B4'], ['SC', '#1B5DA0'], ['제일', '#1B5DA0'], ['씨티', '#003087'],
+  ['iM', '#E8182C'], ['IM', '#E8182C'], ['수협', '#009ABF'], ['KDB', '#003087'],
+  ['산업', '#003087'], ['BNK', '#0057A8'], ['부산', '#0057A8'], ['우체국', '#D40511'],
+  ['SBI', '#E8391D'], ['신협', '#005BAB'], ['BC', '#D60B2F'], ['현대', '#1A1A1A'],
+  ['롯데', '#CC0000'], ['삼성', '#005BAB'],
+];
+
+function getBankLogo(name) {
+  if (!name) return null;
+  for (var i = 0; i < BANK_LOGOS.length; i++) {
+    if (name.indexOf(BANK_LOGOS[i][0]) >= 0) return BANK_LOGOS[i][1];
+  }
+  return null;
+}
+function getBankColor(name) {
+  if (!name) return '#6c757d';
+  for (var i = 0; i < BANK_COLORS.length; i++) {
+    if (name.indexOf(BANK_COLORS[i][0]) >= 0) return BANK_COLORS[i][1];
+  }
+  return '#6c757d';
+}
+
+document.querySelectorAll('[id^="card-val-"]').forEach(function(inp) {
+  var idx = inp.id.replace('card-val-', '');
+  var val = inp.value;
+  if (val) updateCardBtn(idx, val);
+});
+
+document.querySelectorAll('[id^="cat-val-"]').forEach(function(inp) {
+  var idx = inp.id.replace('cat-val-', '');
+  var val = inp.value;
+  var typeVal = document.getElementById('type-' + idx).value;
+  if (val) {
+    var cats = typeVal === 'expense' ? expCats : incCats;
+    var found = cats.find(function(c) { return c[0] === val; });
+    if (found) {
+      document.getElementById('cat-label-' + idx).textContent = found[1] + ' ' + found[0];
     }
+  }
+});
 
-    document.querySelectorAll('select[name="type"]').forEach(function(sel) {
-        sel.addEventListener('change', function() { rebuildCatSelect(this); });
-    });
+function updateCardBtn(idx, val) {
+  var btn = document.getElementById('card-btn-' + idx);
+  var iconWrap = document.getElementById('card-icon-' + idx);
+  var label = document.getElementById('card-label-' + idx);
+  if (!val) {
+    btn.classList.add('placeholder');
+    iconWrap.innerHTML = '';
+    label.textContent = '카드/계좌';
+    return;
+  }
+  btn.classList.remove('placeholder');
+  label.textContent = val;
+  var logo = getBankLogo(val);
+  if (logo) {
+    iconWrap.innerHTML = '<img src="' + logo + '" class="pb-logo">';
+  } else {
+    var color = getBankColor(val);
+    iconWrap.innerHTML = '<span class="pb-init" style="background:' + color + '">' + val.slice(0,2) + '</span>';
+  }
+}
 
-    document.querySelectorAll('.row-check').forEach(function(cb) {
-        cb.addEventListener('change', function() {
-            var card = document.getElementById('rowcard-' + this.value);
-            card.classList.toggle('excluded', !this.checked);
-        });
+var sheetMode = null;
+var sheetRow = -1;
+var touchStartY = null;
+var touchStartDrag = 0;
+
+function openCardPicker(rowIdx) {
+  sheetMode = 'card';
+  sheetRow = rowIdx;
+  var current = document.getElementById('card-val-' + rowIdx).value;
+  document.getElementById('sheet-title').textContent = '카드/계좌 선택';
+
+  var items = '';
+  items += buildSheetItem('', '카드 없음', null, null, !current);
+  cardList.forEach(function(card) {
+    var sel = card.name === current;
+    items += buildSheetItem(card.name, card.name, getBankLogo(card.name), getBankColor(card.name), sel);
+  });
+  document.getElementById('sheet-items').innerHTML = items;
+  openSheet();
+}
+
+function openCatPicker(rowIdx) {
+  sheetMode = 'cat';
+  sheetRow = rowIdx;
+  var current = document.getElementById('cat-val-' + rowIdx).value;
+  var typeVal = document.getElementById('type-' + rowIdx).value;
+  document.getElementById('sheet-title').textContent = '카테고리 선택';
+
+  var cats = typeVal === 'expense' ? expCats : incCats;
+  var items = '';
+  cats.forEach(function(cat) {
+    var sel = cat[0] === current;
+    items += buildSheetCatItem(cat[0], cat[1], sel);
+  });
+  document.getElementById('sheet-items').innerHTML = items;
+  openSheet();
+}
+
+function buildSheetItem(value, label, logo, color, selected) {
+  var iconHtml = '';
+  if (value === '') {
+    iconHtml = '<div class="sheet-item-icon"><span class="init" style="background:#8e8e93;font-size:0.65rem;">없음</span></div>';
+  } else if (logo) {
+    iconHtml = '<div class="sheet-item-icon"><img src="' + logo + '"></div>';
+  } else {
+    iconHtml = '<div class="sheet-item-icon"><span class="init" style="background:' + (color || '#8e8e93') + '">' + label.slice(0,2) + '</span></div>';
+  }
+  var check = selected ? '<i class="bi bi-check-circle-fill sheet-item-check"></i>' : '';
+  return '<div class="sheet-item' + (selected ? ' selected' : '') + '" onclick="selectCard(\'' + escapeQ(value) + '\',\'' + escapeQ(label) + '\')">' +
+    iconHtml +
+    '<span class="sheet-item-name">' + escapeHtml(label) + '</span>' +
+    check +
+    '</div>';
+}
+
+function buildSheetCatItem(name, icon, selected) {
+  var check = selected ? '<i class="bi bi-check-circle-fill sheet-item-check"></i>' : '';
+  return '<div class="sheet-item' + (selected ? ' selected' : '') + '" onclick="selectCat(\'' + escapeQ(name) + '\',\'' + escapeQ(icon) + '\')">' +
+    '<div class="sheet-item-icon"><span class="emoji">' + icon + '</span></div>' +
+    '<span class="sheet-item-name">' + escapeHtml(name) + '</span>' +
+    check +
+    '</div>';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escapeQ(s) {
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+function selectCard(value, label) {
+  document.getElementById('card-val-' + sheetRow).value = value;
+  updateCardBtn(sheetRow, value);
+  closeSheet();
+}
+
+function selectCat(name, icon) {
+  document.getElementById('cat-val-' + sheetRow).value = name;
+  document.getElementById('cat-label-' + sheetRow).textContent = icon + ' ' + name;
+  closeSheet();
+}
+
+function openSheet() {
+  var overlay = document.getElementById('sheet-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      overlay.classList.add('visible');
     });
-    document.getElementById('checkAll').addEventListener('change', function() {
-        document.querySelectorAll('.row-check').forEach(function(cb) {
-            cb.checked = document.getElementById('checkAll').checked;
-            cb.dispatchEvent(new Event('change'));
-        });
-    });
-    document.querySelectorAll('input[name="amount"]').forEach(function(input) {
-        input.addEventListener('input', function() {
-            var raw = this.value.replace(/,/g, '').replace(/[^0-9]/g, '');
-            this.value = raw ? parseInt(raw).toLocaleString('ko-KR') : '';
-        });
-    });
-    document.querySelectorAll('form').forEach(function(form) {
-        form.addEventListener('submit', function() {
-            form.querySelectorAll('input[name="amount"]').forEach(function(inp) {
-                inp.value = inp.value.replace(/,/g, '');
-            });
-        });
-    });
+  });
+}
+
+function closeSheet() {
+  var overlay = document.getElementById('sheet-overlay');
+  var panel = document.getElementById('sheet-panel');
+  panel.style.transform = '';
+  panel.style.transition = '';
+  overlay.classList.remove('visible');
+  setTimeout(function() { overlay.style.display = 'none'; }, 320);
+}
+
+function handleOverlayClick(e) {
+  if (e.target === e.currentTarget) closeSheet();
+}
+
+function sheetTouchStart(e) {
+  var panel = document.getElementById('sheet-panel');
+  if (panel.scrollTop === 0) touchStartY = e.touches[0].clientY;
+  touchStartDrag = 0;
+}
+function sheetTouchMove(e) {
+  if (touchStartY === null) return;
+  var dy = e.touches[0].clientY - touchStartY;
+  if (dy > 0) {
+    touchStartDrag = dy;
+    document.getElementById('sheet-panel').style.transform = 'translateY(' + dy + 'px)';
+    document.getElementById('sheet-panel').style.transition = 'none';
+  } else {
+    touchStartY = null;
+  }
+}
+function sheetTouchEnd() {
+  if (touchStartDrag > 100) {
+    closeSheet();
+  } else {
+    document.getElementById('sheet-panel').style.transform = '';
+    document.getElementById('sheet-panel').style.transition = '';
+  }
+  touchStartY = null;
+  touchStartDrag = 0;
+}
+
+function setType(rowIdx, val, btn) {
+  document.getElementById('type-' + rowIdx).value = val;
+  var toggle = btn.closest('.type-toggle');
+  toggle.querySelectorAll('.type-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+  var cats = val === 'expense' ? expCats : incCats;
+  var curCat = document.getElementById('cat-val-' + rowIdx).value;
+  var found = cats.find(function(c) { return c[0] === curCat; });
+  if (!found && cats.length) {
+    document.getElementById('cat-val-' + rowIdx).value = cats[0][0];
+    document.getElementById('cat-label-' + rowIdx).textContent = cats[0][1] + ' ' + cats[0][0];
+  }
+}
+
+document.querySelectorAll('.amt-input').forEach(function(inp) {
+  inp.addEventListener('input', function() {
+    var raw = this.value.replace(/,/g,'').replace(/[^0-9]/g,'');
+    this.value = raw ? parseInt(raw).toLocaleString('ko-KR') : '';
+  });
+});
+
+document.getElementById('mainForm').addEventListener('submit', function() {
+  this.querySelectorAll('.amt-input').forEach(function(inp) {
+    inp.value = inp.value.replace(/,/g,'');
+  });
+});
+
+function updateCheckAllLabel() {
+  var allChecked = Array.from(document.querySelectorAll('.row-check')).every(function(c) { return c.checked; });
+  var lbl = document.getElementById('checkAllLabel');
+  if (lbl) lbl.style.fontWeight = allChecked ? '700' : '400';
+}
+
+document.getElementById('checkAll').addEventListener('change', function() {
+  var checked = this.checked;
+  document.querySelectorAll('.row-check').forEach(function(cb) {
+    cb.checked = checked;
+    var card = document.getElementById('rowcard-' + cb.value);
+    if (card) card.classList.toggle('excluded', !checked);
+  });
+  updateCheckAllLabel();
+});
+document.querySelectorAll('.row-check').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var card = document.getElementById('rowcard-' + this.value);
+    if (card) card.classList.toggle('excluded', !this.checked);
+    var allChecked = Array.from(document.querySelectorAll('.row-check')).every(function(c) { return c.checked; });
+    document.getElementById('checkAll').checked = allChecked;
+    updateCheckAllLabel();
+  });
+});
 </script>
-</body>
-</html>
+{% endblock %}

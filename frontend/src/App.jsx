@@ -1,5 +1,50 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
+
+function BackButtonGuard() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const keyStack = useRef([location.key])
+
+  // 탐색 키 스택 관리: 앞으로 가면 추가, 뒤로 가면 축소
+  useEffect(() => {
+    const { key } = location
+    const stack = keyStack.current
+    const idx = stack.indexOf(key)
+    if (idx >= 0) {
+      keyStack.current = stack.slice(0, idx + 1)
+    } else {
+      keyStack.current = [...stack, key]
+    }
+  }, [location.key])
+
+  // 네이티브 앱: @capacitor/app으로 뒤로가기 처리
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let listener = null
+    CapApp.addListener('backButton', () => {
+      if (keyStack.current.length > 1) {
+        navigate(-1)
+      }
+      // stack.length === 1: 홈/루트 → 앱 종료 없이 대기
+    }).then(l => { listener = l })
+    return () => { if (listener) listener.remove() }
+  }, [navigate])
+
+  // PWA/웹: 홈 페이지에서 브라우저 닫힘 방지용 센티널
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return
+    if (location.pathname !== '/') return
+    window.history.pushState(null, '')
+    const onPopState = () => window.history.pushState(null, '')
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [location.pathname])
+
+  return null
+}
 import Layout from './components/Layout.jsx'
 import Home from './pages/Home.jsx'
 import Calendar from './pages/Calendar.jsx'
@@ -82,6 +127,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <BackButtonGuard />
       {user && <UpdateNoticeModal />}
       {noticePopup && (
         <div onClick={dismissNotice} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
