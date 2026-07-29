@@ -152,6 +152,21 @@ export default function Calendar() {
     setPickerOpen(true)
   }
 
+  // 안드로이드 뒤로가기로 열린 시트 닫기
+  useEffect(() => {
+    if (!addOpen && !selected && !confirmSheet && !pickerOpen && !txMenu) return
+    const handler = (e) => {
+      e.preventDefault()
+      if (addOpen) { closeAdd(); return }
+      if (txMenu) { closeTxMenu(); return }
+      if (selected) { setSelectedVisible(false); setTimeout(() => setSelected(null), 300); return }
+      if (confirmSheet) { setConfirmSheet(null); return }
+      if (pickerOpen) { setPickerOpen(false); return }
+    }
+    window.addEventListener('appBackButton', handler)
+    return () => window.removeEventListener('appBackButton', handler)
+  }, [addOpen, selected, confirmSheet, pickerOpen, txMenu])
+
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
   const selDay = selected ? data.day_transactions[selected] : null

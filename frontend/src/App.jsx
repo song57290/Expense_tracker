@@ -1,39 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 
 function BackButtonGuard() {
   const location = useLocation()
-  const navigate = useNavigate()
-  const keyStack = useRef([location.key])
 
-  // 탐색 키 스택 관리: 앞으로 가면 추가, 뒤로 가면 축소
-  useEffect(() => {
-    const { key } = location
-    const stack = keyStack.current
-    const idx = stack.indexOf(key)
-    if (idx >= 0) {
-      keyStack.current = stack.slice(0, idx + 1)
-    } else {
-      keyStack.current = [...stack, key]
-    }
-  }, [location.key])
-
-  // 네이티브 앱: @capacitor/app으로 뒤로가기 처리
+  // 네이티브 앱(Android): canGoBack은 Capacitor가 WebView 히스토리 기준으로 직접 판단
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
-    let listener = null
-    CapApp.addListener('backButton', () => {
-      if (keyStack.current.length > 1) {
-        navigate(-1)
+    let handle = null
+    CapApp.addListener('backButton', ({ canGoBack }) => {
+      // 시트/모달이 열려있으면 먼저 닫기 시도
+      const evt = new CustomEvent('appBackButton', { cancelable: true })
+      if (!window.dispatchEvent(evt)) return
+      // 시트 없음 → 히스토리 기반 뒤로가기 or 앱 최소화
+      if (canGoBack) {
+        window.history.back()
+      } else {
+        CapApp.minimizeApp()
       }
-      // stack.length === 1: 홈/루트 → 앱 종료 없이 대기
-    }).then(l => { listener = l })
-    return () => { if (listener) listener.remove() }
-  }, [navigate])
+    }).then(h => { handle = h })
+    return () => { handle?.remove() }
+  }, [])
 
-  // PWA/웹: 홈 페이지에서 브라우저 닫힘 방지용 센티널
+  // PWA/웹: 홈 페이지에서 브라우저 뒤로가기로 앱 나가기 방지
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return
     if (location.pathname !== '/') return

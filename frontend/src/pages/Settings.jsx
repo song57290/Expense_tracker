@@ -514,6 +514,14 @@ export default function Settings() {
     setTimeout(() => setPfSheetOpen(false), 300)
   }
 
+  // 안드로이드 뒤로가기로 포트폴리오 시트 닫기
+  useEffect(() => {
+    if (!pfSheetOpen) return
+    const handler = (e) => { e.preventDefault(); closePfSheet() }
+    window.addEventListener('appBackButton', handler)
+    return () => window.removeEventListener('appBackButton', handler)
+  }, [pfSheetOpen])
+
   async function exportPortfolio() {
     setPortfolioExporting(true)
     try {

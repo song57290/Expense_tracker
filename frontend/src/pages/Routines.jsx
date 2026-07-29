@@ -56,10 +56,10 @@ export default function Routines() {
   }
 
   return (
-    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', padding: '16px 16px 100px' }}>
+    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', padding: '8px 16px 100px' }}>
       {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.3rem', padding: '2px 4px', lineHeight: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 20 }}>
+        <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.8rem', padding: '2px 4px', lineHeight: 1 }}>
           ‹
         </button>
         <h5 style={{ margin: 0, fontWeight: 700, fontSize: '1.05rem' }}>루틴 관리</h5>
