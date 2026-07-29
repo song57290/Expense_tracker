@@ -56,13 +56,14 @@ export default function Routines() {
   }
 
   return (
-    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', padding: '8px 16px 100px' }}>
-      {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 20 }}>
-        <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.8rem', padding: '2px 4px', lineHeight: 1 }}>
-          ‹
+    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', padding: '0 16px 100px' }}>
+      {/* iOS 스타일 헤더 */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 20 }}>
+        <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
+          <span style={{ fontSize: '0.95rem' }}>설정</span>
         </button>
-        <h5 style={{ margin: 0, fontWeight: 700, fontSize: '1.05rem' }}>루틴 관리</h5>
+        <h5 style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', margin: 0, fontWeight: 700, fontSize: '1.2rem' }}>루틴 관리</h5>
       </div>
 
       <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>

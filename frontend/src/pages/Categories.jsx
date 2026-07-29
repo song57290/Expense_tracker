@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -137,11 +138,13 @@ function SortableItem({ cat, onEdit, onDelete, isEditing }) {
 }
 
 export default function Categories() {
+  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [tab, setTab] = useState('expense')
   const [editCat, setEditCat] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const [form, setForm] = useState({ name: '', icon: '', type: 'expense', exclude_perf: false, exclude_stats: false })
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -174,8 +177,12 @@ export default function Categories() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('이 카테고리를 삭제할까요?')) return
-    await api.delete(`/api/categories/${id}`)
+    setDeleteConfirmId(id)
+  }
+
+  async function confirmDelete() {
+    await api.delete(`/api/categories/${deleteConfirmId}`)
+    setDeleteConfirmId(null)
     load()
   }
 
@@ -224,22 +231,30 @@ export default function Categories() {
     </div>
   )
 
+  const catToDelete = deleteConfirmId
+    ? [...(data.expense || []), ...(data.income || [])].find(c => c.id === deleteConfirmId)
+    : null
+
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h5 className="mb-0 fw-bold">카테고리</h5>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '2px 0 10px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 16 }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
+          <span style={{ fontSize: '0.95rem' }}>설정</span>
+        </button>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <h5 className="mb-0 fw-bold" style={{ fontSize: '1.2rem' }}>카테고리 관리</h5>
           <span style={{ fontSize: '0.75rem', background: 'rgba(176,136,249,0.15)', color: '#b088f9', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{cats.length}</span>
         </div>
+      </div>
+
+      <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <SlidingTabs options={[['expense', '지출'], ['income', '수입']]} value={tab} onChange={setTab} />
         {!addOpen && !editCat && (
-          <button className="btn btn-sm px-3" onClick={() => { setAddOpen(true); setForm({ name: '', icon: '', type: tab }) }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>
+          <button className="btn btn-sm px-3" onClick={() => { setAddOpen(true); setForm({ name: '', icon: '', type: tab }) }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, marginLeft: 'auto', fontSize: '0.85rem', flexShrink: 0 }}>
             <i className="bi bi-plus-lg me-1" />추가
           </button>
         )}
-      </div>
-
-      <div className="mb-3">
-        <SlidingTabs options={[['expense', '지출'], ['income', '수입']]} value={tab} onChange={setTab} />
       </div>
 
       {addOpen && !editCat && formEl}
@@ -268,6 +283,27 @@ export default function Categories() {
           )}
         </div>
       </div>
+
+      {deleteConfirmId && (
+        <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
+              <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>카테고리 삭제</div>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                {catToDelete && (
+                  <><span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{catToDelete.icon} {catToDelete.name}</span><br /></>
+                )}
+                카테고리를 삭제할까요?
+              </div>
+            </div>
+            <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+              <button onClick={confirmDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

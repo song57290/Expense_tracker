@@ -2,55 +2,34 @@ import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
+import { SplashScreen } from '@capacitor/splash-screen'
 
 function BackButtonGuard() {
   const location = useLocation()
   const locationRef = useRef(location)
 
-  useEffect(() => { locationRef.current = location }, [location])
-
-  // Capacitor 네이티브 앱(Android APK)
+  useEffect(() => {
+    locationRef.current = location
+  }, [location])
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     let handle = null
+
     CapApp.addListener('backButton', ({ canGoBack }) => {
       const evt = new CustomEvent('appBackButton', { cancelable: true })
       if (!window.dispatchEvent(evt)) return
       if (canGoBack) {
         window.history.back()
       } else {
-        CapApp.minimizeApp()
+        CapApp.exitApp()
       }
-    }).then(h => { handle = h })
-    return () => { handle?.remove() }
+    }).then(h => {
+      handle = h
+    })
+    return () => {
+      handle?.remove()
+    }
   }, [])
-
-  // PWA/TWA(Chrome 홈화면 추가): popstate로 뒤로가기 처리
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) return
-
-    // 루트에서 sentinel 추가 → 뒤로가기로 앱 종료 방지
-    if (location.pathname === '/') {
-      window.history.pushState(null, '')
-    }
-
-    const onPopState = () => {
-      // 시트가 열려있으면 먼저 닫기
-      const evt = new CustomEvent('appBackButton', { cancelable: true })
-      if (!window.dispatchEvent(evt)) {
-        window.history.pushState(null, '') // 시트 닫고 현재 위치 유지
-        return
-      }
-      // 루트에서는 sentinel 재추가 (앱 종료 방지)
-      if (locationRef.current.pathname === '/') {
-        window.history.pushState(null, '')
-      }
-    }
-
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [location.pathname])
-
   return null
 }
 import Layout from './components/Layout.jsx'
@@ -79,6 +58,9 @@ export default function App() {
       .then(r => r.json())
       .then(d => setUser(d.user))
       .catch(() => setUser(null))
+      .finally(() => {
+        if (Capacitor.isNativePlatform()) SplashScreen.hide()
+      })
   }, [])
 
   useEffect(() => {
