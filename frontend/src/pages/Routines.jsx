@@ -14,6 +14,7 @@ export default function Routines() {
   const [routineForm, setRoutineForm] = useState({ name: '', card: '', items: [{ category: '', cat_type: 'expense' }] })
   const [routineError, setRoutineError] = useState('')
   const [editRoutineId, setEditRoutineId] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   const loadRoutines = () => api.get('/api/routines').then(setRoutines).catch(() => {})
 
@@ -50,8 +51,9 @@ export default function Routines() {
     }
   }
 
-  async function deleteRoutine(id) {
-    await api.delete(`/api/routines/${id}`)
+  async function deleteRoutine() {
+    await api.delete(`/api/routines/${deleteConfirmId}`)
+    setDeleteConfirmId(null)
     loadRoutines()
   }
 
@@ -74,7 +76,7 @@ export default function Routines() {
       {routines.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           {routines.map(r => (
-            <SwipeItem key={r.id} onEdit={() => openEditRoutine(r)} onDelete={() => deleteRoutine(r.id)} borderRadius={12}>
+            <SwipeItem key={r.id} onEdit={() => openEditRoutine(r)} onDelete={() => setDeleteConfirmId(r.id)} borderRadius={12}>
               <div style={{ padding: '12px 14px', background: 'var(--bg-card)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: '0.92rem', fontWeight: 600 }}>{r.name}</span>
@@ -189,6 +191,28 @@ export default function Routines() {
           + 루틴 추가
         </button>
       )}
+
+      {deleteConfirmId && (() => {
+        const r = routines.find(x => x.id === deleteConfirmId)
+        return (
+          <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+              <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
+                <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>루틴 삭제</div>
+                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  {r && <><span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.name}</span><br /></>}
+                  루틴을 삭제할까요?
+                </div>
+              </div>
+              <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
+                <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+                <button onClick={deleteRoutine} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
