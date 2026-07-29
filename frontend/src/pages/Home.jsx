@@ -100,6 +100,21 @@ export default function Home() {
     return () => document.body.classList.remove('sheet-open')
   }, [confirmSheet, cardSheet, importOpen])
 
+  // 안드로이드 뒤로가기로 열린 시트 닫기
+  useEffect(() => {
+    if (!confirmSheet && !cardSheet && !importOpen && !hideCardConfirm && !routineSheet) return
+    const handler = (e) => {
+      e.preventDefault()
+      if (routineSheet) { setRoutineSheetVisible(false); setTimeout(() => setRoutineSheet(null), 350); return }
+      if (cardSheet) { setCardSheetVisible(false); setTimeout(() => setCardSheet(null), 350); return }
+      if (confirmSheet) { setConfirmSheet(null); return }
+      if (hideCardConfirm) { setHideCardVisible(false); setTimeout(() => setHideCardConfirm(null), 260); return }
+      if (importOpen) { setImportOpen(false); return }
+    }
+    window.addEventListener('appBackButton', handler)
+    return () => window.removeEventListener('appBackButton', handler)
+  }, [routineSheet, cardSheet, confirmSheet, hideCardConfirm, importOpen])
+
   useEffect(() => {
     if (data) {
       const cats = form.type === 'expense' ? data.expense_cats : data.income_cats

@@ -1332,6 +1332,23 @@ export default function Budget() {
     return () => document.body.classList.remove('sheet-open')
   }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv])
 
+  // 안드로이드 뒤로가기로 열린 시트 닫기
+  useEffect(() => {
+    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !confirmCard && !confirmSavings && !confirmInv) return
+    const handler = (e) => {
+      e.preventDefault()
+      if (addSheetOpen) { closeAdd(); return }
+      if (editSheetOpen) { closeEdit(); return }
+      if (savingsSheetOpen) { closeSavingsSheet(); return }
+      if (invSheetOpen) { closeInvSheet(); return }
+      if (confirmCard) { setConfirmCard(null); return }
+      if (confirmSavings) { setConfirmSavings(null); return }
+      if (confirmInv) { setConfirmInv(null); return }
+    }
+    window.addEventListener('appBackButton', handler)
+    return () => window.removeEventListener('appBackButton', handler)
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv])
+
   function openAdd() {
     setAddSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setAddSheetVisible(true)))

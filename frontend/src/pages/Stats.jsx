@@ -125,6 +125,18 @@ export default function Stats() {
   }, [month, trendFrom, trendTo, barFrom, barTo])
   useEffect(() => { load() }, [load])
 
+  // 안드로이드 뒤로가기로 열린 시트 닫기
+  useEffect(() => {
+    if (!assetDetail && !pickerOpen) return
+    const handler = (e) => {
+      e.preventDefault()
+      if (assetDetail) { closeAssetDetail(); return }
+      if (pickerOpen) { setPickerOpen(false); return }
+    }
+    window.addEventListener('appBackButton', handler)
+    return () => window.removeEventListener('appBackButton', handler)
+  }, [assetDetail, pickerOpen])
+
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
   const isCurrent = month === nowYM()

@@ -28,29 +28,25 @@ export default function UpdateNoticeModal() {
   }, [])
 
   useEffect(() => {
+    const showIfNeeded = () => {
+      const neverVer = localStorage.getItem('update_notice_never_version')
+      if (neverVer === CURRENT_VERSION) return
+      try {
+        const snooze = JSON.parse(localStorage.getItem('update_notice_snooze') || '{}')
+        if (snooze.version === CURRENT_VERSION && snooze.expiry > Date.now()) return
+      } catch {}
+      setVisible(true)
+    }
+
     fetch('/api/update-notice-config', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => {
-        if (d.version) setConfig(d)
-        const effectiveVersion = d.version || CURRENT_VERSION
-        const neverVer = localStorage.getItem('update_notice_never_version')
-        if (neverVer === effectiveVersion) return
-        try {
-          const snooze = JSON.parse(localStorage.getItem('update_notice_snooze') || '{}')
-          if (snooze.version === effectiveVersion && snooze.expiry > Date.now()) return
-        } catch {}
-        setVisible(true)
+        // 서버 버전이 로컬 현재 버전과 같을 때만 서버 콘텐츠 사용
+        // (배포 전에는 서버가 이전 버전을 반환하므로 로컬 UPDATES 유지)
+        if (d.version === CURRENT_VERSION) setConfig(d)
+        showIfNeeded()
       })
-      .catch(() => {
-        const effectiveVersion = CURRENT_VERSION
-        const neverVer = localStorage.getItem('update_notice_never_version')
-        if (neverVer === effectiveVersion) return
-        try {
-          const snooze = JSON.parse(localStorage.getItem('update_notice_snooze') || '{}')
-          if (snooze.version === effectiveVersion && snooze.expiry > Date.now()) return
-        } catch {}
-        setVisible(true)
-      })
+      .catch(() => showIfNeeded())
     fetch('/api/me', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => setUser(d.user))
