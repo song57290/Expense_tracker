@@ -63,12 +63,12 @@ export default function Home() {
   const cardLongPressTimer = useRef(null)
   const wasLongPress = useRef(false)
   const amountRef = useRef(null)
-  const [suggestions, setSuggestions] = useState([])
   const [routineSheet, setRoutineSheet] = useState(null)
   const [routineSheetVisible, setRoutineSheetVisible] = useState(false)
   const [routineSheetDate, setRoutineSheetDate] = useState('')
   const [routineSheetCard, setRoutineSheetCard] = useState('')
   const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
+  const [routineSheetError, setRoutineSheetError] = useState(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [cardError, setCardError] = useState(false)
@@ -80,14 +80,6 @@ export default function Home() {
   const load = useCallback(() => api.get('/api/home').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    api.get('/api/routines/suggestions').then(sugg => {
-      const dismissed = new Set(JSON.parse(localStorage.getItem('routine_dismissed') || '[]'))
-      const snoozed = JSON.parse(localStorage.getItem('routine_snoozed') || '{}')
-      const now = Date.now()
-      setSuggestions(sugg.filter(s => !dismissed.has(s.category) && (!snoozed[s.category] || snoozed[s.category] < now)))
-    }).catch(() => {})
-  }, [])
 
   useEffect(() => {
     const d = params.get('date')
@@ -148,7 +140,6 @@ export default function Home() {
   const budgetPct = data.budget_amount > 0 ? Math.min(Math.round(data.expense_total / data.budget_amount * 100), 100) : 0
 
   const existingRoutineCats = new Set((data.routines || []).map(r => r.category))
-  const activeSuggestion = suggestions.find(s => !existingRoutineCats.has(s.category))
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -238,7 +229,8 @@ export default function Home() {
         return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '' }
       })
       .filter(item => item.amount > 0)
-    if (!toSave.length) { alert('금액을 하나 이상 입력해 주세요.'); return }
+    if (!toSave.length) { setRoutineSheetError(true); return }
+    setRoutineSheetError(false)
     try {
       for (const item of toSave) {
         await api.post('/api/transactions', {
@@ -254,24 +246,6 @@ export default function Home() {
     }
   }
 
-  function dismissRoutine(category) {
-    const dismissed = JSON.parse(localStorage.getItem('routine_dismissed') || '[]')
-    if (!dismissed.includes(category)) localStorage.setItem('routine_dismissed', JSON.stringify([...dismissed, category]))
-    setSuggestions(s => s.filter(x => x.category !== category))
-  }
-
-  function snoozeRoutine(category) {
-    const snoozed = JSON.parse(localStorage.getItem('routine_snoozed') || '{}')
-    snoozed[category] = Date.now() + 7 * 24 * 60 * 60 * 1000
-    localStorage.setItem('routine_snoozed', JSON.stringify(snoozed))
-    setSuggestions(s => s.filter(x => x.category !== category))
-  }
-
-  async function addRoutineFromSuggestion(s) {
-    await api.post('/api/routines', { name: s.category, card: '', items: [{ category: s.category, cat_type: s.cat_type }] })
-    dismissRoutine(s.category)
-    load()
-  }
 
   const cardSheetTxs = cardSheet
     ? filtered.filter(tx => tx.card === cardSheet).sort((a, b) => {
@@ -393,28 +367,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* 루틴 제안 배너 */}
-      {activeSuggestion && (
-        <div style={{ background: 'rgba(176,136,249,0.1)', border: '1px solid rgba(176,136,249,0.25)', borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
-          <div style={{ fontSize: '0.84rem', marginBottom: 8, color: 'var(--text-primary)' }}>
-            🔄 <b>{data.emoji_map[activeSuggestion.category] || '📦'} {activeSuggestion.category}</b>이(가) 최근 자주 등장합니다. 루틴으로 등록할까요?
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => addRoutineFromSuggestion(activeSuggestion)}
-              style={{ flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-              ✓ 등록
-            </button>
-            <button onClick={() => snoozeRoutine(activeSuggestion.category)}
-              style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid rgba(176,136,249,0.4)', background: 'transparent', color: '#b088f9', fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              1주일 안보기
-            </button>
-            <button onClick={() => dismissRoutine(activeSuggestion.category)}
-              style={{ padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
-              ✕ 무시
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 내역 추가 */}
       <div className="card mb-4">
@@ -664,6 +616,11 @@ export default function Home() {
               })}
             </div>
             <div style={{ padding: '12px 16px 32px', flexShrink: 0, borderTop: '1px solid var(--border-light)' }}>
+              {routineSheetError && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: '#ff3b30', fontSize: '0.82rem', fontWeight: 500 }}>
+                  <span>⚠</span> 금액을 하나 이상 입력해야 저장할 수 있어요.
+                </div>
+              )}
               <button onClick={submitRoutineSheet}
                 style={{ width: '100%', padding: '13px 0', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}>
                 저장
