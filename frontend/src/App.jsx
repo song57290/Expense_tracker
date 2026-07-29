@@ -1,20 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 
 function BackButtonGuard() {
   const location = useLocation()
+  const locationRef = useRef(location)
 
-  // 네이티브 앱(Android): canGoBack은 Capacitor가 WebView 히스토리 기준으로 직접 판단
+  useEffect(() => { locationRef.current = location }, [location])
+
+  // Capacitor 네이티브 앱(Android APK)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     let handle = null
     CapApp.addListener('backButton', ({ canGoBack }) => {
-      // 시트/모달이 열려있으면 먼저 닫기 시도
       const evt = new CustomEvent('appBackButton', { cancelable: true })
       if (!window.dispatchEvent(evt)) return
-      // 시트 없음 → 히스토리 기반 뒤로가기 or 앱 최소화
       if (canGoBack) {
         window.history.back()
       } else {
@@ -24,12 +25,28 @@ function BackButtonGuard() {
     return () => { handle?.remove() }
   }, [])
 
-  // PWA/웹: 홈 페이지에서 브라우저 뒤로가기로 앱 나가기 방지
+  // PWA/TWA(Chrome 홈화면 추가): popstate로 뒤로가기 처리
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return
-    if (location.pathname !== '/') return
-    window.history.pushState(null, '')
-    const onPopState = () => window.history.pushState(null, '')
+
+    // 루트에서 sentinel 추가 → 뒤로가기로 앱 종료 방지
+    if (location.pathname === '/') {
+      window.history.pushState(null, '')
+    }
+
+    const onPopState = () => {
+      // 시트가 열려있으면 먼저 닫기
+      const evt = new CustomEvent('appBackButton', { cancelable: true })
+      if (!window.dispatchEvent(evt)) {
+        window.history.pushState(null, '') // 시트 닫고 현재 위치 유지
+        return
+      }
+      // 루트에서는 sentinel 재추가 (앱 종료 방지)
+      if (locationRef.current.pathname === '/') {
+        window.history.pushState(null, '')
+      }
+    }
+
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [location.pathname])
