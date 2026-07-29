@@ -32,20 +32,5 @@
             "purpose": "monochrome"
         }
     ],
-    "screenshots": [
-        {
-            "src": "/static/1.png",
-            "sizes": "390x844",
-            "type": "image/png",
-            "form_factor": "narrow",
-            "label": "홈 화면"
-        },
-        {
-            "src": "/static/3.png",
-            "sizes": "390x844",
-            "type": "image/png",
-            "form_factor": "narrow",
-            "label": "예산 화면"
-        }
-    ]
+    "screenshots": []
 }
