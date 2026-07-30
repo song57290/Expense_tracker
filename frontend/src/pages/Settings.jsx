@@ -454,6 +454,20 @@ export default function Settings() {
     }
   }
 
+  const [vibration, setVibration] = useState(() => localStorage.getItem('vibration_enabled') !== 'false')
+  const [sound, setSound] = useState(() => localStorage.getItem('sound_enabled') !== 'false')
+
+  function toggleVibration() {
+    const next = !vibration
+    setVibration(next)
+    localStorage.setItem('vibration_enabled', next ? 'true' : 'false')
+  }
+  function toggleSound() {
+    const next = !sound
+    setSound(next)
+    localStorage.setItem('sound_enabled', next ? 'true' : 'false')
+  }
+
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system')
   const themeTabRefs = useRef([])
   const themeIndRef = useRef(null)
@@ -471,6 +485,10 @@ export default function Settings() {
   const [helpItem, setHelpItem] = useState(null)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+  const [backupLoading, setBackupLoading] = useState(false)
+  const [restoreLoading, setRestoreLoading] = useState(false)
+  const [restoreMsg, setRestoreMsg] = useState('')
+  const restoreFileRef = useRef(null)
 
   function applyTheme(t) {
     setTheme(t)
@@ -500,6 +518,60 @@ export default function Settings() {
       window.location.href = '/login'
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function downloadBackup() {
+    setBackupLoading(true)
+    try {
+      const res = await fetch('/api/backup', { credentials: 'same-origin' })
+      if (!res.ok) throw new Error('server')
+      const json = await res.json()
+      const jsonStr = JSON.stringify(json, null, 2)
+      const date = new Date().toISOString().slice(0, 10)
+      const filename = `gaegyebu_backup_${date}.json`
+      const blob = new Blob([jsonStr], { type: 'application/json' })
+      const file = new File([blob], filename, { type: 'application/json' })
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: '가계부 백업' })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = filename
+        document.body.appendChild(a); a.click()
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 1000)
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') alert('백업 다운로드에 실패했습니다')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
+
+  async function handleRestoreFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!window.confirm(`백업 파일로 복원하면 현재 데이터가 모두 교체됩니다.\n계속 하시겠습니까?`)) {
+      e.target.value = ''; return
+    }
+    setRestoreLoading(true)
+    setRestoreMsg('')
+    try {
+      const text = await file.text()
+      const json = JSON.parse(text)
+      const res = await fetch('/api/restore', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(json),
+      })
+      const d = await res.json()
+      if (d.ok) setRestoreMsg(`✓ 복원 완료 — 거래 ${d.transactions}건, 카테고리 ${d.categories}개, 카드 ${d.cards}개`)
+      else setRestoreMsg('복원 실패: ' + (d.error || '알 수 없는 오류'))
+    } catch {
+      setRestoreMsg('파일 형식이 올바르지 않습니다')
+    } finally {
+      setRestoreLoading(false)
+      e.target.value = ''
     }
   }
 
@@ -561,31 +633,101 @@ export default function Settings() {
       `}</style>
       <h5 className="fw-bold mb-3">설정</h5>
 
-      {/* 화면 테마 */}
+      {/* 공지사항 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
-          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>🌙 화면 테마</div>
-          <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 12, padding: 3, position: 'relative' }}>
-            <div ref={themeIndRef} className="theme-sel-ind" style={{
-              position: 'absolute', top: 3, bottom: 3,
-              background: 'var(--bg-card)', borderRadius: 9,
-              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-              transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94), width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
-              pointerEvents: 'none', zIndex: 0,
-            }} />
-            {[['light', '☀️ 라이트'], ['dark', '🌙 다크'], ['system', '⚙️ 시스템']].map(([val, label], i) => (
-              <button key={val} ref={el => themeTabRefs.current[i] = el} onClick={() => applyTheme(val)} style={{
-                flex: 1, padding: '9px 4px', borderRadius: 9, border: 'none', fontSize: '0.82rem',
-                fontWeight: theme === val ? 700 : 400,
-                background: 'transparent',
-                color: theme === val ? '#b088f9' : 'var(--text-muted)',
-                cursor: 'pointer', transition: 'color 0.28s', whiteSpace: 'nowrap',
-                position: 'relative', zIndex: 1,
-              }}>
-                {label}
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <div className="fw-semibold" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>공지사항</div>
+            <div className="d-flex gap-2 align-items-center">
+              <button onClick={() => window.dispatchEvent(new Event('showUpdateNotice'))}
+                style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                🆕 업데이트 내역
               </button>
-            ))}
+              {user?.email === 'song57290@gmail.com' && (
+                <button onClick={() => { setNoticeFormOpen(o => !o); setNoticeForm({ title: '', content: '' }) }}
+                  style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {noticeFormOpen ? '취소' : '+ 작성'}
+                </button>
+              )}
+              <button onClick={() => setNoticeOpen(o => !o)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
+                <span className="s-arrow" style={{ transform: noticeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              </button>
+            </div>
           </div>
+
+          {noticeFormOpen && (
+            <form onSubmit={submitNotice} style={{ marginBottom: 12 }}>
+              <input type="text" placeholder="제목" value={noticeForm.title}
+                onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+              <textarea placeholder="내용" value={noticeForm.content}
+                onChange={e => setNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+              <button type="submit" disabled={noticeSaving}
+                style={{ marginTop: 8, width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: noticeSaving ? 0.7 : 1 }}>
+                {noticeSaving ? '등록 중...' : '등록'}
+              </button>
+            </form>
+          )}
+
+          {notices.length === 0 ? (
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-faint)', margin: 0 }}>등록된 공지사항이 없습니다</p>
+          ) : (
+            <div>
+              {notices.slice(0, noticeOpen ? notices.length : 1).map(n => (
+                <div key={n.id} style={{ borderRadius: 10, border: '1px solid var(--border-light)', marginBottom: 8, overflow: 'hidden' }}>
+                  {editNotice === n.id ? (
+                    <form onSubmit={saveEditNotice} style={{ padding: '12px 14px', background: 'var(--bg-elevated)' }}>
+                      <input type="text" value={editNoticeForm.title}
+                        onChange={e => setEditNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      <textarea value={editNoticeForm.content}
+                        onChange={e => setEditNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
+                      <div className="d-flex gap-2 mt-2">
+                        <button type="submit" style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
+                        <button type="button" onClick={() => setEditNotice(null)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="d-flex justify-content-between align-items-center"
+                        onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
+                        style={{ padding: '10px 14px', cursor: 'pointer', background: 'var(--bg-elevated)' }}>
+                        <div>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 8 }}>{n.created_at}</span>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          {n.is_admin && (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); setEditNoticeForm({ title: n.title, content: n.content }); setEditNotice(n.id); setExpandedNotice(null) }}
+                                style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>수정</button>
+                              <button onClick={e => { e.stopPropagation(); deleteNotice(n.id) }}
+                                style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
+                            </>
+                          )}
+                          <span className="s-arrow" style={{ transform: expandedNotice === n.id ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
+                        </div>
+                      </div>
+                      <div className="s-collapse" style={{ maxHeight: expandedNotice === n.id ? '400px' : '0' }}>
+                        <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-card)' }}>
+                          {n.content}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {!noticeOpen && notices.length > 1 && (
+                <button onClick={() => setNoticeOpen(true)}
+                  style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+                  전체 보기 ({notices.length}개) ▾
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -639,6 +781,84 @@ export default function Settings() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 화면 테마 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>🌙 화면 테마</div>
+          <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 12, padding: 3, position: 'relative' }}>
+            <div ref={themeIndRef} className="theme-sel-ind" style={{
+              position: 'absolute', top: 3, bottom: 3,
+              background: 'var(--bg-card)', borderRadius: 9,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+              transition: 'left 0.28s cubic-bezier(0.25,0.46,0.45,0.94), width 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+              pointerEvents: 'none', zIndex: 0,
+            }} />
+            {[['light', '☀️ 라이트'], ['dark', '🌙 다크'], ['system', '⚙️ 시스템']].map(([val, label], i) => (
+              <button key={val} ref={el => themeTabRefs.current[i] = el} onClick={() => applyTheme(val)} style={{
+                flex: 1, padding: '9px 4px', borderRadius: 9, border: 'none', fontSize: '0.82rem',
+                fontWeight: theme === val ? 700 : 400,
+                background: 'transparent',
+                color: theme === val ? '#b088f9' : 'var(--text-muted)',
+                cursor: 'pointer', transition: 'color 0.28s', whiteSpace: 'nowrap',
+                position: 'relative', zIndex: 1,
+              }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 피드백 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>📳 피드백</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>진동</span>
+            <div onClick={toggleVibration} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <div className="ios-toggle">
+                <div className={`ios-track${vibration ? ' on' : ''}`} />
+                <div className={`ios-dot${vibration ? ' on' : ''}`} />
+              </div>
+            </div>
+          </div>
+          <div style={{ height: 1, background: 'var(--border-light)', margin: '10px 0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>터치음</span>
+            <div onClick={toggleSound} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <div className="ios-toggle">
+                <div className={`ios-track${sound ? ' on' : ''}`} />
+                <div className={`ios-dot${sound ? ' on' : ''}`} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 데이터 백업/복원 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="fw-semibold mb-1" style={{ fontSize: '0.95rem' }}>💾 데이터 백업 / 복원</div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>전체 데이터를 JSON 파일로 백업하거나 복원합니다.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button onClick={downloadBackup} disabled={backupLoading}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: backupLoading ? 'not-allowed' : 'pointer', opacity: backupLoading ? 0.7 : 1 }}>
+              {backupLoading ? '백업 중...' : '⬇ 백업 파일 다운로드'}
+            </button>
+            <input type="file" accept=".json" ref={restoreFileRef} onChange={handleRestoreFile} style={{ display: 'none' }} />
+            <button onClick={() => restoreFileRef.current?.click()} disabled={restoreLoading}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem', cursor: restoreLoading ? 'not-allowed' : 'pointer', opacity: restoreLoading ? 0.7 : 1 }}>
+              {restoreLoading ? '복원 중...' : '⬆ 백업 파일로 복원'}
+            </button>
+            {restoreMsg && (
+              <div style={{ padding: '9px 12px', borderRadius: 10, background: restoreMsg.startsWith('✓') ? 'rgba(52,199,89,0.1)' : 'rgba(255,59,48,0.1)', color: restoreMsg.startsWith('✓') ? '#1a7a3a' : '#dc3545', fontSize: '0.82rem', fontWeight: 600 }}>
+                {restoreMsg}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -760,105 +980,6 @@ export default function Settings() {
 
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* 공지사항 */}
-      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <div className="fw-semibold" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>공지사항</div>
-            <div className="d-flex gap-2 align-items-center">
-              <button onClick={() => window.dispatchEvent(new Event('showUpdateNotice'))}
-                style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                🆕 업데이트 내역
-              </button>
-              {user?.email === 'song57290@gmail.com' && (
-                <button onClick={() => { setNoticeFormOpen(o => !o); setNoticeForm({ title: '', content: '' }) }}
-                  style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-                  {noticeFormOpen ? '취소' : '+ 작성'}
-                </button>
-              )}
-              <button onClick={() => setNoticeOpen(o => !o)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
-                <span className="s-arrow" style={{ transform: noticeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-              </button>
-            </div>
-          </div>
-
-          {noticeFormOpen && (
-            <form onSubmit={submitNotice} style={{ marginBottom: 12 }}>
-              <input type="text" placeholder="제목" value={noticeForm.title}
-                onChange={e => setNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
-              <textarea placeholder="내용" value={noticeForm.content}
-                onChange={e => setNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: '0.9rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
-              <button type="submit" disabled={noticeSaving}
-                style={{ marginTop: 8, width: '100%', padding: '9px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', opacity: noticeSaving ? 0.7 : 1 }}>
-                {noticeSaving ? '등록 중...' : '등록'}
-              </button>
-            </form>
-          )}
-
-          {notices.length === 0 ? (
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-faint)', margin: 0 }}>등록된 공지사항이 없습니다</p>
-          ) : (
-            <div>
-              {/* 최신 1개는 항상 표시 */}
-              {notices.slice(0, noticeOpen ? notices.length : 1).map(n => (
-                <div key={n.id} style={{ borderRadius: 10, border: '1px solid var(--border-light)', marginBottom: 8, overflow: 'hidden' }}>
-                  {editNotice === n.id ? (
-                    <form onSubmit={saveEditNotice} style={{ padding: '12px 14px', background: 'var(--bg-elevated)' }}>
-                      <input type="text" value={editNoticeForm.title}
-                        onChange={e => setEditNoticeForm(f => ({ ...f, title: e.target.value }))} required maxLength={100}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', marginBottom: 8, outline: 'none', boxSizing: 'border-box', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
-                      <textarea value={editNoticeForm.content}
-                        onChange={e => setEditNoticeForm(f => ({ ...f, content: e.target.value }))} required rows={3}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--input-bg)', color: 'var(--text-primary)' }} />
-                      <div className="d-flex gap-2 mt-2">
-                        <button type="submit" style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
-                        <button type="button" onClick={() => setEditNotice(null)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: 'var(--bg-section)', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>취소</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="d-flex justify-content-between align-items-center"
-                        onClick={() => setExpandedNotice(expandedNotice === n.id ? null : n.id)}
-                        style={{ padding: '10px 14px', cursor: 'pointer', background: 'var(--bg-elevated)' }}>
-                        <div>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{n.title}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 8 }}>{n.created_at}</span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          {n.is_admin && (
-                            <>
-                              <button onClick={e => { e.stopPropagation(); setEditNoticeForm({ title: n.title, content: n.content }); setEditNotice(n.id); setExpandedNotice(null) }}
-                                style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>수정</button>
-                              <button onClick={e => { e.stopPropagation(); deleteNotice(n.id) }}
-                                style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
-                            </>
-                          )}
-                          <span className="s-arrow" style={{ transform: expandedNotice === n.id ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
-                        </div>
-                      </div>
-                      <div className="s-collapse" style={{ maxHeight: expandedNotice === n.id ? '400px' : '0' }}>
-                        <div style={{ padding: '10px 14px', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.6, background: 'var(--bg-card)' }}>
-                          {n.content}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              {!noticeOpen && notices.length > 1 && (
-                <button onClick={() => setNoticeOpen(true)}
-                  style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
-                  전체 보기 ({notices.length}개) ▾
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
 

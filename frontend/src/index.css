@@ -223,6 +223,7 @@ html, body {
   clip-path: inset(-40px -40px 0px -40px round 20px);
   z-index: 1000;
 }
+body.sheet-open { overflow: hidden; touch-action: none; }
 body.sheet-open .bottom-nav { display: none !important; }
 body.sheet-open .bot-fade,
 body.sheet-open .top-fade { display: none !important; }
@@ -475,4 +476,14 @@ body.sheet-open .top-fade { display: none !important; }
 }
 .theme-transitioning .theme-sel-ind {
   transition: left 0.28s cubic-bezier(0.25,0.46,0.45,0.94), width 0.28s cubic-bezier(0.25,0.46,0.45,0.94) !important;
+}
+
+/* Button press feedback */
+button {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+button:active {
+  transform: scale(0.94);
+  opacity: 0.8;
 }

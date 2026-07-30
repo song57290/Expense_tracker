@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../api.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
@@ -15,6 +15,14 @@ export default function Edit() {
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [receiptUrl, setReceiptUrl] = useState(null)
+  const [receiptLoading, setReceiptLoading] = useState(false)
+  const receiptInputRef = useRef(null)
+
+  useEffect(() => {
+    document.body.classList.toggle('sheet-open', deleteConfirm)
+    return () => document.body.classList.remove('sheet-open')
+  }, [deleteConfirm])
 
   useEffect(() => {
     api.get(`/api/transactions/${id}`).then(d => {
@@ -26,6 +34,9 @@ export default function Edit() {
         const [from, to] = desc.split(' → ')
         setTransferFrom(from || '')
         setTransferTo(to || '')
+      }
+      if (d.transaction.has_receipt) {
+        setReceiptUrl(`/api/transactions/${id}/receipt`)
       }
     }).catch(console.error)
   }, [id])
@@ -55,9 +66,30 @@ export default function Edit() {
     navigate('/')
   }
 
+  async function handleReceiptUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReceiptLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('receipt', file)
+      const res = await fetch(`/api/transactions/${id}/receipt`, { method: 'POST', credentials: 'same-origin', body: fd })
+      if (res.ok) setReceiptUrl(`/api/transactions/${id}/receipt?t=${Date.now()}`)
+    } catch { /* empty */ } finally {
+      setReceiptLoading(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleReceiptDelete() {
+    if (!window.confirm('영수증을 삭제할까요?')) return
+    await fetch(`/api/transactions/${id}/receipt`, { method: 'DELETE', credentials: 'same-origin' })
+    setReceiptUrl(null)
+  }
+
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: '1.5rem' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
           <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
           <span style={{ fontSize: '0.95rem' }}>뒤로</span>
@@ -137,6 +169,25 @@ export default function Edit() {
                 </div>
               </div>
             </div>
+            {/* 영수증 */}
+            <div className="mb-4">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <label className="form-label fw-semibold mb-0" style={{ fontSize: '0.82rem' }}>🧾 영수증</label>
+                <input type="file" accept="image/*" ref={receiptInputRef} onChange={handleReceiptUpload} style={{ display: 'none' }} />
+                <button type="button" onClick={() => receiptInputRef.current?.click()} disabled={receiptLoading}
+                  style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  {receiptLoading ? '업로드 중...' : receiptUrl ? '교체' : '+ 추가'}
+                </button>
+              </div>
+              {receiptUrl && (
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <img src={receiptUrl} alt="영수증" style={{ width: '100%', maxWidth: 260, borderRadius: 12, border: '1.5px solid var(--border-light)', display: 'block' }} />
+                  <button type="button" onClick={handleReceiptDelete}
+                    style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: 'white', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                </div>
+              )}
+            </div>
+
             <div className="d-flex justify-content-between gap-2">
               <button type="button" className="btn btn-outline-danger" onClick={() => setDeleteConfirm(true)}>삭제</button>
               <div className="d-flex gap-2">
@@ -151,14 +202,15 @@ export default function Edit() {
       {deleteConfirm && (
         <div onClick={() => setDeleteConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-            <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
-              <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
-              <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>내역 삭제</div>
-              <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>이 내역을 삭제할까요?</div>
+            <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-primary)', textAlign: 'center' }}>내역 삭제</div>
+            </div>
+            <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>이 내역을 삭제할까요?</div>
             </div>
             <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
-              <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
               <button onClick={handleDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+              <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
             </div>
           </div>
         </div>
