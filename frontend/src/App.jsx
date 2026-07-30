@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
+const RingerMode = registerPlugin('RingerMode')
 import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
 
@@ -43,6 +45,7 @@ import Edit from './pages/Edit.jsx'
 import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
 import Salary from './pages/Salary.jsx'
+import Search from './pages/Search.jsx'
 import UpdateNoticeModal from './components/UpdateNoticeModal.jsx'
 
 export default function App() {
@@ -67,6 +70,80 @@ export default function App() {
     const refresh = () => fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => setUser(d.user)).catch(() => {})
     window.addEventListener('userUpdated', refresh)
     return () => window.removeEventListener('userUpdated', refresh)
+  }, [])
+
+  useEffect(() => {
+    const prevent = (e) => {
+      if (!document.body.classList.contains('sheet-open')) return
+      let el = e.target
+      while (el && el !== document.body) {
+        const oy = window.getComputedStyle(el).overflowY
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return
+        el = el.parentElement
+      }
+      e.preventDefault()
+    }
+    document.addEventListener('touchmove', prevent, { passive: false })
+    return () => document.removeEventListener('touchmove', prevent)
+  }, [])
+
+  useEffect(() => {
+    let audioCtx = null
+    const isRingerSoundOn = async () => {
+      try {
+        const result = await RingerMode.getRingerMode()
+        return result.isSoundOn
+      } catch {
+        return true
+      }
+    }
+    const playTap = async () => {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+        if (audioCtx.state === 'suspended') await audioCtx.resume()
+        const now = audioCtx.currentTime
+        const osc = audioCtx.createOscillator()
+        const gain = audioCtx.createGain()
+        osc.connect(gain)
+        gain.connect(audioCtx.destination)
+        osc.type = 'sine'
+        osc.frequency.value = 880
+        gain.gain.setValueAtTime(0.3, now)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
+        osc.start(now)
+        osc.stop(now + 0.08)
+      } catch {}
+    }
+    const starts = new Map()
+    const onStart = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.target.closest?.('button, .bottom-nav a'))
+          starts.set(t.identifier, { x: t.clientX, y: t.clientY })
+      }
+    }
+    const onEnd = async (e) => {
+      for (const t of e.changedTouches) {
+        const s = starts.get(t.identifier)
+        starts.delete(t.identifier)
+        if (!s) continue
+        const dx = t.clientX - s.x
+        const dy = t.clientY - s.y
+        if (Math.sqrt(dx * dx + dy * dy) > 10) continue
+        if (!e.target.closest?.('button, .bottom-nav a')) continue
+        if (localStorage.getItem('vibration_enabled') !== 'false') navigator.vibrate?.(8)
+        if (localStorage.getItem('sound_enabled') !== 'false') {
+          const soundOn = await isRingerSoundOn()
+          if (soundOn) playTap()
+        }
+      }
+    }
+    document.addEventListener('touchstart', onStart, { passive: true })
+    document.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      document.removeEventListener('touchstart', onStart)
+      document.removeEventListener('touchend', onEnd)
+      audioCtx?.close()
+    }
   }, [])
 
   useEffect(() => {
@@ -221,6 +298,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/salary" element={<Salary />} />
           <Route path="/edit/:id" element={<Edit />} />
+          <Route path="/search" element={<Search />} />
         </Route>
       </Routes>
     </BrowserRouter>

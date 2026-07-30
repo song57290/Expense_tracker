@@ -1,7 +1,7 @@
 import { fmt, bankColor } from '../utils.js'
 
 export default function TxItem({ tx, emojiMap = {}, large }) {
-  const hasBadges = tx.exclude_perf || tx.exclude_stats
+  const hasBadges = tx.exclude_perf || tx.exclude_stats || tx.has_receipt
   const sz = large
     ? { badge: '0.82rem', cat: '1rem', desc: '0.92rem', sep: '0.8rem', amt: '1.08rem' }
     : { badge: '0.72rem', cat: '0.85rem', desc: '0.82rem', sep: '0.7rem', amt: '0.95rem' }
@@ -21,7 +21,8 @@ export default function TxItem({ tx, emojiMap = {}, large }) {
         {hasBadges && (
           <div className="mt-1">
             {tx.exclude_perf && <span className="badge me-1" style={{ fontSize: sz.badge, background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span>}
-            {tx.exclude_stats && <span className="badge" style={{ fontSize: sz.badge, background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span>}
+            {tx.exclude_stats && <span className="badge me-1" style={{ fontSize: sz.badge, background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span>}
+            {tx.has_receipt && <span className="badge" style={{ fontSize: sz.badge, background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.3)' }}>🧾 영수증</span>}
           </div>
         )}
       </div>

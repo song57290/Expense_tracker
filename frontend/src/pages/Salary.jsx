@@ -17,7 +17,8 @@ export default function Salary() {
   const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
   const [salaryAmountDisplay, setSalaryAmountDisplay] = useState('')
 
-  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, tx_type: 'expense', tx_card: '' })
+  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, auto_silent: false, tx_type: 'expense', tx_card: '' })
+  const [limitInputs, setLimitInputs] = useState({})
   const [fixedFormOpen, setFixedFormOpen] = useState(false)
   const [editFixed, setEditFixed] = useState(null)
   const [editFixedForm, setEditFixedForm] = useState({})
@@ -98,6 +99,9 @@ export default function Salary() {
       setActual(d.actual || {})
       const allocs = d.allocations || []
       setAllocations(allocs)
+      const limits = {}
+      allocs.forEach(a => { if (a.monthly_limit) limits[a.category_name] = String(a.monthly_limit) })
+      setLimitInputs(prev => ({ ...limits, ...prev }))
     }).catch(() => {})
   }
 
@@ -178,6 +182,16 @@ export default function Salary() {
   const fixedTotal = fixed.reduce((s, f) => s + f.amount, 0)
   const remaining = salaryAmt - fixedTotal - totalAllocWon
 
+  async function saveLimits() {
+    const limits = {}
+    Object.entries(limitInputs).forEach(([cat, val]) => {
+      const n = parseInt((val || '').replace(/,/g, '')) || 0
+      if (n > 0) limits[cat] = n
+    })
+    await api.post('/api/salary/allocations/limits', { limits })
+    load()
+  }
+
   async function addFixed(e) {
     e.preventDefault()
     await api.post('/api/salary/fixed', {
@@ -186,10 +200,11 @@ export default function Salary() {
       day_of_month: Number(fixedForm.day_of_month) || null,
       category: fixedForm.category,
       auto_register: fixedForm.auto_register,
+      auto_silent: fixedForm.auto_silent,
       tx_type: fixedForm.tx_type,
       tx_card: fixedForm.tx_card,
     })
-    setFixedForm({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, tx_type: 'expense', tx_card: '' })
+    setFixedForm({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, auto_silent: false, tx_type: 'expense', tx_card: '' })
     setFixedFormOpen(false)
     load()
   }
@@ -206,6 +221,7 @@ export default function Salary() {
       day_of_month: Number(editFixedForm.day_of_month) || null,
       category: editFixedForm.category,
       auto_register: editFixedForm.auto_register,
+      auto_silent: editFixedForm.auto_silent || false,
       tx_type: editFixedForm.tx_type || 'expense',
       tx_card: editFixedForm.tx_card || '',
     })
@@ -374,6 +390,17 @@ export default function Salary() {
                         <div style={{ height: 4, background: 'var(--bg-accent)', borderRadius: 4, overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>월 한도</span>
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <input type="text" inputMode="numeric"
+                              value={limitInputs[catName] ? Number(limitInputs[catName]).toLocaleString('ko-KR') : ''}
+                              placeholder="없음"
+                              onChange={e => setLimitInputs(prev => ({ ...prev, [catName]: e.target.value.replace(/[^0-9]/g, '') }))}
+                              style={{ width: '100%', padding: '3px 26px 3px 8px', borderRadius: 7, border: '1.5px solid var(--border-light)', fontSize: '0.78rem', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
+                            <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.68rem', pointerEvents: 'none' }}>원</span>
+                          </div>
+                        </div>
                       </div>
                       {showLineBelow && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
                     </div>
@@ -402,7 +429,7 @@ export default function Salary() {
               )}
 
               {selectedCats.length > 0 && (
-                <button onClick={() => saveAllocations(allocations)}
+                <button onClick={async () => { await saveAllocations(allocations); await saveLimits() }}
                   style={{ width: '100%', marginTop: 14, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
                   저장
                 </button>
@@ -439,7 +466,7 @@ export default function Salary() {
                   onChange={name => setFixedForm(f => ({ ...f, category: name }))}
                 />
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={fixedForm.auto_register} onChange={e => setFixedForm(f => ({ ...f, auto_register: e.target.checked }))} />
+                  <input type="checkbox" checked={fixedForm.auto_register} onChange={e => setFixedForm(f => ({ ...f, auto_register: e.target.checked, auto_silent: false }))} />
                   지정일에 자동 거래 등록
                 </label>
                 {fixedForm.auto_register && (
@@ -459,6 +486,13 @@ export default function Salary() {
                       onChange={name => setFixedForm(f => ({ ...f, tx_card: name }))}
                       placeholder="카드/계좌 선택"
                     />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px 10px', borderRadius: 9, background: fixedForm.auto_silent ? 'rgba(176,136,249,0.1)' : 'var(--bg-elevated)', border: `1.5px solid ${fixedForm.auto_silent ? '#b088f9' : 'var(--border-light)'}` }}>
+                      <input type="checkbox" checked={fixedForm.auto_silent} onChange={e => setFixedForm(f => ({ ...f, auto_silent: e.target.checked }))} />
+                      <div>
+                        <div style={{ fontWeight: 600, color: fixedForm.auto_silent ? '#b088f9' : 'var(--text-primary)' }}>확인 없이 자동 등록</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>팝업 없이 지정일에 자동으로 등록</div>
+                      </div>
+                    </label>
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -490,7 +524,7 @@ export default function Salary() {
                       onChange={name => setEditFixedForm(x => ({ ...x, category: name }))}
                     />
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!editFixedForm.auto_register} onChange={e => setEditFixedForm(x => ({ ...x, auto_register: e.target.checked }))} />
+                      <input type="checkbox" checked={!!editFixedForm.auto_register} onChange={e => setEditFixedForm(x => ({ ...x, auto_register: e.target.checked, auto_silent: false }))} />
                       지정일에 자동 거래 등록
                     </label>
                     {editFixedForm.auto_register && (
@@ -510,6 +544,13 @@ export default function Salary() {
                           onChange={name => setEditFixedForm(x => ({ ...x, tx_card: name }))}
                           placeholder="카드/계좌 선택"
                         />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px 10px', borderRadius: 9, background: editFixedForm.auto_silent ? 'rgba(176,136,249,0.1)' : 'var(--bg-elevated)', border: `1.5px solid ${editFixedForm.auto_silent ? '#b088f9' : 'var(--border-light)'}` }}>
+                          <input type="checkbox" checked={!!editFixedForm.auto_silent} onChange={e => setEditFixedForm(x => ({ ...x, auto_silent: e.target.checked }))} />
+                          <div>
+                            <div style={{ fontWeight: 600, color: editFixedForm.auto_silent ? '#b088f9' : 'var(--text-primary)' }}>확인 없이 자동 등록</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>팝업 없이 지정일에 자동으로 등록</div>
+                          </div>
+                        </label>
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -526,12 +567,17 @@ export default function Salary() {
                         {f.day_of_month && <span style={{ marginRight: 6 }}>매월 {f.day_of_month}일</span>}
                         {f.item_type === 'savings'
                           ? <span style={{ fontSize: '0.68rem', background: '#e8fdf0', color: '#198754', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>{f.stype} 자동이체</span>
-                          : f.auto_register && <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동등록</span>}
+                          : f.auto_register && (
+                            <>
+                              <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>자동등록</span>
+                              {f.auto_silent && <span style={{ fontSize: '0.68rem', background: 'rgba(176,136,249,0.12)', color: '#b088f9', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동</span>}
+                            </>
+                          )}
                       </div>
                     </div>
                     <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginRight: 8 }}>{fmt(f.amount)}원</div>
                     {f.item_type !== 'savings' && <>
-                      <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
+                      <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, auto_silent: f.auto_silent || false, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
                         style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
                       <button onClick={() => deleteFixed(f.id)}
                         style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>

@@ -8,3 +8,4 @@ cryptography
 gunicorn
 firebase-admin
 finance-datareader
+Pillow

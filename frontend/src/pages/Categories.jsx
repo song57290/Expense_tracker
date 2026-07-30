@@ -146,6 +146,11 @@ export default function Categories() {
   const [form, setForm] = useState({ name: '', icon: '', type: 'expense', exclude_perf: false, exclude_stats: false })
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
+  useEffect(() => {
+    document.body.classList.toggle('sheet-open', !!deleteConfirmId)
+    return () => document.body.classList.remove('sheet-open')
+  }, [deleteConfirmId])
+
   const sensors = useSensors(
     useSensor(MouseSensor),
     useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
@@ -237,7 +242,7 @@ export default function Categories() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '2px 0 10px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 10px 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 16 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
           <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
           <span style={{ fontSize: '0.95rem' }}>설정</span>
@@ -287,10 +292,11 @@ export default function Categories() {
       {deleteConfirmId && (
         <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-            <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
-              <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
-              <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>카테고리 삭제</div>
-              <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-primary)', textAlign: 'center' }}>카테고리 삭제</div>
+            </div>
+            <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 {catToDelete && (
                   <><span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{catToDelete.icon} {catToDelete.name}</span><br /></>
                 )}
@@ -298,8 +304,8 @@ export default function Categories() {
               </div>
             </div>
             <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
               <button onClick={confirmDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
             </div>
           </div>
         </div>

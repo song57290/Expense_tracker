@@ -8,7 +8,9 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RingerModePlugin.class);
+        registerPlugin(WidgetDataPlugin.class);
         super.onCreate(savedInstanceState);
         createNotificationChannel();
     }

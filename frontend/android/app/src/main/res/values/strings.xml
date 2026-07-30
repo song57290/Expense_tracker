@@ -4,4 +4,6 @@
     <string name="title_activity_main">가계부</string>
     <string name="package_name">com.gaegyebu.app</string>
     <string name="custom_url_scheme">com.gaegyebu.app</string>
+    <string name="widget_label">가계부 위젯</string>
+    <string name="widget_description">이번 달 수입·지출·잔액을 홈 화면에서 확인</string>
 </resources>

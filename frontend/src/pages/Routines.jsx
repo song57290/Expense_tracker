@@ -11,10 +11,15 @@ export default function Routines() {
   const [routineCats, setRoutineCats] = useState([])
   const [routineCards, setRoutineCards] = useState([])
   const [routineFormOpen, setRoutineFormOpen] = useState(false)
-  const [routineForm, setRoutineForm] = useState({ name: '', card: '', items: [{ category: '', cat_type: 'expense' }] })
+  const [routineForm, setRoutineForm] = useState({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] })
   const [routineError, setRoutineError] = useState('')
   const [editRoutineId, setEditRoutineId] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+
+  useEffect(() => {
+    document.body.classList.toggle('sheet-open', !!deleteConfirmId)
+    return () => document.body.classList.remove('sheet-open')
+  }, [deleteConfirmId])
 
   const loadRoutines = () => api.get('/api/routines').then(setRoutines).catch(() => {})
 
@@ -26,7 +31,7 @@ export default function Routines() {
 
   function openEditRoutine(r) {
     setEditRoutineId(r.id)
-    setRoutineForm({ name: r.name, card: r.card || '', items: r.items?.length ? r.items.map(it => ({ category: it.category, cat_type: it.cat_type })) : [{ category: '', cat_type: 'expense' }] })
+    setRoutineForm({ name: r.name, icon: r.icon || '', card: r.card || '', items: r.items?.length ? r.items.map(it => ({ category: it.category, cat_type: it.cat_type, exclude_card_perf: !!it.exclude_card_perf, exclude_stats: !!it.exclude_stats })) : [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] })
     setRoutineError('')
     setRoutineFormOpen(true)
   }
@@ -41,7 +46,7 @@ export default function Routines() {
       } else {
         await api.post('/api/routines', routineForm)
       }
-      setRoutineForm({ name: '', card: '', items: [{ category: '', cat_type: 'expense' }] })
+      setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] })
       setRoutineError('')
       setEditRoutineId(null)
       setRoutineFormOpen(false)
@@ -58,9 +63,9 @@ export default function Routines() {
   }
 
   return (
-    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', padding: '0 16px 100px' }}>
+    <div className="page-wrap" style={{ maxWidth: 540, margin: '0 auto', paddingLeft: 16, paddingRight: 16 }}>
       {/* iOS 스타일 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 20 }}>
         <button onClick={() => navigate('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
           <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
           <span style={{ fontSize: '0.95rem' }}>설정</span>
@@ -79,6 +84,7 @@ export default function Routines() {
             <SwipeItem key={r.id} onEdit={() => openEditRoutine(r)} onDelete={() => setDeleteConfirmId(r.id)} borderRadius={12}>
               <div style={{ padding: '12px 14px', background: 'var(--bg-card)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {r.icon && <span style={{ fontSize: '1.1rem' }}>{r.icon}</span>}
                   <span style={{ fontSize: '0.92rem', fontWeight: 600 }}>{r.name}</span>
                   {r.card && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>· {r.card}</span>}
                 </div>
@@ -105,9 +111,17 @@ export default function Routines() {
             {editRoutineId ? '루틴 수정' : '새 루틴'}
           </div>
 
-          <input placeholder="루틴 이름 (예: 점심 루틴)" value={routineForm.name}
-            onChange={e => { setRoutineForm(f => ({ ...f, name: e.target.value })); setRoutineError('') }}
-            className="form-control" style={{ borderRadius: 10, fontSize: '0.88rem', marginBottom: 4, borderColor: routineError === 'name' ? '#ff3b30' : undefined }} />
+          {/* 이름 + 이모지 */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+            <input value={routineForm.icon}
+              onChange={e => setRoutineForm(f => ({ ...f, icon: e.target.value }))}
+              className="form-control" style={{ borderRadius: 10, fontSize: '1.2rem', width: 52, flexShrink: 0, textAlign: 'center', padding: '6px 4px', color: routineForm.icon ? 'var(--text-primary)' : 'rgba(128,128,128,0.35)' }}
+              maxLength={2}
+              placeholder="😊" />
+            <input placeholder="루틴 이름 (예: 점심 루틴)" value={routineForm.name}
+              onChange={e => { setRoutineForm(f => ({ ...f, name: e.target.value })); setRoutineError('') }}
+              className="form-control" style={{ borderRadius: 10, fontSize: '0.88rem', borderColor: routineError === 'name' ? '#ff3b30' : undefined }} />
+          </div>
           {routineError === 'name' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '2px 2px 8px', color: '#ff3b30', fontSize: '0.78rem', fontWeight: 500 }}>
               <span>⚠</span> 루틴 이름을 입력해 주세요
@@ -117,35 +131,49 @@ export default function Routines() {
 
           {/* 카테고리 항목들 */}
           {routineForm.items.map((item, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 8, padding: 2, gap: 2, flexShrink: 0 }}>
-                {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-                  <button key={val} type="button"
-                    onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, cat_type: val, category: '' } : it) }))}
-                    style={{ padding: '5px 8px', borderRadius: 6, border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.18s',
-                      background: item.cat_type === val ? (val === 'expense' ? '#ff3b30' : '#34c759') : 'transparent',
-                      color: item.cat_type === val ? 'white' : 'var(--text-muted)' }}>
-                    {label}
+            <div key={idx} style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 8, padding: 2, gap: 2, flexShrink: 0 }}>
+                  {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                    <button key={val} type="button"
+                      onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, cat_type: val, category: '' } : it) }))}
+                      style={{ padding: '5px 8px', borderRadius: 6, border: 'none', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.18s',
+                        background: item.cat_type === val ? (val === 'expense' ? '#ff3b30' : '#34c759') : 'transparent',
+                        color: item.cat_type === val ? 'white' : 'var(--text-muted)' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <CategoryPicker
+                    cats={routineCats.filter(c => c.type === item.cat_type).map(c => [c.name, c.icon])}
+                    value={item.category}
+                    onChange={cat => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, category: cat } : it) }))}
+                  />
+                </div>
+                {routineForm.items.length > 1 && (
+                  <button type="button"
+                    onClick={() => setRoutineForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))}
+                    style={{ background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', fontSize: '1.2rem', padding: '2px', flexShrink: 0, lineHeight: 1 }}>×</button>
+                )}
+              </div>
+              {/* 실적·통계 제외 토글 */}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                {[['exclude_card_perf', '카드 실적 제외'], ['exclude_stats', '통계 제외']].map(([key, label]) => (
+                  <button key={key} type="button"
+                    onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, [key]: !it[key] } : it) }))}
+                    style={{ padding: '3px 9px', borderRadius: 20, border: `1.5px solid ${item[key] ? '#b088f9' : 'var(--border-light)'}`,
+                      background: item[key] ? 'rgba(176,136,249,0.12)' : 'transparent',
+                      color: item[key] ? '#b088f9' : 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                    {item[key] ? '✓ ' : ''}{label}
                   </button>
                 ))}
               </div>
-              <div style={{ flex: 1 }}>
-                <CategoryPicker
-                  cats={routineCats.filter(c => c.type === item.cat_type).map(c => [c.name, c.icon])}
-                  value={item.category}
-                  onChange={cat => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, category: cat } : it) }))}
-                />
-              </div>
-              {routineForm.items.length > 1 && (
-                <button type="button"
-                  onClick={() => setRoutineForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))}
-                  style={{ background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', fontSize: '1.2rem', padding: '2px', flexShrink: 0, lineHeight: 1 }}>×</button>
-              )}
             </div>
           ))}
 
           <button type="button"
-            onClick={() => setRoutineForm(f => ({ ...f, items: [...f.items, { category: '', cat_type: 'expense' }] }))}
+            onClick={() => setRoutineForm(f => ({ ...f, items: [...f.items, { category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] }))}
             style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1.5px dashed rgba(176,136,249,0.5)', background: 'transparent', color: '#b088f9', fontSize: '0.82rem', cursor: 'pointer', marginBottom: 4 }}>
             + 카테고리 추가
           </button>
@@ -181,12 +209,12 @@ export default function Routines() {
             <button onClick={saveRoutine} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
               {editRoutineId ? '수정 완료' : '저장'}
             </button>
-            <button onClick={() => { setRoutineFormOpen(false); setEditRoutineId(null); setRoutineForm({ name: '', card: '', items: [{ category: '', cat_type: 'expense' }] }); setRoutineError('') }}
+            <button onClick={() => { setRoutineFormOpen(false); setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] }); setRoutineError('') }}
               style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'none', fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text-muted)' }}>취소</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => { setEditRoutineId(null); setRoutineForm({ name: '', card: '', items: [{ category: '', cat_type: 'expense' }] }); setRoutineError(''); setRoutineFormOpen(true) }}
+        <button onClick={() => { setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false }] }); setRoutineError(''); setRoutineFormOpen(true) }}
           style={{ width: '100%', padding: '11px 0', borderRadius: 12, border: '1.5px dashed #b088f9', background: 'transparent', color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
           + 루틴 추가
         </button>
@@ -197,17 +225,18 @@ export default function Routines() {
         return (
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
             <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-              <div style={{ padding: '22px 20px 16px', textAlign: 'center' }}>
-                <div style={{ fontSize: '2.2rem', marginBottom: 10 }}>🗑️</div>
-                <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6, color: 'var(--text-primary)' }}>루틴 삭제</div>
-                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-primary)', textAlign: 'center' }}>루틴 삭제</div>
+              </div>
+              <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                   {r && <><span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.name}</span><br /></>}
                   루틴을 삭제할까요?
                 </div>
               </div>
               <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
-                <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
                 <button onClick={deleteRoutine} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+                <button onClick={() => setDeleteConfirmId(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
               </div>
             </div>
           </div>

@@ -7,6 +7,15 @@ import openpyxl
 import xlrd
 from io import BytesIO
 import tempfile, json, os, re, base64, random, smtplib
+try:
+    from PIL import Image as PILImage
+    _PIL_OK = True
+except ImportError:
+    _PIL_OK = False
+
+DATA_DIR = os.environ.get('DATA_DIR', '/data')
+RECEIPTS_DIR = os.path.join(DATA_DIR, 'receipts')
+os.makedirs(RECEIPTS_DIR, exist_ok=True)
 from email.mime.text import MIMEText
 
 _listing_cache = {}
@@ -119,6 +128,20 @@ with app.app_context():
     except Exception:
         pass
     db.create_all()
+    # 컬럼 마이그레이션: icon, exclude_card_perf, exclude_stats
+    try:
+        with db.engine.connect() as conn:
+            r_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(routine)")).fetchall()]
+            if 'icon' not in r_cols:
+                conn.execute(text("ALTER TABLE routine ADD COLUMN icon VARCHAR(10) DEFAULT ''"))
+            ri_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(routine_item)")).fetchall()]
+            if 'exclude_card_perf' not in ri_cols:
+                conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_card_perf BOOLEAN NOT NULL DEFAULT 0"))
+            if 'exclude_stats' not in ri_cols:
+                conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass
     for col, default in [('tier1', 20), ('tier2', 50), ('tier3', 80)]:
         try:
             with db.engine.connect() as conn:
@@ -237,6 +260,9 @@ with app.app_context():
         "ALTER TABLE category ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0",
         'ALTER TABLE "transaction" ADD COLUMN time VARCHAR(5)',
         'ALTER TABLE card ADD COLUMN interest_rate FLOAT',
+        'ALTER TABLE "transaction" ADD COLUMN has_receipt BOOLEAN NOT NULL DEFAULT 0',
+        'ALTER TABLE budget_allocation ADD COLUMN monthly_limit INTEGER',
+        'ALTER TABLE fixed_expense ADD COLUMN auto_silent BOOLEAN NOT NULL DEFAULT 0',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -778,7 +804,8 @@ def api_home():
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
-                          'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)} for tx in month_txs],
+                          'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
+                          'has_receipt': bool(getattr(tx, 'has_receipt', False))} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
         'balance': income_total - expense_total,
@@ -792,7 +819,8 @@ def api_home():
         'category_totals': category_totals,
         'excl_cat_names': list(excl_cats),
         'excl_stat_cat_names': list(excl_stat_cats),
-        'routines': [{'id': r.id, 'name': r.name, 'card': r.card or '', 'items': by_routine.get(r.id, [])} for r in routines],
+        'routines': [{'id': r.id, 'name': r.name, 'icon': r.icon or '', 'card': r.card or '', 'items': by_routine.get(r.id, [])} for r in routines],
+        'budget_limits': {a.category_name: a.monthly_limit for a in BudgetAllocation.query.filter_by(user_id=uid).all() if a.monthly_limit},
     })
 
 def _sync_salary_if_needed(uid, category, tx_type, amount):
@@ -1207,6 +1235,27 @@ def api_stats():
     first_tx = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.asc()).first()
     first_month = first_tx.date[:7] if first_tx else month
 
+    # 전월 카테고리 비교
+    prev_m = month
+    py, pm = int(month[:4]), int(month[5:])
+    pm -= 1
+    if pm <= 0: pm = 12; py -= 1
+    prev_m = f'{py}-{pm:02d}'
+    prev_expense_txs = [tx for tx in Transaction.query.filter_by(user_id=uid).filter(
+        Transaction.type == 'expense', Transaction.date.like(f'{prev_m}%')).all()
+        if _is_stats_tx(tx, excl_stat_cats_stats)]
+    prev_cat_totals = defaultdict(int)
+    for tx in prev_expense_txs:
+        prev_cat_totals[tx.category] += tx.amount
+    cur_cat_totals = {item['name']: item['amount'] for item in cat_totals(expense_txs)}
+    all_cats_cmp = set(list(cur_cat_totals.keys()) + list(prev_cat_totals.keys()))
+    category_compare = sorted([{
+        'name': c, 'icon': icon_map.get(c, '📦'),
+        'current': cur_cat_totals.get(c, 0),
+        'previous': prev_cat_totals.get(c, 0),
+        'diff': cur_cat_totals.get(c, 0) - prev_cat_totals.get(c, 0),
+    } for c in all_cats_cmp], key=lambda x: abs(x['diff']), reverse=True)
+
     return jsonify({
         'expense_cats': cat_totals(expense_txs),
         'income_cats': cat_totals(income_txs),
@@ -1219,6 +1268,8 @@ def api_stats():
         'portfolio_breakdown': portfolio_breakdown,
         'total_assets': total_assets_now,
         'first_month': first_month,
+        'category_compare': category_compare,
+        'prev_month': prev_m,
     })
 
 @app.route('/api/portfolio-pdf')
@@ -2118,10 +2169,11 @@ def api_fixed_expenses_add():
     f = FixedExpense(user_id=uid, name=data['name'], amount=data['amount'],
                      day_of_month=data.get('day_of_month'), category=data.get('category', ''),
                      auto_register=bool(data.get('auto_register', False)),
+                     auto_silent=bool(data.get('auto_silent', False)),
                      tx_type=data.get('tx_type', 'expense'), tx_card=data.get('tx_card', ''))
     db.session.add(f)
     db.session.commit()
-    return jsonify({'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category, 'auto_register': bool(f.auto_register), 'tx_type': f.tx_type, 'tx_card': f.tx_card})
+    return jsonify({'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month, 'category': f.category, 'auto_register': bool(f.auto_register), 'auto_silent': bool(f.auto_silent), 'tx_type': f.tx_type, 'tx_card': f.tx_card})
 
 @app.route('/api/salary/fixed/<int:fid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -2138,6 +2190,7 @@ def api_fixed_expense(fid):
     f.day_of_month = data.get('day_of_month', f.day_of_month)
     f.category = data.get('category', f.category)
     f.auto_register = bool(data.get('auto_register', f.auto_register))
+    f.auto_silent = bool(data.get('auto_silent', getattr(f, 'auto_silent', False)))
     f.tx_type = data.get('tx_type', f.tx_type or 'expense')
     f.tx_card = data.get('tx_card', f.tx_card or '')
     db.session.commit()
@@ -2177,7 +2230,7 @@ def api_pending_registers():
     today_day = today.day
     current_month = today.strftime('%Y-%m')
     pending = []
-    # 고정 지출
+    # 고정 지출 (auto_silent=True인 항목은 여기서 조용히 등록)
     for f in FixedExpense.query.filter_by(user_id=uid, auto_register=True).all():
         if f.day_of_month != today_day:
             continue
@@ -2185,7 +2238,16 @@ def api_pending_registers():
             Transaction.date.like(f'{current_month}%'),
             Transaction.description == f'[자동] {f.name}',
         ).first()
-        if not already:
+        if already:
+            continue
+        if getattr(f, 'auto_silent', False):
+            today_str = today.strftime('%Y-%m-%d')
+            tx = Transaction(user_id=uid, date=today_str, type=f.tx_type or 'expense',
+                             category=f.category or '기타', description=f'[자동] {f.name}',
+                             amount=f.amount, card=f.tx_card or '')
+            db.session.add(tx)
+            db.session.commit()
+        else:
             pending.append({'item_type': 'fixed', 'id': f.id, 'name': f.name, 'amount': f.amount,
                             'category': f.category or '', 'tx_type': f.tx_type or 'expense',
                             'tx_card': f.tx_card or ''})
@@ -2354,7 +2416,10 @@ def _routine_items(uid):
     items = RoutineItem.query.filter_by(user_id=uid).order_by(RoutineItem.position, RoutineItem.id).all()
     by_routine = {}
     for it in items:
-        by_routine.setdefault(it.routine_id, []).append({'id': it.id, 'category': it.category, 'cat_type': it.cat_type})
+        by_routine.setdefault(it.routine_id, []).append({
+            'id': it.id, 'category': it.category, 'cat_type': it.cat_type,
+            'exclude_card_perf': bool(it.exclude_card_perf), 'exclude_stats': bool(it.exclude_stats),
+        })
     return by_routine
 
 @app.route('/api/routines', methods=['GET', 'POST'])
@@ -2365,18 +2430,22 @@ def api_routines():
         data = request.json or {}
         max_pos = db.session.query(db.func.max(Routine.position)).filter(Routine.user_id == uid).scalar() or 0
         r = Routine(user_id=uid, name=data.get('name', '').strip(),
+                    icon=data.get('icon', '') or '',
                     card=data.get('card', '') or '', position=max_pos + 1)
         db.session.add(r)
         db.session.flush()
         for i, it in enumerate(data.get('items', [])):
             if it.get('category'):
                 db.session.add(RoutineItem(routine_id=r.id, user_id=uid,
-                                           category=it['category'], cat_type=it.get('cat_type', 'expense'), position=i))
+                                           category=it['category'], cat_type=it.get('cat_type', 'expense'),
+                                           exclude_card_perf=bool(it.get('exclude_card_perf', False)),
+                                           exclude_stats=bool(it.get('exclude_stats', False)),
+                                           position=i))
         db.session.commit()
         return jsonify({'ok': True, 'id': r.id})
     routines = Routine.query.filter_by(user_id=uid).order_by(Routine.position, Routine.id).all()
     by_routine = _routine_items(uid)
-    return jsonify([{'id': r.id, 'name': r.name, 'card': r.card or '', 'position': r.position,
+    return jsonify([{'id': r.id, 'name': r.name, 'icon': r.icon or '', 'card': r.card or '', 'position': r.position,
                      'items': by_routine.get(r.id, [])} for r in routines])
 
 @app.route('/api/routines/suggestions')
@@ -2413,6 +2482,7 @@ def api_routine(rid):
         return jsonify({'ok': True})
     data = request.json or {}
     if 'name' in data: r.name = data['name'].strip()
+    if 'icon' in data: r.icon = data['icon'] or ''
     if 'card' in data: r.card = data['card'] or ''
     if 'position' in data: r.position = data['position']
     if 'items' in data:
@@ -2420,7 +2490,10 @@ def api_routine(rid):
         for i, it in enumerate(data['items']):
             if it.get('category'):
                 db.session.add(RoutineItem(routine_id=rid, user_id=uid,
-                                           category=it['category'], cat_type=it.get('cat_type', 'expense'), position=i))
+                                           category=it['category'], cat_type=it.get('cat_type', 'expense'),
+                                           exclude_card_perf=bool(it.get('exclude_card_perf', False)),
+                                           exclude_stats=bool(it.get('exclude_stats', False)),
+                                           position=i))
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -3277,6 +3350,217 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         atexit.register(lambda: _scheduler.shutdown(wait=False))
     except ImportError:
         pass
+
+# ─── 내역 검색 ───────────────────────────────────────────────────────────────
+@app.route('/api/search')
+@login_required
+def api_search():
+    uid = session['user_id']
+    q = request.args.get('q', '').strip()
+    category = request.args.get('category', '')
+    tx_type = request.args.get('type', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    amount_min = request.args.get('amount_min', type=int)
+    amount_max = request.args.get('amount_max', type=int)
+
+    query = Transaction.query.filter_by(user_id=uid)
+    if q:
+        query = query.filter(db.or_(
+            Transaction.description.ilike(f'%{q}%'),
+            Transaction.category.ilike(f'%{q}%'),
+        ))
+    if category:
+        query = query.filter(Transaction.category == category)
+    if tx_type:
+        query = query.filter(Transaction.type == tx_type)
+    if date_from:
+        query = query.filter(Transaction.date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.date <= date_to)
+    if amount_min is not None:
+        query = query.filter(Transaction.amount >= amount_min)
+    if amount_max is not None:
+        query = query.filter(Transaction.amount <= amount_max)
+
+    txs = query.order_by(Transaction.date.desc(), Transaction.id.desc()).limit(200).all()
+    return jsonify([{
+        'id': tx.id, 'date': tx.date, 'type': tx.type, 'category': tx.category,
+        'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
+        'has_receipt': bool(getattr(tx, 'has_receipt', False)),
+    } for tx in txs])
+
+# ─── 영수증 첨부 ──────────────────────────────────────────────────────────────
+@app.route('/api/transactions/<int:tid>/receipt', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_receipt(tid):
+    uid = session['user_id']
+    tx = Transaction.query.filter_by(id=tid, user_id=uid).first_or_404()
+    path = os.path.join(RECEIPTS_DIR, f'{uid}_{tid}.jpg')
+
+    if request.method == 'GET':
+        if not os.path.exists(path):
+            abort(404)
+        return send_file(path, mimetype='image/jpeg')
+
+    if request.method == 'POST':
+        file = request.files.get('receipt')
+        if not file:
+            return jsonify({'error': 'no file'}), 400
+        try:
+            if _PIL_OK:
+                img = PILImage.open(file).convert('RGB')
+                img.thumbnail((1200, 1600), PILImage.LANCZOS)
+                img.save(path, 'JPEG', quality=80, optimize=True)
+            else:
+                file.save(path)
+            tx.has_receipt = True
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    if request.method == 'DELETE':
+        if os.path.exists(path):
+            os.remove(path)
+        tx.has_receipt = False
+        db.session.commit()
+        return jsonify({'ok': True})
+
+# ─── 데이터 백업/복원 ─────────────────────────────────────────────────────────
+@app.route('/api/backup')
+@login_required
+def api_backup():
+    uid = session['user_id']
+    txs = Transaction.query.filter_by(user_id=uid).all()
+    cats = Category.query.filter_by(user_id=uid).all()
+    cards = Card.query.filter_by(user_id=uid).all()
+    savings_list = Savings.query.filter_by(user_id=uid).all()
+    investments = Investment.query.filter_by(user_id=uid).all()
+    routines = Routine.query.filter_by(user_id=uid).all()
+    routine_items = RoutineItem.query.filter_by(user_id=uid).all()
+    allocs = BudgetAllocation.query.filter_by(user_id=uid).all()
+    fixed = FixedExpense.query.filter_by(user_id=uid).all()
+    salary_cfg = SalaryConfig.query.filter_by(user_id=uid).first()
+    budgets = Budget.query.filter_by(user_id=uid).all()
+
+    data = {
+        'version': 2,
+        'exported_at': datetime.now(timezone.utc).isoformat(),
+        'transactions': [{'date': t.date, 'type': t.type, 'category': t.category,
+                          'description': t.description, 'amount': t.amount, 'card': t.card or '',
+                          'exclude_perf': bool(t.exclude_perf), 'exclude_stats': bool(t.exclude_stats),
+                          'time': t.time or ''} for t in txs],
+        'categories': [{'name': c.name, 'icon': c.icon, 'cat_type': c.cat_type, 'position': c.position,
+                        'exclude_perf': bool(c.exclude_perf), 'exclude_stats': bool(c.exclude_stats)} for c in cats],
+        'cards': [{'name': c.name, 'monthly_target': c.monthly_target, 'account_balance': c.account_balance or 0,
+                   'tier1': c.tier1, 'tier2': c.tier2, 'tier3': c.tier3} for c in cards],
+        'savings': [{'stype': s.stype, 'bank': s.bank, 'name': s.name, 'amount': s.amount,
+                     'interest_rate': s.interest_rate, 'interest_type': s.interest_type,
+                     'tax_type': s.tax_type, 'start_date': s.start_date, 'end_date': s.end_date} for s in savings_list],
+        'investments': [{'itype': i.itype, 'name': i.name, 'ticker': i.ticker or '',
+                         'quantity': i.quantity, 'avg_price': i.avg_price,
+                         'account_type': i.account_type, 'memo': i.memo or ''} for i in investments],
+        'routines': [{'name': r.name, 'icon': r.icon or '', 'card': r.card or '',
+                      'items': [{'category': ri.category, 'cat_type': ri.cat_type} for ri in routine_items if ri.routine_id == r.id]}
+                     for r in routines],
+        'budget_allocations': [{'category_name': a.category_name, 'percent': a.percent,
+                                 'monthly_limit': a.monthly_limit} for a in allocs],
+        'fixed_expenses': [{'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month,
+                             'category': f.category or '', 'auto_register': bool(f.auto_register),
+                             'auto_silent': bool(getattr(f, 'auto_silent', False)),
+                             'tx_type': f.tx_type or 'expense', 'tx_card': f.tx_card or ''} for f in fixed],
+        'salary': {'amount': salary_cfg.amount if salary_cfg else 0,
+                   'pay_day': salary_cfg.pay_day if salary_cfg else None},
+        'budgets': [{'month': b.month, 'amount': b.amount} for b in budgets],
+    }
+    resp = jsonify(data)
+    resp.headers['Content-Disposition'] = f'attachment; filename=gaegyebu_backup_{datetime.now().strftime("%Y%m%d")}.json'
+    return resp
+
+@app.route('/api/restore', methods=['POST'])
+@login_required
+def api_restore():
+    uid = session['user_id']
+    data = request.json or {}
+    if data.get('version') not in (1, 2):
+        return jsonify({'error': 'unsupported version'}), 400
+
+    Transaction.query.filter_by(user_id=uid).delete()
+    Category.query.filter_by(user_id=uid).delete()
+    Card.query.filter_by(user_id=uid).delete()
+    Savings.query.filter_by(user_id=uid).delete()
+    Investment.query.filter_by(user_id=uid).delete()
+    RoutineItem.query.filter_by(user_id=uid).delete()
+    Routine.query.filter_by(user_id=uid).delete()
+    BudgetAllocation.query.filter_by(user_id=uid).delete()
+    FixedExpense.query.filter_by(user_id=uid).delete()
+    SalaryConfig.query.filter_by(user_id=uid).delete()
+    Budget.query.filter_by(user_id=uid).delete()
+
+    for t in data.get('transactions', []):
+        db.session.add(Transaction(user_id=uid, date=t['date'], type=t['type'], category=t['category'],
+                                   description=t.get('description', ''), amount=t['amount'],
+                                   card=t.get('card', ''), exclude_perf=t.get('exclude_perf', False),
+                                   exclude_stats=t.get('exclude_stats', False), time=t.get('time', '')))
+    for c in data.get('categories', []):
+        db.session.add(Category(user_id=uid, name=c['name'], icon=c.get('icon', ''),
+                                cat_type=c.get('cat_type', 'expense'), position=c.get('position', 0),
+                                exclude_perf=c.get('exclude_perf', False), exclude_stats=c.get('exclude_stats', False)))
+    for c in data.get('cards', []):
+        db.session.add(Card(user_id=uid, name=c['name'], monthly_target=c.get('monthly_target', 0),
+                            account_balance=c.get('account_balance', 0),
+                            tier1=c.get('tier1', 20), tier2=c.get('tier2', 50), tier3=c.get('tier3', 80)))
+    for s in data.get('savings', []):
+        db.session.add(Savings(user_id=uid, stype=s.get('stype', '예금'), bank=s.get('bank', ''),
+                               name=s['name'], amount=s['amount'], interest_rate=s.get('interest_rate', 0),
+                               interest_type=s.get('interest_type', '단리'), tax_type=s.get('tax_type', '일반과세'),
+                               start_date=s['start_date'], end_date=s['end_date']))
+    for i in data.get('investments', []):
+        db.session.add(Investment(user_id=uid, itype=i.get('itype', '국내주식'), name=i['name'],
+                                  ticker=i.get('ticker', ''), quantity=i.get('quantity', 0),
+                                  avg_price=i.get('avg_price', 0), account_type=i.get('account_type', '일반'),
+                                  memo=i.get('memo', '')))
+    for r in data.get('routines', []):
+        ro = Routine(user_id=uid, name=r['name'], icon=r.get('icon', ''), card=r.get('card', ''))
+        db.session.add(ro)
+        db.session.flush()
+        for it in r.get('items', []):
+            db.session.add(RoutineItem(routine_id=ro.id, user_id=uid,
+                                       category=it['category'], cat_type=it.get('cat_type', 'expense')))
+    for a in data.get('budget_allocations', []):
+        db.session.add(BudgetAllocation(user_id=uid, category_name=a['category_name'],
+                                        percent=a.get('percent', 0), monthly_limit=a.get('monthly_limit')))
+    for f in data.get('fixed_expenses', []):
+        db.session.add(FixedExpense(user_id=uid, name=f['name'], amount=f['amount'],
+                                    day_of_month=f.get('day_of_month'), category=f.get('category', ''),
+                                    auto_register=f.get('auto_register', False),
+                                    auto_silent=f.get('auto_silent', False),
+                                    tx_type=f.get('tx_type', 'expense'), tx_card=f.get('tx_card', '')))
+    sal = data.get('salary', {})
+    if sal.get('amount'):
+        db.session.add(SalaryConfig(user_id=uid, amount=sal['amount'], pay_day=sal.get('pay_day')))
+    for b in data.get('budgets', []):
+        db.session.add(Budget(user_id=uid, month=b['month'], amount=b['amount']))
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+# ─── 카테고리별 예산 한도 저장 ────────────────────────────────────────────────
+@app.route('/api/salary/allocations/limits', methods=['POST'])
+@login_required
+def api_budget_limits():
+    uid = session['user_id']
+    data = request.json or {}
+    for cat_name, limit in data.items():
+        alloc = BudgetAllocation.query.filter_by(user_id=uid, category_name=cat_name).first()
+        if alloc:
+            alloc.monthly_limit = int(limit) if limit else None
+        else:
+            db.session.add(BudgetAllocation(user_id=uid, category_name=cat_name,
+                                            percent=0, monthly_limit=int(limit) if limit else None))
+    db.session.commit()
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     app.run(debug=True)
