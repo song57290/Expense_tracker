@@ -97,13 +97,15 @@ export default function Layout({ user, onLogout }) {
     }
   }, [location.pathname, navigate])
 
+  const isSubPage = location.pathname === '/routines' || location.pathname === '/categories' || location.pathname.startsWith('/edit/') || location.pathname === '/search'
+
   return (
     <>
       <div className="top-fade d-lg-none" style={{ opacity: topFade ? 1 : 0 }} />
       <div className="bot-fade d-lg-none" style={{ opacity: botFade ? 1 : 0 }} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={onLogout} />
       <div ref={pageRef} className="page-wrap">
-        <Navbar onMenuClick={() => setSidebarOpen(true)} nickname={user?.nickname} />
+        {!isSubPage && <Navbar onMenuClick={() => setSidebarOpen(true)} nickname={user?.nickname} />}
         {dragX !== 0 && (
           <div style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', opacity: Math.min(Math.abs(dragX) / window.innerWidth * 0.28, 0.2) }} />
         )}

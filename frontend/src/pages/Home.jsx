@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import api from '../api.js'
 import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
+
+const WidgetData = registerPlugin('WidgetData')
 import TxItem from '../components/TxItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
@@ -49,6 +52,9 @@ export default function Home() {
   const [txOpen, setTxOpen] = useState(true)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState('text')
+  const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
+  const receiptInputRef = useRef(null)
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
   const [cardFilter, setCardFilter] = useState('all')
   const [cardSheet, setCardSheet] = useState(null) // card name
@@ -77,7 +83,18 @@ export default function Home() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
-  const load = useCallback(() => api.get('/api/home').then(setData).catch(console.error), [])
+  const load = useCallback(() => api.get('/api/home').then(d => {
+    setData(d)
+    if (Capacitor.isNativePlatform()) {
+      const now = new Date()
+      const month = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
+      const updated = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} 업데이트`
+      const income = (d.income_total ?? 0).toLocaleString()
+      const expense = (d.expense_total ?? 0).toLocaleString()
+      const balance = ((d.income_total ?? 0) - (d.expense_total ?? 0)).toLocaleString()
+      WidgetData.update({ income, expense, balance, month, updated }).catch(e => console.error('[Widget] update failed:', e))
+    }
+  }).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
 
@@ -151,7 +168,15 @@ export default function Home() {
     setCardError(false)
     const payload = { ...form, amount: amt }
     if (isTransfer && transferFrom) payload.card = transferFrom
-    await api.post('/api/transactions', payload)
+    const res = await api.post('/api/transactions', payload)
+    if (pendingReceiptFile && res?.id) {
+      const fd = new FormData()
+      fd.append('receipt', pendingReceiptFile)
+      await fetch(`/api/transactions/${res.id}/receipt`, { method: 'POST', credentials: 'same-origin', body: fd }).catch(() => {})
+      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
+      setPendingReceiptFile(null)
+      setReceiptPreviewUrl(null)
+    }
     setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAmountDisplay('')
     setTransferFrom('')
@@ -236,7 +261,9 @@ export default function Home() {
         await api.post('/api/transactions', {
           date: routineSheetDate, type: item.cat_type, category: item.category,
           description: item.description, amount: item.amount,
-          card: routineSheetCard, exclude_perf: false, exclude_stats: false,
+          card: routineSheetCard,
+          exclude_perf: !!item.exclude_card_perf,
+          exclude_stats: !!item.exclude_stats,
         })
       }
       closeRoutineSheet()
@@ -380,7 +407,7 @@ export default function Home() {
               {data.routines.map(r => (
                 <button key={r.id} type="button" onClick={() => openRoutineSheet(r)}
                   style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.78rem', border: '1.5px solid rgba(176,136,249,0.35)', background: 'var(--bg-accent)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  {data.emoji_map[r.category] || '📦'} {r.name}
+                  {r.icon || '📦'} {r.name}
                 </button>
               ))}
             </div>
@@ -420,6 +447,20 @@ export default function Home() {
                     onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ paddingRight: 36 }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
+                {(() => {
+                  if (form.type !== 'expense' || !form.category || !data.budget_limits) return null
+                  const limit = data.budget_limits[form.category]
+                  if (!limit) return null
+                  const monthSpent = (data.category_totals || {})[form.category] || 0
+                  const ratio = monthSpent / limit
+                  if (ratio < 0.8) return null
+                  const isOver = ratio >= 1
+                  return (
+                    <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 7, background: isOver ? 'rgba(255,59,48,0.1)' : 'rgba(255,159,10,0.1)', fontSize: '0.72rem', fontWeight: 600, color: isOver ? '#dc3545' : '#c07a00' }}>
+                      {isOver ? '⚠ 한도 초과' : '⚠ 한도 근접'} ({Math.round(ratio * 100)}%)
+                    </div>
+                  )
+                })()}
               </div>
               <div className="col-12 col-lg-2">
                 {form.category === '계좌 이체' ? (
@@ -480,13 +521,14 @@ export default function Home() {
                 </div>
               </div>
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
-                <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem' }} onClick={() => setImportOpen(true)}>
+                <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
+                  {pendingReceiptFile && <span style={{ background: '#b088f9', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: '0.7rem', fontWeight: 700 }}>영수증 ✓</span>}
                 </button>
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn"
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false })) }}>취소</button>
+                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false })) }}>취소</button>
                 </div>
               </div>
             </form>
@@ -591,10 +633,18 @@ export default function Home() {
               )}
               {(routineSheet.items || []).map((item, i) => {
                 const icon = data.emoji_map[item.category] || '📦'
+                const hasAmount = !!(routineSheetAmounts[i]?.amount)
                 return (
-                  <div key={i} style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 14px', marginBottom: 10 }}>
-                    <div style={{ fontSize: '0.84rem', fontWeight: 600, marginBottom: 8, color: item.cat_type === 'income' ? '#34c759' : 'var(--text-primary)' }}>
-                      {icon} {item.category}
+                  <div key={i} style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 14px', marginBottom: 10, opacity: hasAmount ? 1 : 0.55 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 600, color: item.cat_type === 'income' ? '#34c759' : 'var(--text-primary)' }}>
+                        {icon} {item.category}
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                        background: hasAmount ? 'rgba(52,199,89,0.15)' : 'rgba(0,0,0,0.08)',
+                        color: hasAmount ? '#34c759' : 'var(--text-muted)' }}>
+                        {hasAmount ? '✓ 저장' : '건너뜀'}
+                      </span>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <div style={{ position: 'relative', flex: 1 }}>
@@ -705,11 +755,11 @@ export default function Home() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header p-3">
               <h5 className="modal-title mb-0">내역 가져오기</h5>
-              <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text'); setImportFileName('') }} />
+              <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text') }} />
             </div>
             <div className="p-3">
               <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-accent)', borderRadius: 12, padding: 4 }}>
-                {[['text', '💬 문자 붙여넣기'], ['excel', '📊 엑셀']].map(([t, label]) => (
+                {[['text', '💬 문자'], ['excel', '📊 엑셀'], ['receipt', '🧾 영수증']].map(([t, label]) => (
                   <button key={t} type="button" onClick={() => setImportTab(t)}
                     style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
                       background: importTab === t ? 'var(--bg-card)' : 'transparent',
@@ -744,6 +794,43 @@ export default function Home() {
                     <button type="button" className="btn btn-outline-secondary" onClick={() => setImportOpen(false)}>취소</button>
                   </div>
                 </form>
+              )}
+              {importTab === 'receipt' && (
+                <div>
+                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>영수증 이미지를 첨부하세요. 내역 저장 시 함께 등록됩니다.</p>
+                  <input type="file" accept="image/*" ref={receiptInputRef} style={{ display: 'none' }} onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) {
+                      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
+                      setPendingReceiptFile(f)
+                      setReceiptPreviewUrl(URL.createObjectURL(f))
+                    }
+                    e.target.value = ''
+                  }} />
+                  {receiptPreviewUrl ? (
+                    <div style={{ marginBottom: 14, position: 'relative', display: 'inline-block', width: '100%' }}>
+                      <img src={receiptPreviewUrl} alt="영수증 미리보기"
+                        style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 12, border: '1.5px solid var(--border-light)', display: 'block', background: 'var(--bg-accent)' }} />
+                      <button type="button" onClick={() => { URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null) }}
+                        style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 28, height: 28, color: 'white', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px 0 20px' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: 6 }}>📷</div>
+                      <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>이미지를 선택해 주세요</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
+                    <button type="button" onClick={() => receiptInputRef.current?.click()}
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1.5px dashed var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                      {pendingReceiptFile ? '다른 이미지 선택' : '이미지 선택'}
+                    </button>
+                    <button type="button" onClick={() => { setImportOpen(false); setImportTab('text') }}
+                      style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                      확인
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

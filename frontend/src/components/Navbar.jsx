@@ -15,6 +15,13 @@ export default function Navbar({ onMenuClick, nickname }) {
         </div>
         <div className="d-flex align-items-center gap-3">
           <button
+            className="nav-icon-btn nav-icon-btn-sm"
+            onClick={() => navigate('/search')}
+            style={{ color: 'rgba(255,255,255,0.85)' }}
+          >
+            <i className="bi bi-search" />
+          </button>
+          <button
             className="nav-icon-btn nav-icon-btn-sm d-lg-none"
             onClick={() => window.openNotifySheet && window.openNotifySheet()}
           >

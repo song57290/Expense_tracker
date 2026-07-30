@@ -29,6 +29,7 @@ class Transaction(db.Model):
     exclude_perf = db.Column(db.Boolean, nullable=False, default=False)
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     time = db.Column(db.String(5), nullable=True)
+    has_receipt = db.Column(db.Boolean, nullable=False, default=False)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -97,6 +98,7 @@ class BudgetAllocation(db.Model):
     user_id = db.Column(db.Integer, nullable=False)
     category_name = db.Column(db.String(50), nullable=False)
     percent = db.Column(db.Float, nullable=False, default=0)
+    monthly_limit = db.Column(db.Integer, nullable=True)
 
 class FixedExpense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -106,6 +108,7 @@ class FixedExpense(db.Model):
     day_of_month = db.Column(db.Integer, nullable=True)
     category = db.Column(db.String(50), nullable=True, default='')
     auto_register = db.Column(db.Boolean, nullable=False, default=False)
+    auto_silent = db.Column(db.Boolean, nullable=False, default=False)
     tx_type = db.Column(db.String(20), nullable=False, default='expense')
     tx_card = db.Column(db.String(50), nullable=True, default='')
 
@@ -155,6 +158,7 @@ class Routine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
     name = db.Column(db.String(50), nullable=False)
+    icon = db.Column(db.String(10), nullable=True, default='')
     card = db.Column(db.String(50), nullable=True, default='')
     position = db.Column(db.Integer, nullable=False, default=0)
 
@@ -164,4 +168,6 @@ class RoutineItem(db.Model):
     user_id = db.Column(db.Integer, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     cat_type = db.Column(db.String(10), nullable=False, default='expense')
+    exclude_card_perf = db.Column(db.Boolean, nullable=False, default=False)
+    exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)

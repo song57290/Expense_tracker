@@ -74,6 +74,8 @@ export default function Stats() {
   const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
   const [barMode, setBarMode] = useState('expense')
   const [bdOpen, setBdOpen] = useState({})
+  const [cmpSelected, setCmpSelected] = useState(null)
+  const [cmpFilterOpen, setCmpFilterOpen] = useState(false)
 
   useEffect(() => {
     document.body.classList.toggle('sheet-open', assetDetail)
@@ -388,10 +390,10 @@ export default function Stats() {
           {barOpen && (
             <div>
               {barMode === 'expense' && (
-                <select className="form-select form-select-sm mt-2" value={cardFilter}
+                <select value={cardFilter}
                   onChange={e => setCardFilter(e.target.value)}
-                  style={{ maxWidth: 200, borderRadius: 10 }}
-                  onClick={e => e.stopPropagation()}>
+                  onClick={e => e.stopPropagation()}
+                  style={{ marginTop: 8, maxWidth: 200, width: '100%', padding: '6px 32px 6px 10px', borderRadius: 10, border: `1.5px solid ${cardFilter !== '__all__' ? '#b088f9' : 'var(--border-input)'}`, fontSize: '0.85rem', background: 'var(--input-bg)', color: cardFilter !== '__all__' ? '#b088f9' : 'var(--text-primary)', fontWeight: cardFilter !== '__all__' ? 600 : 400, outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b088f9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', boxSizing: 'border-box' }}>
                   <option value="__all__">전체 총합</option>
                   {(data.card_list || []).map(name => <option key={name} value={name}>{name}</option>)}
                 </select>
@@ -820,6 +822,100 @@ export default function Stats() {
           })()}
         </div>
       </div>
+
+      {/* 전월 대비 카테고리 비교 */}
+      {(data.category_compare || []).length > 0 && (() => {
+        const allItems = data.category_compare || []
+        const selected = cmpSelected ?? new Set(allItems.map(x => x.name))
+        const filtered = allItems.filter(x => selected.has(x.name))
+        const maxVal = Math.max(...filtered.map(x => Math.max(x.previous, x.current)), 1)
+        return (
+          <div className="card mb-4">
+            <div className="card-body">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h5 className="card-title mb-0">전월 대비 카테고리</h5>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {cmpSelected !== null && (
+                    <button onClick={() => setCmpSelected(null)}
+                      style={{ background: 'none', border: 'none', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
+                      초기화
+                    </button>
+                  )}
+                  <button onClick={() => setCmpFilterOpen(o => !o)}
+                    style={{ padding: '4px 10px', borderRadius: 20,
+                      border: `1.5px solid ${(cmpFilterOpen || cmpSelected !== null) ? '#b088f9' : 'var(--border-light)'}`,
+                      background: (cmpFilterOpen || cmpSelected !== null) ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)',
+                      color: (cmpFilterOpen || cmpSelected !== null) ? '#b088f9' : 'var(--text-muted)',
+                      fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                    필터 {cmpSelected !== null ? `(${selected.size})` : ''} <span style={{ fontSize: '0.6rem' }}>{cmpFilterOpen ? '▲' : '▼'}</span>
+                  </button>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                {data.prev_month ? `${parseInt(data.prev_month.slice(5))}월 → ${parseInt(month.slice(5))}월 지출 변화` : ''}
+              </div>
+              {/* 필터 토글 */}
+              {cmpFilterOpen && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: '10px 12px', background: 'var(--bg-accent)', borderRadius: 12 }}>
+                  {allItems.map(item => {
+                    const on = selected.has(item.name)
+                    return (
+                      <button key={item.name} onClick={() => {
+                        const next = new Set(selected)
+                        if (on) { next.delete(item.name) } else { next.add(item.name) }
+                        setCmpSelected(next.size === allItems.length ? null : next)
+                      }}
+                        style={{ padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`,
+                          background: on ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)',
+                          color: on ? '#b088f9' : 'var(--text-muted)', fontSize: '0.78rem', fontWeight: on ? 700 : 400, cursor: 'pointer' }}>
+                        {item.icon} {item.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {filtered.map(item => {
+                  const diff = item.diff
+                  const absDiff = Math.abs(diff)
+                  const isUp = diff > 0
+                  return (
+                    <div key={item.name}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{item.icon} {item.name}</span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759' }}>
+                          {isUp ? '▲' : '▼'} {fmt(absDiff)}원
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 36, fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>전월</span>
+                          <div style={{ flex: 1, height: 8, background: 'var(--bg-section)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ width: `${(item.previous / maxVal * 100).toFixed(1)}%`, height: '100%', background: 'rgba(176,136,249,0.45)', borderRadius: 4, transition: 'width 0.3s' }} />
+                          </div>
+                          <span style={{ width: 64, fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>{fmt(item.previous)}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 36, fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>이번</span>
+                          <div style={{ flex: 1, height: 8, background: 'var(--bg-section)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ width: `${(item.current / maxVal * 100).toFixed(1)}%`, height: '100%', background: isUp ? 'rgba(255,59,48,0.55)' : 'rgba(52,199,89,0.55)', borderRadius: 4, transition: 'width 0.3s' }} />
+                          </div>
+                          <span style={{ width: 64, fontSize: '0.72rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759', textAlign: 'right', flexShrink: 0 }}>{fmt(item.current)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                {filtered.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    카테고리를 선택해 주세요
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <div className="d-lg-none" style={{ height: 90 }} />
     </div>

@@ -121,8 +121,8 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
             {assetType === 'card' && cards.filter(c => !c.linked_account_id && !c.is_loan).length > 0 && (
               <div className="mb-2">
                 <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>연결 계좌 (선택)</p>
-                <select className="form-select" style={{ borderRadius: 10, fontSize: '0.9rem' }}
-                  value={linkedAccountId} onChange={e => setLinkedAccountId(e.target.value)}>
+                <select value={linkedAccountId} onChange={e => setLinkedAccountId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${linkedAccountId ? '#b088f9' : 'var(--border-input)'}`, fontSize: '0.9rem', background: 'var(--input-bg)', color: linkedAccountId ? '#b088f9' : 'var(--text-primary)', fontWeight: linkedAccountId ? 600 : 400, outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b088f9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 36, boxSizing: 'border-box' }}>
                   <option value="">독립 계좌 (연결 없음)</option>
                   {cards.filter(c => !c.linked_account_id && !c.is_loan).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
