@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:text="이번 달 잔액"
                 android:textColor="#BBFFFFFF"
-                android:textSize="10sp" />
+                android:textSize="12sp" />
 
             <TextView
                 android:id="@+id/compact_balance"
@@ -94,7 +94,7 @@
                 android:layout_height="wrap_content"
                 android:text="↑  수입"
                 android:textColor="#FF67DF88"
-                android:textSize="10sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -103,7 +103,7 @@
                 android:layout_height="wrap_content"
                 android:text="316,817원"
                 android:textColor="#FFFFFFFF"
-                android:textSize="12sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:layout_marginTop="3dp" />
 
@@ -128,7 +128,7 @@
                 android:layout_height="wrap_content"
                 android:text="↓  지출"
                 android:textColor="#FFFF8585"
-                android:textSize="10sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -137,7 +137,7 @@
                 android:layout_height="wrap_content"
                 android:text="1,088,580원"
                 android:textColor="#FFFFFFFF"
-                android:textSize="12sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:layout_marginTop="3dp" />
 

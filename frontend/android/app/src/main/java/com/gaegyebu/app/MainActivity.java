@@ -2,6 +2,7 @@ package com.gaegyebu.app;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
@@ -13,6 +14,19 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WidgetDataPlugin.class);
         super.onCreate(savedInstanceState);
         createNotificationChannel();
+        refreshWidgets();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refreshWidgets();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        refreshWidgets();
     }
 
     private void createNotificationChannel() {
@@ -28,5 +42,12 @@ public class MainActivity extends BridgeActivity {
             NotificationManager manager = getSystemService(NotificationManager.class);
             manager.createNotificationChannel(channel);
         }
+    }
+
+    private void refreshWidgets() {
+        CompactWidget.updateAll(this);
+        BudgetWidget.updateAll(this);
+        DashboardWidget.updateAll(this);
+        TodayWidget.updateAll(this);
     }
 }
