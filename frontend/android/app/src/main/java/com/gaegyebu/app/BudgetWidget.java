@@ -34,10 +34,19 @@ public class BudgetWidget extends AppWidgetProvider {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_budget);
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
-            String shape = WidgetTheme.getShape(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
-            WidgetTheme.applyBg(views, R.id.widget_budget_root, theme, shape, context);
-            views.setTextColor(R.id.budget_month, WidgetTheme.primary(dark));
+
+            WidgetTheme.applyBg(
+                    views,
+                    R.id.widget_budget_root,
+                    theme,
+                    context
+            );
+
+            views.setTextColor(
+                    R.id.budget_month,
+                    WidgetTheme.primary(dark)
+            );
 
             views.setTextViewText(R.id.budget_month, month);
 
@@ -102,7 +111,8 @@ public class BudgetWidget extends AppWidgetProvider {
         Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
         track.setStyle(Paint.Style.STROKE);
         track.setStrokeWidth(stroke);
-        track.setColor(dark ? 0x33FFFFFF : 0x22000000);
+        // The light-theme track needs enough contrast to remain visible on white.
+        track.setColor(dark ? 0x33FFFFFF : 0x55000000);
         canvas.drawArc(oval, 0, 360, false, track);
 
         // 프로그레스 아크 (12시 방향에서 시작)

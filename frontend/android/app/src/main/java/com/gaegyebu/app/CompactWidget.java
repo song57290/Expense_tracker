@@ -41,12 +41,13 @@ public class CompactWidget extends AppWidgetProvider {
 
             // 테마 적용
             String theme = WidgetTheme.getTheme(prefs, appWidgetId);
-            String shape = WidgetTheme.getShape(prefs, appWidgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
-            WidgetTheme.applyBg(views, R.id.widget_compact_root, theme, shape, context);
+            WidgetTheme.applyBg(views, R.id.widget_compact_root, theme, context);
             views.setTextColor(R.id.compact_month,   WidgetTheme.primary(dark));
             views.setTextColor(R.id.compact_updated, WidgetTheme.hint(dark));
             views.setTextColor(R.id.compact_balance, WidgetTheme.primary(dark));
+            views.setTextColor(R.id.compact_income,  WidgetTheme.income(dark));
+            views.setTextColor(R.id.compact_expense, WidgetTheme.expense(dark));
 
             // 데이터 표시
             views.setTextViewText(

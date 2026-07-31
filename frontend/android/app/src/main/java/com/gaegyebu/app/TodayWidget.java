@@ -30,9 +30,8 @@ public class TodayWidget extends AppWidgetProvider {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_today);
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
-            String shape = WidgetTheme.getShape(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
-            WidgetTheme.applyBg(views, R.id.widget_today_root, theme, shape, context);
+            WidgetTheme.applyBg(views, R.id.widget_today_root, theme, context);
             views.setTextColor(R.id.today_date,  WidgetTheme.dim(dark));
             views.setTextColor(R.id.today_total, WidgetTheme.expense(dark));
             views.setTextColor(R.id.today_empty, WidgetTheme.hint(dark));
@@ -53,6 +52,8 @@ public class TodayWidget extends AppWidgetProvider {
                     String catName = parts.length > 0 ? parts[0] : "";
                     long   catAmt  = parts.length > 1 ? parseLong(parts[1]) : 0;
                     views.setViewVisibility(rowIds[i], View.VISIBLE);
+                    views.setTextColor(nameIds[i], WidgetTheme.text(dark));
+                    views.setTextColor(amtIds[i], WidgetTheme.expense(dark));
                     views.setTextViewText(nameIds[i], catName);
                     views.setTextViewText(amtIds[i],  fmt(catAmt) + "원");
                 } else {

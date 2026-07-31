@@ -38,9 +38,8 @@ public class DashboardWidget extends AppWidgetProvider {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_dashboard);
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
-            String shape = WidgetTheme.getShape(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
-            WidgetTheme.applyBg(views, R.id.widget_dashboard_root, theme, shape, context);
+            WidgetTheme.applyBg(views, R.id.widget_dashboard_root, theme, context);
             views.setTextColor(R.id.dash_month,   WidgetTheme.primary(dark));
             views.setTextColor(R.id.dash_updated, WidgetTheme.hint(dark));
             views.setTextColor(R.id.dash_income,  WidgetTheme.income(dark));
