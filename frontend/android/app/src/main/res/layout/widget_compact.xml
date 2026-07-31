@@ -57,6 +57,7 @@
             android:gravity="center_vertical">
 
             <TextView
+                android:id="@+id/compact_balance_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="이번 달 잔액"
@@ -90,6 +91,7 @@
             android:background="@drawable/widget_income_bg">
 
             <TextView
+                android:id="@+id/compact_income_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="↑  수입"
@@ -124,6 +126,7 @@
             android:background="@drawable/widget_expense_bg">
 
             <TextView
+                android:id="@+id/compact_expense_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="↓  지출"
