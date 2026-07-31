@@ -92,7 +92,18 @@ export default function Home() {
       const income = (d.income_total ?? 0).toLocaleString()
       const expense = (d.expense_total ?? 0).toLocaleString()
       const balance = ((d.income_total ?? 0) - (d.expense_total ?? 0)).toLocaleString()
-      WidgetData.update({ income, expense, balance, month, updated }).catch(e => console.error('[Widget] update failed:', e))
+      const budget = String(d.budget_amount ?? 0)
+
+      // 오늘 지출 집계
+      const todayStr = now.toISOString().split('T')[0]
+      const todayTxs = (d.transactions || []).filter(tx => tx.date === todayStr && tx.type === 'expense')
+      const todayTotal = String(todayTxs.reduce((s, tx) => s + tx.amount, 0))
+      const todayDate = `${now.getMonth() + 1}월 ${now.getDate()}일`
+      const catMap = {}
+      todayTxs.forEach(tx => { catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount })
+      const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, a]) => `${n}:${a}`).join(',')
+
+      WidgetData.update({ income, expense, balance, month, updated, budget, today_total: todayTotal, today_date: todayDate, today_cats: todayCats }).catch(e => console.error('[Widget] update failed:', e))
     }
   }).catch(console.error), [])
   useEffect(() => { load() }, [load])

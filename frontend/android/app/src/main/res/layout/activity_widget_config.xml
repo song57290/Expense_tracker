@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/config_bg"
+    android:fitsSystemWindows="true">
+
+    <!-- 제목 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="위젯 설정"
+        android:textColor="@color/config_text"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="4dp" />
+
+    <!-- 미리보기: 실제 위젯 레이아웃을 인플레이트해서 표시 -->
+    <FrameLayout
+        android:id="@+id/preview_container"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="14dp" />
+
+    <!-- 배경 색상 섹션 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="배경 색상"
+        android:textColor="@color/config_hint"
+        android:textSize="13sp"
+        android:paddingStart="36dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="6dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_config_section"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:elevation="1dp">
+
+        <LinearLayout android:id="@+id/opt_transparent"
+            android:layout_width="match_parent" android:layout_height="54dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp">
+            <View android:layout_width="22dp" android:layout_height="22dp"
+                android:background="@drawable/bg_swatch_transparent" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:paddingStart="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="투명" android:textColor="@color/config_text" android:textSize="16sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="배경이 비칩니다" android:textColor="@color/config_hint" android:textSize="12sp" />
+            </LinearLayout>
+            <TextView android:id="@+id/check_transparent"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#7C4DFF" android:textSize="18sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="0.5dp"
+            android:background="@color/config_divider" android:layout_marginStart="52dp" />
+
+        <LinearLayout android:id="@+id/opt_system"
+            android:layout_width="match_parent" android:layout_height="54dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp">
+            <View android:layout_width="22dp" android:layout_height="22dp"
+                android:background="@drawable/bg_swatch_system" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:paddingStart="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="시스템" android:textColor="@color/config_text" android:textSize="16sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="다크 / 라이트 자동 전환" android:textColor="@color/config_hint" android:textSize="12sp" />
+            </LinearLayout>
+            <TextView android:id="@+id/check_system"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#7C4DFF" android:textSize="18sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="0.5dp"
+            android:background="@color/config_divider" android:layout_marginStart="52dp" />
+
+        <LinearLayout android:id="@+id/opt_white"
+            android:layout_width="match_parent" android:layout_height="54dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp">
+            <View android:layout_width="22dp" android:layout_height="22dp"
+                android:background="@drawable/bg_swatch_white" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:paddingStart="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="흰색" android:textColor="@color/config_text" android:textSize="16sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="밝은 배경" android:textColor="@color/config_hint" android:textSize="12sp" />
+            </LinearLayout>
+            <TextView android:id="@+id/check_white"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#7C4DFF" android:textSize="18sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="0.5dp"
+            android:background="@color/config_divider" android:layout_marginStart="52dp" />
+
+        <LinearLayout android:id="@+id/opt_black"
+            android:layout_width="match_parent" android:layout_height="54dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp">
+            <View android:layout_width="22dp" android:layout_height="22dp"
+                android:background="@drawable/bg_swatch_black" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:paddingStart="14dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="검정" android:textColor="@color/config_text" android:textSize="16sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="어두운 배경" android:textColor="@color/config_hint" android:textSize="12sp" />
+            </LinearLayout>
+            <TextView android:id="@+id/check_black"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#7C4DFF" android:textSize="18sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 모양 섹션 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="모양"
+        android:textColor="@color/config_hint"
+        android:textSize="13sp"
+        android:paddingStart="36dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="6dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_config_section"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:padding="16dp"
+        android:elevation="1dp">
+
+        <LinearLayout android:id="@+id/opt_shape_r24"
+            android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1"
+            android:layout_marginEnd="6dp" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/bg_shape_r24">
+            <TextView android:id="@+id/check_shape_r24"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#FFFFFF" android:textSize="16sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/opt_shape_r14"
+            android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1"
+            android:layout_marginStart="6dp" android:layout_marginEnd="6dp"
+            android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/bg_shape_r14">
+            <TextView android:id="@+id/check_shape_r14"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#FFFFFF" android:textSize="16sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/opt_shape_r6"
+            android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1"
+            android:layout_marginStart="6dp" android:layout_marginEnd="6dp"
+            android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/bg_shape_r6">
+            <TextView android:id="@+id/check_shape_r6"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#FFFFFF" android:textSize="16sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/opt_shape_r0"
+            android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1"
+            android:layout_marginStart="6dp" android:orientation="vertical" android:gravity="center"
+            android:background="@drawable/bg_shape_r0">
+            <TextView android:id="@+id/check_shape_r0"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="✓" android:textColor="#FFFFFF" android:textSize="16sp"
+                android:textStyle="bold" android:visibility="gone" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
+
+        <TextView android:id="@+id/btn_save"
+            android:layout_width="0dp" android:layout_height="48dp"
+            android:layout_weight="1" android:layout_marginEnd="8dp"
+            android:text="저장" android:textColor="#FFFFFF" android:textSize="16sp"
+            android:textStyle="bold" android:gravity="center"
+            android:background="@drawable/bg_config_btn_save" />
+
+        <TextView android:id="@+id/btn_cancel"
+            android:layout_width="0dp" android:layout_height="48dp"
+            android:layout_weight="1" android:layout_marginStart="8dp"
+            android:text="취소" android:textColor="@color/config_cancel" android:textSize="16sp"
+            android:gravity="center" android:background="@drawable/bg_config_btn_cancel" />
+
+    </LinearLayout>
+
+</LinearLayout>

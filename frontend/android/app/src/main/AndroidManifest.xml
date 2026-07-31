@@ -30,24 +30,89 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
+
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"></meta-data>
+                android:resource="@xml/file_paths" />
+
         </provider>
 
-        <receiver
-            android:name=".HomeWidget"
+        <!-- 위젯 배경 설정 화면 -->
+        <activity
+            android:name=".WidgetConfigActivity"
             android:exported="true"
-            android:label="@string/widget_label">
+            android:theme="@style/AppTheme.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- 3x1 간편 위젯 -->
+        <receiver
+            android:name=".CompactWidget"
+            android:exported="true"
+            android:label="가계부 간편">
+
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
+
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_info" />
+                android:resource="@xml/widget_compact_info" />
+
+        </receiver>
+
+        <!-- 2x2 예산 링 위젯 -->
+        <receiver
+            android:name=".BudgetWidget"
+            android:exported="true"
+            android:label="가계부 예산">
+
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_budget_info" />
+
+        </receiver>
+
+        <!-- 4x2 대시보드 위젯 -->
+        <receiver
+            android:name=".DashboardWidget"
+            android:exported="true"
+            android:label="가계부 대시보드">
+
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_dashboard_info" />
+
+        </receiver>
+
+        <!-- 3x2 오늘 지출 위젯 -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="true"
+            android:label="가계부 오늘">
+
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+
         </receiver>
 
     </application>
+
 
     <!-- Permissions -->
 
@@ -55,4 +120,5 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
 </manifest>
