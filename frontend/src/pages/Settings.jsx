@@ -485,10 +485,6 @@ export default function Settings() {
   const [helpItem, setHelpItem] = useState(null)
   const [securityOpen, setSecurityOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
-  const [backupLoading, setBackupLoading] = useState(false)
-  const [restoreLoading, setRestoreLoading] = useState(false)
-  const [restoreMsg, setRestoreMsg] = useState('')
-  const restoreFileRef = useRef(null)
 
   function applyTheme(t) {
     setTheme(t)
@@ -521,59 +517,6 @@ export default function Settings() {
     }
   }
 
-  async function downloadBackup() {
-    setBackupLoading(true)
-    try {
-      const res = await fetch('/api/backup', { credentials: 'same-origin' })
-      if (!res.ok) throw new Error('server')
-      const json = await res.json()
-      const jsonStr = JSON.stringify(json, null, 2)
-      const date = new Date().toISOString().slice(0, 10)
-      const filename = `gaegyebu_backup_${date}.json`
-      const blob = new Blob([jsonStr], { type: 'application/json' })
-      const file = new File([blob], filename, { type: 'application/json' })
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: '가계부 백업' })
-      } else {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url; a.download = filename
-        document.body.appendChild(a); a.click()
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 1000)
-      }
-    } catch (e) {
-      if (e?.name !== 'AbortError') alert('백업 다운로드에 실패했습니다')
-    } finally {
-      setBackupLoading(false)
-    }
-  }
-
-  async function handleRestoreFile(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!window.confirm(`백업 파일로 복원하면 현재 데이터가 모두 교체됩니다.\n계속 하시겠습니까?`)) {
-      e.target.value = ''; return
-    }
-    setRestoreLoading(true)
-    setRestoreMsg('')
-    try {
-      const text = await file.text()
-      const json = JSON.parse(text)
-      const res = await fetch('/api/restore', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(json),
-      })
-      const d = await res.json()
-      if (d.ok) setRestoreMsg(`✓ 복원 완료 — 거래 ${d.transactions}건, 카테고리 ${d.categories}개, 카드 ${d.cards}개`)
-      else setRestoreMsg('복원 실패: ' + (d.error || '알 수 없는 오류'))
-    } catch {
-      setRestoreMsg('파일 형식이 올바르지 않습니다')
-    } finally {
-      setRestoreLoading(false)
-      e.target.value = ''
-    }
-  }
 
   function openPfSheet() {
     setPfSheetOpen(true)
@@ -785,10 +728,13 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* 화면 테마 */}
+      {/* 편의 기능 */}
       <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
         <div className="card-body">
-          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>🌙 화면 테마</div>
+          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>⚙️ 편의 기능</div>
+
+          {/* 화면 테마 */}
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 8 }}>🌙 화면 테마</div>
           <div style={{ display: 'flex', background: 'var(--bg-accent)', borderRadius: 12, padding: 3, position: 'relative' }}>
             <div ref={themeIndRef} className="theme-sel-ind" style={{
               position: 'absolute', top: 3, bottom: 3,
@@ -810,56 +756,34 @@ export default function Settings() {
               </button>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* 피드백 */}
-      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          <div className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>📳 피드백</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>진동</span>
-            <div onClick={toggleVibration} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-              <div className="ios-toggle">
-                <div className={`ios-track${vibration ? ' on' : ''}`} />
-                <div className={`ios-dot${vibration ? ' on' : ''}`} />
+          {/* 구분선 */}
+          <div style={{ height: 1, background: 'var(--border-light)', margin: '16px 0' }} />
+
+          {/* 피드백 */}
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 10 }}>📳 피드백</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>진동</span>
+              <div onClick={toggleVibration} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <div className="ios-toggle">
+                  <div className={`ios-track${vibration ? ' on' : ''}`} />
+                  <div className={`ios-dot${vibration ? ' on' : ''}`} />
+                </div>
+              </div>
+            </div>
+            <div style={{ height: 1, background: 'var(--border-light)', margin: '10px 0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>터치음</span>
+              <div onClick={toggleSound} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <div className="ios-toggle">
+                  <div className={`ios-track${sound ? ' on' : ''}`} />
+                  <div className={`ios-dot${sound ? ' on' : ''}`} />
+                </div>
               </div>
             </div>
           </div>
-          <div style={{ height: 1, background: 'var(--border-light)', margin: '10px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
-            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>터치음</span>
-            <div onClick={toggleSound} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-              <div className="ios-toggle">
-                <div className={`ios-track${sound ? ' on' : ''}`} />
-                <div className={`ios-dot${sound ? ' on' : ''}`} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* 데이터 백업/복원 */}
-      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-        <div className="card-body">
-          <div className="fw-semibold mb-1" style={{ fontSize: '0.95rem' }}>💾 데이터 백업 / 복원</div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 14 }}>전체 데이터를 JSON 파일로 백업하거나 복원합니다.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button onClick={downloadBackup} disabled={backupLoading}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: backupLoading ? 'not-allowed' : 'pointer', opacity: backupLoading ? 0.7 : 1 }}>
-              {backupLoading ? '백업 중...' : '⬇ 백업 파일 다운로드'}
-            </button>
-            <input type="file" accept=".json" ref={restoreFileRef} onChange={handleRestoreFile} style={{ display: 'none' }} />
-            <button onClick={() => restoreFileRef.current?.click()} disabled={restoreLoading}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem', cursor: restoreLoading ? 'not-allowed' : 'pointer', opacity: restoreLoading ? 0.7 : 1 }}>
-              {restoreLoading ? '복원 중...' : '⬆ 백업 파일로 복원'}
-            </button>
-            {restoreMsg && (
-              <div style={{ padding: '9px 12px', borderRadius: 10, background: restoreMsg.startsWith('✓') ? 'rgba(52,199,89,0.1)' : 'rgba(255,59,48,0.1)', color: restoreMsg.startsWith('✓') ? '#1a7a3a' : '#dc3545', fontSize: '0.82rem', fontWeight: 600 }}>
-                {restoreMsg}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
