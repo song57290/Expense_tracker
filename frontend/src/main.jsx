@@ -4,16 +4,67 @@ import App from './App.jsx'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import './index.css'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
+const WidgetData = registerPlugin('WidgetData')
+
+function getThemeState() {
+  const theme = localStorage.getItem('theme') || 'system'
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const resolvedTheme = theme === 'system'
+    ? (systemDark ? 'dark' : 'light')
+    : theme
+
+  return {
+    theme,
+    resolvedTheme,
+    isDark: resolvedTheme === 'dark'
+  }
+}
+
+async function syncWidgetTheme() {
+  if (!Capacitor.isNativePlatform()) return
+
+  const { theme, resolvedTheme } = getThemeState()
+
+  try {
+    await WidgetData.updateTheme({
+      theme,
+      resolvedTheme
+    })
+  } catch (e) {
+    console.warn('Widget theme sync failed:', e)
+  }
+}
+
+function applyTheme() {
+  const { theme, resolvedTheme, isDark } = getThemeState()
+
+  if (theme === 'system') {
+    document.documentElement.removeAttribute('data-theme')
+  } else {
+    document.documentElement.setAttribute('data-theme', resolvedTheme)
+  }
+
+  return isDark
+}
 
 if (Capacitor.isNativePlatform()) {
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+    const isDark = applyTheme()
+
     StatusBar.setOverlaysWebView({ overlay: false })
-    const savedTheme = localStorage.getItem('theme') || 'system'
-    const isDark = savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    StatusBar.setBackgroundColor({ color: isDark ? '#6b44b0' : '#b088f9' })
-    StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })
+    StatusBar.setBackgroundColor({
+      color: isDark ? '#6b44b0' : '#b088f9'
+    })
+    StatusBar.setStyle({
+      style: isDark ? Style.Dark : Style.Light
+    })
+
+    syncWidgetTheme()
   }).catch(() => {})
+} else {
+  applyTheme()
 }
 
 if ('serviceWorker' in navigator) {
@@ -22,11 +73,31 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-;(function () {
-  const t = localStorage.getItem('theme') || 'system'
-  if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
-  else if (t === 'light') document.documentElement.setAttribute('data-theme', 'light')
-})()
+// 시스템 테마 변경 감지
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+
+systemTheme.addEventListener('change', () => {
+  const theme = localStorage.getItem('theme') || 'system'
+
+  if (theme !== 'system') return
+
+  applyTheme()
+  syncWidgetTheme()
+
+  if (Capacitor.isNativePlatform()) {
+    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+      const { isDark } = getThemeState()
+
+      StatusBar.setBackgroundColor({
+        color: isDark ? '#6b44b0' : '#b088f9'
+      })
+
+      StatusBar.setStyle({
+        style: isDark ? Style.Dark : Style.Light
+      })
+    }).catch(() => {})
+  }
+})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

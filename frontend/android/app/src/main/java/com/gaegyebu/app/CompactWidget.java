@@ -3,6 +3,7 @@ package com.gaegyebu.app;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,58 +17,85 @@ public class CompactWidget extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] appWidgetIds) {
-        for (int appWidgetId : appWidgetIds) {
-            updateWidget(context, manager, appWidgetId);
+        for (int id : appWidgetIds) {
+            updateWidget(context, manager, id);
         }
     }
 
-    static void updateWidget(
-            Context context,
-            AppWidgetManager manager,
-            int appWidgetId
-    ) {
+    static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         try {
-            SharedPreferences prefs =
-                    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
-            String income = prefs.getString("income", "---");
-            String expense = prefs.getString("expense", "---");
-            String balance = prefs.getString("balance", "---");
+            String income = prefs.getString("income", "0");
+            String expense = prefs.getString("expense", "0");
+            String balance = prefs.getString("balance", "0");
             String month = prefs.getString("month", "--월");
             String updated = prefs.getString("updated", "");
 
-            RemoteViews views =
-                    new RemoteViews(context.getPackageName(), R.layout.widget_compact);
+            RemoteViews views = new RemoteViews(
+                    context.getPackageName(),
+                    R.layout.widget_compact
+            );
 
-            // 테마 적용
-            String theme = WidgetTheme.getTheme(prefs, appWidgetId);
+            String theme = WidgetTheme.getTheme(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
-            WidgetTheme.applyBg(views, R.id.widget_compact_root, theme, context);
-            views.setTextColor(R.id.compact_month,   WidgetTheme.primary(dark));
-            views.setTextColor(R.id.compact_updated, WidgetTheme.hint(dark));
-            views.setTextColor(R.id.compact_balance, WidgetTheme.primary(dark));
-            views.setTextColor(R.id.compact_income,  WidgetTheme.income(dark));
-            views.setTextColor(R.id.compact_expense, WidgetTheme.expense(dark));
 
-            // 데이터 표시
+            // 배경
+            WidgetTheme.applyBg(
+                    views,
+                    R.id.widget_compact_root,
+                    theme,
+                    context
+            );
+
+            // 상단
+            views.setTextColor(
+                    R.id.compact_month,
+                    WidgetTheme.primary(dark)
+            );
+
+            views.setTextColor(
+                    R.id.compact_updated,
+                    WidgetTheme.hint(dark)
+            );
+
+            // 잔액
+            views.setTextColor(
+                    R.id.compact_balance_label,
+                    WidgetTheme.text(dark)
+            );
+
+            views.setTextColor(
+                    R.id.compact_balance,
+                    WidgetTheme.primary(dark)
+            );
+
+            // 수입
+            views.setTextColor(
+                    R.id.compact_income_label,
+                    WidgetTheme.income(dark)
+            );
+
+            views.setTextColor(
+                    R.id.compact_income,
+                    WidgetTheme.income(dark)
+            );
+
+            // 지출
+            views.setTextColor(
+                    R.id.compact_expense_label,
+                    WidgetTheme.expense(dark)
+            );
+
+            views.setTextColor(
+                    R.id.compact_expense,
+                    WidgetTheme.expense(dark)
+            );
+
+            // 데이터
             views.setTextViewText(
                     R.id.compact_month,
                     month
-            );
-
-            views.setTextViewText(
-                    R.id.compact_balance,
-                    balance + "원"
-            );
-
-            views.setTextViewText(
-                    R.id.compact_income,
-                    income + "원"
-            );
-
-            views.setTextViewText(
-                    R.id.compact_expense,
-                    expense + "원"
             );
 
             views.setTextViewText(
@@ -75,22 +103,35 @@ public class CompactWidget extends AppWidgetProvider {
                     updated
             );
 
-            // 위젯 클릭 → 가계부 앱 실행
-            Intent intent = new Intent(context, MainActivity.class);
-
-            intent.setFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            views.setTextViewText(
+                    R.id.compact_balance,
+                    formatSigned(balance) + "원"
             );
 
-            PendingIntent pendingIntent =
-                    PendingIntent.getActivity(
-                            context,
-                            1,
-                            intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT |
-                            PendingIntent.FLAG_IMMUTABLE
-                    );
+            views.setTextViewText(
+                    R.id.compact_income,
+                    formatUnsigned(income) + "원"
+            );
+
+            views.setTextViewText(
+                    R.id.compact_expense,
+                    formatUnsigned(expense) + "원"
+            );
+
+            // 위젯 클릭 → 앱 실행
+            Intent intent = new Intent(context, MainActivity.class);
+            intent.setFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                            | Intent.FLAG_ACTIVITY_CLEAR_TOP
+            );
+
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    context,
+                    1,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                            | PendingIntent.FLAG_IMMUTABLE
+            );
 
             views.setOnClickPendingIntent(
                     R.id.widget_compact_root,
@@ -98,14 +139,21 @@ public class CompactWidget extends AppWidgetProvider {
             );
 
             manager.updateAppWidget(
-                    appWidgetId,
+                    widgetId,
                     views
             );
 
-            Log.d(TAG, "Compact widget updated: " + appWidgetId);
+            Log.d(
+                    TAG,
+                    "Compact widget updated: "
+                            + widgetId
+                            + " theme="
+                            + theme
+                            + " dark="
+                            + dark
+            );
 
         } catch (Exception e) {
-
             Log.e(
                     TAG,
                     "Compact widget update failed",
@@ -114,46 +162,70 @@ public class CompactWidget extends AppWidgetProvider {
         }
     }
 
-    /**
-     * 설치된 모든 CompactWidget 갱신
-     */
     public static void updateAll(Context context) {
         try {
-            AppWidgetManager manager =
-                    AppWidgetManager.getInstance(context);
+            AppWidgetManager manager = AppWidgetManager.getInstance(context);
 
-            android.content.ComponentName component =
-                    new android.content.ComponentName(
-                            context,
-                            CompactWidget.class
-                    );
+            ComponentName component = new ComponentName(
+                    context,
+                    CompactWidget.class
+            );
 
-            int[] appWidgetIds =
-                    manager.getAppWidgetIds(component);
+            int[] ids = manager.getAppWidgetIds(component);
 
             Log.d(
                     TAG,
-                    "updateAll: " +
-                    appWidgetIds.length +
-                    " compact widgets"
+                    "updateAll: "
+                            + ids.length
+                            + " compact widgets"
             );
 
-            for (int appWidgetId : appWidgetIds) {
-
+            for (int id : ids) {
                 updateWidget(
                         context,
                         manager,
-                        appWidgetId
+                        id
                 );
             }
 
         } catch (Exception e) {
-
             Log.e(
                     TAG,
                     "updateAll failed",
                     e
             );
+        }
+    }
+
+    private static String formatSigned(String value) {
+        try {
+            long number = Long.parseLong(
+                    value.replace(",", "").trim()
+            );
+
+            return String.format(
+                    "%,d",
+                    number
+            );
+
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
+    private static String formatUnsigned(String value) {
+        try {
+            long number = Long.parseLong(
+                    value.replace(",", "").trim()
+            );
+
+            return String.format(
+                    "%,d",
+                    Math.abs(number)
+            );
+
+        } catch (Exception e) {
+            return value;
         }
     }
 }
