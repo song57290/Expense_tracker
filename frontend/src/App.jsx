@@ -5,6 +5,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
 const RingerMode = registerPlugin('RingerMode')
 import { App as CapApp } from '@capacitor/app'
 import { SplashScreen } from '@capacitor/splash-screen'
+import SplashOverlay from './components/SplashOverlay'
 
 function BackButtonGuard() {
   const location = useLocation()
@@ -55,6 +56,7 @@ export default function App() {
   const [registerIdx, setRegisterIdx] = useState(0)
   const [cardOptions, setCardOptions] = useState([])
   const [selectedCard, setSelectedCard] = useState('')
+  const [showSplash, setShowSplash] = useState(true)
 
   useEffect(() => {
     // 서버 응답이 늦어도(Fly.io 콜드 스타트) 스플래시가 무한 대기하지 않도록 폴백
@@ -199,15 +201,27 @@ export default function App() {
 
   if (user === undefined) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#b088f9,#7baff0)' }}>
-        <div className="spinner-border" style={{ color: 'white', width: '2.5rem', height: '2.5rem' }} />
-      </div>
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'yellow',
+          zIndex: 999999
+        }}
+      />
     )
   }
 
   return (
-    <BrowserRouter>
-      <BackButtonGuard />
+    <>
+      {showSplash && (
+        <SplashOverlay
+          onFinish={() => setShowSplash(false)}
+        />
+      )}
+
+      <BrowserRouter>
+        <BackButtonGuard />
       {user && <UpdateNoticeModal />}
       {noticePopup && (
         <div onClick={dismissNotice} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
@@ -313,7 +327,8 @@ export default function App() {
           <Route path="/edit/:id" element={<Edit />} />
           <Route path="/search" element={<Search />} />
         </Route>
-      </Routes>
+            </Routes>
     </BrowserRouter>
+  </>
   )
 }
