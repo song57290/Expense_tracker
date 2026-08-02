@@ -91,7 +91,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
           <h6 className="mb-0 fw-bold">자산 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
           <form id="add-card-form" onSubmit={handleSubmit}>
             {/* 자산 유형 선택 */}
             <div className="d-flex gap-2 mb-3">
@@ -137,7 +137,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '초기 잔고 (음수 입력 시 -부터, 선택)'} inputMode="text"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '월초 잔고 (저번달 말 잔고, 선택)'} inputMode="text"
                 value={initialBalance} onChange={e => {
                   const forceNeg = assetType === 'loan'
                   const neg = forceNeg || e.target.value.startsWith('-')
@@ -324,7 +324,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
               <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(Math.abs(card.initial_balance))}</div>
             </div>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
-              <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 상환</div>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>상환 금액</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}</div>
             </div>
             <div className="text-center flex-fill">
@@ -335,7 +335,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
             </div>
           </>) : (<>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
-              <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기</div>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>월초 잔고</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(card.initial_balance)}</div>
             </div>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
@@ -787,7 +787,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
           <h6 className="mb-0 fw-bold">{editItem ? '예·적금 수정' : '예·적금 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
           <form id="savings-form" onSubmit={handleSubmit}>
             <div className="d-flex gap-2 mb-3">
               {['예금', '적금', '청약'].map(t => (
@@ -1180,7 +1180,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
           <h6 className="mb-0 fw-bold">{editItem ? '투자 수정' : '투자 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1 }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
           <form id="investment-form" onSubmit={handleSubmit}>
             {/* 유형 선택 */}
             <div data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
@@ -1526,7 +1526,7 @@ export default function Budget() {
                 <div className="d-flex gap-2 mt-2">
                   {[
                     { label: '총 부채', val: totalLoan, color: '#dc3545' },
-                    { label: '이달 상환', val: totalRepaid, color: '#198754' },
+                    { label: '상환 금액', val: totalRepaid, color: '#198754' },
                     { label: '순자산', val: totalBalance - totalLoan, color: (totalBalance - totalLoan) >= 0 ? '#198754' : '#dc3545' },
                   ].map(({ label, val, color }) => (
                     <div key={label} style={{ flex: 1, background: 'var(--bg-danger-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
@@ -1700,10 +1700,10 @@ export default function Budget() {
               <h6 className="mb-0 fw-bold">{editCard?.name} 수정</h6>
               <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: 20 }}>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
               <form id="edit-card-form" onSubmit={handleEditSave}>
                 <div className="mb-3">
-                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (앱 사용 시작 전 계좌 잔액)</label>
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월초 잔고 (저번달 말 실제 잔고 입력)</label>
                   <div style={{ position: 'relative' }}>
                     <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
                       value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true)} />

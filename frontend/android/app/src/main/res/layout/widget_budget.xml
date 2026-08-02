@@ -5,14 +5,14 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="10dp"
-    android:background="#CC2d1b69">
+    android:background="@android:color/transparent">
 
     <TextView
         android:id="@+id/budget_month"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="--월"
-        android:textColor="#FFb088f9"
+        android:textColor="@color/w_primary"
         android:textSize="11sp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />
@@ -31,7 +31,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="---원 남음"
-        android:textColor="#FFb088f9"
+        android:textColor="@color/w_primary"
         android:textSize="11sp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />

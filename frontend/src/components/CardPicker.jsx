@@ -69,7 +69,7 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
             onTouchEnd={onTouchEnd}
             style={{
               background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%',
-              maxHeight: '72vh', overflowY: 'auto',
+              maxHeight: '72vh', overflowY: 'auto', overscrollBehavior: 'contain',
               transform: visible ? `translateY(${drag}px)` : 'translateY(100%)',
               transition: drag > 0 ? 'none' : 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)',
               paddingBottom: 40,

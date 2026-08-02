@@ -25,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="2026년 7월"
-            android:textColor="#FFB088F9"
+            android:textColor="@color/w_primary"
             android:textSize="13sp"
             android:textStyle="bold" />
 
@@ -34,7 +34,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="23:38"
-            android:textColor="#99FFFFFF"
+            android:textColor="@color/w_dim"
             android:textSize="9sp" />
 
     </LinearLayout>
@@ -60,8 +60,8 @@
                 android:id="@+id/compact_balance_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="이번 달 잔액"
-                android:textColor="#BBFFFFFF"
+                android:text="이번 달 요약"
+                android:textColor="@color/w_text"
                 android:textSize="12sp" />
 
             <TextView
@@ -69,7 +69,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="-771,763원"
-                android:textColor="#FFB088F9"
+                android:textColor="@color/w_primary"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp" />
@@ -78,6 +78,7 @@
 
         <!-- 수입 카드 -->
         <LinearLayout
+            android:id="@+id/compact_income_card"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -113,6 +114,7 @@
 
         <!-- 지출 카드 -->
         <LinearLayout
+            android:id="@+id/compact_expense_card"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"

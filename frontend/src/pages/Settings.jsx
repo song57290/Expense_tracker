@@ -157,7 +157,7 @@ function buildPortfolioHTML(d, sections) {
       <div class="cn2" style="display:flex;align-items:center;gap:10px">${bankLogoTag(c.name)}<span style="color:#dc3545">${c.name}</span></div>
       <div class="ig">
         <div class="ic"><div class="l">대출 잔액</div><div class="v ce">-${f(Math.abs(c.balance))}원</div></div>
-        <div class="ic"><div class="l">이달 상환</div><div class="v ci">${f(c.total_repaid || 0)}원</div></div>
+        <div class="ic"><div class="l">상환 금액</div><div class="v ci">${f(c.total_repaid || 0)}원</div></div>
         <div class="ic"><div class="l">상환률</div><div class="v" style="color:#b088f9">${repaidPct}%</div></div>
       </div>
       ${c.interest_rate != null ? `<div class="ig"><div class="ic"><div class="l">연 이자율</div><div class="v ce">${c.interest_rate}%</div></div></div>` : ''}
