@@ -16,8 +16,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 
 public class WidgetConfigActivity extends AppCompatActivity {
 
@@ -73,15 +71,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_widget_config);
 
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-
-        WindowInsetsControllerCompat wic = new WindowInsetsControllerCompat(
-                getWindow(),
-                getWindow().getDecorView()
-        );
-
-        boolean isLightMode = !WidgetTheme.isDark(WidgetTheme.SYSTEM, this);
-        wic.setAppearanceLightStatusBars(isLightMode);
+        WidgetTheme.applyWindowTheme(this);
 
         updateThemeChecks();
         updatePreview();
@@ -143,10 +133,14 @@ public class WidgetConfigActivity extends AppCompatActivity {
             contH = (int) (130 * dp);
             wW = (int) (130 * dp);
             wH = (int) (130 * dp);
-        } else if (isDash || isToday) {
-            contH = (int) (100 * dp);
+        } else if (isDash) {
+            contH = (int) (210 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
-            wH = (int) (100 * dp);
+            wH = (int) (210 * dp);
+        } else if (isToday) {
+            contH = (int) (190 * dp);
+            wW = FrameLayout.LayoutParams.MATCH_PARENT;
+            wH = (int) (190 * dp);
         } else {
             contH = (int) (130 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
@@ -254,6 +248,18 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView balance = wv.findViewById(R.id.compact_balance);
         balance.setTextColor(primary);
         balance.setText(fmtSigned(prefsBalance) + "원");
+
+        // 카드 패널 배경 (다크/라이트 드로어블 전환)
+        View incomeCard = wv.findViewById(R.id.compact_income_card);
+        View expenseCard = wv.findViewById(R.id.compact_expense_card);
+        if (incomeCard != null) {
+            incomeCard.setBackgroundResource(
+                    dark ? R.drawable.widget_income_bg : R.drawable.widget_income_bg_light);
+        }
+        if (expenseCard != null) {
+            expenseCard.setBackgroundResource(
+                    dark ? R.drawable.widget_expense_bg : R.drawable.widget_expense_bg_light);
+        }
 
         TextView incomeLabel = wv.findViewById(R.id.compact_income_label);
         if (incomeLabel != null) {
@@ -393,11 +399,6 @@ public class WidgetConfigActivity extends AppCompatActivity {
         int dim = WidgetTheme.dim(dark);
         int hint = WidgetTheme.hint(dark);
         int expense = WidgetTheme.expense(dark);
-
-        TextView title = wv.findViewById(R.id.today_title);
-        if (title != null) {
-            title.setTextColor(primary);
-        }
 
         TextView date = wv.findViewById(R.id.today_date);
         date.setTextColor(dim);

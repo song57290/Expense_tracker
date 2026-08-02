@@ -2,7 +2,6 @@ package com.gaegyebu.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
-import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -10,7 +9,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 import android.widget.RemoteViews;
 
-public class CompactWidget extends AppWidgetProvider {
+public class CompactWidget extends BaseWidget {
 
     private static final String PREFS_NAME = "gaegyebu_widget";
     private static final String TAG = "CompactWidget";
@@ -39,6 +38,7 @@ public class CompactWidget extends AppWidgetProvider {
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
+            boolean isSystem = WidgetTheme.SYSTEM.equals(theme);
 
             // 배경
             WidgetTheme.applyBg(
@@ -48,49 +48,22 @@ public class CompactWidget extends AppWidgetProvider {
                     context
             );
 
-            // 상단
-            views.setTextColor(
-                    R.id.compact_month,
-                    WidgetTheme.primary(dark)
-            );
-
-            views.setTextColor(
-                    R.id.compact_updated,
-                    WidgetTheme.hint(dark)
-            );
-
-            // 잔액
-            views.setTextColor(
-                    R.id.compact_balance_label,
-                    WidgetTheme.text(dark)
-            );
-
-            views.setTextColor(
-                    R.id.compact_balance,
-                    WidgetTheme.primary(dark)
-            );
-
-            // 수입
-            views.setTextColor(
-                    R.id.compact_income_label,
-                    WidgetTheme.income(dark)
-            );
-
-            views.setTextColor(
-                    R.id.compact_income,
-                    WidgetTheme.income(dark)
-            );
-
-            // 지출
-            views.setTextColor(
-                    R.id.compact_expense_label,
-                    WidgetTheme.expense(dark)
-            );
-
-            views.setTextColor(
-                    R.id.compact_expense,
-                    WidgetTheme.expense(dark)
-            );
+            if (!isSystem) {
+                // 상단
+                views.setTextColor(R.id.compact_month,         WidgetTheme.primary(dark));
+                views.setTextColor(R.id.compact_updated,       WidgetTheme.hint(dark));
+                // 잔액
+                views.setTextColor(R.id.compact_balance_label, WidgetTheme.text(dark));
+                views.setTextColor(R.id.compact_balance,       WidgetTheme.primary(dark));
+                // 카드 패널 배경
+                WidgetTheme.applyCardBg(views,
+                        R.id.compact_income_card, R.id.compact_expense_card, dark);
+                // 카드 내 텍스트
+                views.setTextColor(R.id.compact_income_label,  WidgetTheme.income(dark));
+                views.setTextColor(R.id.compact_income,        WidgetTheme.income(dark));
+                views.setTextColor(R.id.compact_expense_label, WidgetTheme.expense(dark));
+                views.setTextColor(R.id.compact_expense,       WidgetTheme.expense(dark));
+            }
 
             // 데이터
             views.setTextViewText(
@@ -120,10 +93,7 @@ public class CompactWidget extends AppWidgetProvider {
 
             // 위젯 클릭 → 앱 실행
             Intent intent = new Intent(context, MainActivity.class);
-            intent.setFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                            | Intent.FLAG_ACTIVITY_CLEAR_TOP
-            );
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
             PendingIntent pendingIntent = PendingIntent.getActivity(
                     context,
@@ -160,6 +130,11 @@ public class CompactWidget extends AppWidgetProvider {
                     e
             );
         }
+    }
+
+    @Override
+    protected void refreshAll(Context context) {
+        updateAll(context);
     }
 
     public static void updateAll(Context context) {

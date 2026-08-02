@@ -184,7 +184,7 @@ export default function Search() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>{tx.category}</span>
-                      {tx.has_receipt && <span style={{ fontSize: '0.68rem', background: 'rgba(176,136,249,0.15)', color: '#b088f9', borderRadius: 6, padding: '1px 5px' }}>영수증</span>}
+                      {tx.has_receipt && <span style={{ fontSize: '0.68rem', background: 'rgba(176,136,249,0.15)', color: '#b088f9', borderRadius: 6, padding: '1px 5px' }}>사진</span>}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {tx.description || tx.category} · {tx.date} {tx.card ? `· ${tx.card}` : ''}

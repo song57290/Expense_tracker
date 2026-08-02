@@ -54,7 +54,7 @@ Expense_tracker/
 │   │   │   └─ helpContent.js        ← 설정 탭 도움말 내용 (탭별 설명)
 │   │   ├─ components/
 │   │   │   ├─ Layout.jsx            ← 네비바 + 바텀탭 + 좌우 스와이프 제스처
-│   │   │   ├─ Navbar.jsx            ← 상단 그라데이션 바 (닉네임의 가계부)
+│   │   │   ├─ Navbar.jsx            ← 상단 바 (닉네임의 가계부, 검색 아이콘)
 │   │   │   ├─ BottomNav.jsx         ← 하단 탭 바 (홈/예산/캘린더/통계/월급/설정)
 │   │   │   ├─ Sidebar.jsx           ← PC 사이드 드로어 + 알림 토글 + 드럼 시간 피커
 │   │   │   ├─ NotifySheet.jsx       ← 알림 바텀시트
@@ -67,28 +67,30 @@ Expense_tracker/
 │   │   │   ├─ TransferPicker.jsx    ← 계좌 이체 보내는·받는 계좌 선택 바텀시트
 │   │   │   └─ YearDrum.jsx          ← 연도 드럼 스크롤 피커 (캘린더·통계·DatePickerSheet 공유)
 │   │   └─ pages/
-│   │       ├─ Home.jsx              ← 홈 (이번달 내역 목록, 스와이프 삭제·수정, 루틴 칩)
+│   │       ├─ Home.jsx              ← 홈 (이번달 내역 목록, 스와이프 삭제·수정, 루틴 칩, 내역 검색)
 │   │       ├─ Budget.jsx            ← 예산 (카드·예적금·청약·투자 잔고, 실적 추적, 연결 계좌)
 │   │       ├─ Calendar.jsx          ← 캘린더 (FullCalendar, 날짜 팝업, 월별 내역 목록)
-│   │       ├─ Stats.jsx             ← 통계 (도넛 차트, 월별 막대 차트, 자산 추이)
+│   │       ├─ Stats.jsx             ← 통계 (도넛 차트, 월별 막대 차트, 자산 추이, 전월 대비)
 │   │       ├─ Salary.jsx            ← 월급 (월급 설정, 카테고리 예산 배분, 고정 지출·자동 등록)
 │   │       ├─ Categories.jsx        ← 카테고리 목록 (드래그 순서, 실적·통계 제외 설정)
 │   │       ├─ Settings.jsx          ← 설정 (편의기능, 포트폴리오 PDF, 도움말, 공지, 보안)
-│   │       ├─ Edit.jsx              ← 내역 수정 (거래 편집 폼)
+│   │       ├─ Edit.jsx              ← 내역 수정 (거래 편집 폼, 영수증 사진 첨부)
 │   │       └─ Login.jsx             ← 로그인 / 회원가입 / 비밀번호 찾기
 │   │
 │   └─ android/                      ← Capacitor Android 프로젝트 (Android Studio로 열기)
 │       └─ app/src/main/
 │           ├─ AndroidManifest.xml          ← 액티비티·리시버·권한 선언
 │           ├─ java/com/gaegyebu/app/
-│           │   ├─ MainActivity.java        ← Capacitor 앱 진입점, FCM 채널 생성
-│           │   ├─ WidgetConfigActivity.java← 위젯 설정 화면 (테마·모양 선택, 실시간 미리보기)
-│           │   ├─ WidgetTheme.java         ← 위젯 테마/모양 상수 및 SharedPreferences 헬퍼
-│           │   ├─ WidgetDataPlugin.java    ← JS↔Java 브릿지 (위젯 데이터 전달)
-│           │   ├─ CompactWidget.java       ← 3×1 간편 위젯 (잔액·수입·지출)
-│           │   ├─ BudgetWidget.java        ← 2×2 예산 링 위젯 (링 그래프)
-│           │   ├─ DashboardWidget.java     ← 4×2 대시보드 위젯 (막대 그래프)
-│           │   └─ TodayWidget.java         ← 3×2 오늘 지출 위젯
+│           │   ├─ MainActivity.java              ← Capacitor 앱 진입점, FCM 채널 생성
+│           │   ├─ WidgetConfigActivity.java      ← 위젯 설정 화면 (테마 선택, 실시간 미리보기, 저장)
+│           │   ├─ BaseWidget.java                ← 위젯 공통 추상 클래스
+│           │   ├─ WidgetTheme.java               ← 위젯 색상 상수·헬퍼 + Activity window 테마 적용
+│           │   ├─ WidgetThemeChangeReceiver.java ← 시스템 야간모드 변경 수신 (폴백)
+│           │   ├─ WidgetDataPlugin.java          ← JS↔Java 브릿지 (위젯 데이터 전달)
+│           │   ├─ CompactWidget.java             ← 3×1 간편 위젯 (잔액·수입·지출)
+│           │   ├─ BudgetWidget.java              ← 2×2 예산 링 위젯 (링 그래프)
+│           │   ├─ DashboardWidget.java           ← 4×2 대시보드 위젯 (막대 그래프)
+│           │   └─ TodayWidget.java               ← 3×2 오늘 지출 위젯
 │           └─ res/
 │               ├─ layout/
 │               │   ├─ activity_widget_config.xml ← 위젯 설정 화면 레이아웃
@@ -96,15 +98,19 @@ Expense_tracker/
 │               │   ├─ widget_budget.xml           ← 예산 위젯 레이아웃
 │               │   ├─ widget_dashboard.xml        ← 대시보드 위젯 레이아웃
 │               │   └─ widget_today.xml            ← 오늘 위젯 레이아웃
+│               ├─ drawable/
+│               │   └─ wbg_system_r14.xml          ← SYSTEM 테마 배경 (@color/w_bg, 야간모드 자동 전환)
 │               ├─ xml/
 │               │   ├─ widget_compact_info.xml     ← 간편 위젯 메타데이터 (크기·업데이트 주기)
 │               │   ├─ widget_budget_info.xml      ← 예산 위젯 메타데이터
 │               │   ├─ widget_dashboard_info.xml   ← 대시보드 위젯 메타데이터
 │               │   └─ widget_today_info.xml       ← 오늘 위젯 메타데이터
 │               ├─ values/
+│               │   ├─ colors.xml                  ← 위젯 라이트모드 색상 (w_primary, w_income, …)
 │               │   ├─ config_colors.xml           ← 위젯 설정 화면 라이트모드 색상
 │               │   └─ styles.xml                  ← AppTheme.NoActionBar (DayNight 테마)
 │               └─ values-night/
+│                   ├─ colors.xml                  ← 위젯 다크모드 색상 오버라이드 (w_* 동일 이름)
 │                   └─ config_colors.xml           ← 위젯 설정 화면 다크모드 색상 오버라이드
 │
 ├─ static/
@@ -130,12 +136,15 @@ Expense_tracker/
 
 | 탭 | 경로 | 설명 |
 |---|---|---|
-| 홈 | `/` | 이번달 내역 목록, 지출/수입 탭 분리, 스와이프 삭제·수정, 카테고리별 지출, 루틴 칩 |
+| 홈 | `/` | 이번달 내역 목록, 지출/수입 탭 분리, 스와이프 삭제·수정, 카테고리별 지출, 루틴 칩, 내역 검색 |
 | 예산 | `/budget` | 카드·예적금·청약·투자 잔고 및 실적 추적, 연결 계좌 |
-| 캘린더 | `/calendar` | 월별 캘린더, 날짜 클릭 상세 팝업, 수입/지출 점 도트 |
-| 통계 | `/stats` | 도넛 차트, 월별 막대 차트(지출/수입/전체), 자산 추이, 통계 제외 필터링 |
+| 캘린더 | `/calendar` | 월별 캘린더, 날짜 클릭 상세 팝업, 수입/지출 점 도트, 월별 내역 목록 스와이프 수정·삭제 |
+| 통계 | `/stats` | 도넛 차트, 월별 막대 차트(지출/수입/전체), 자산 추이, 전월 대비, 통계 제외 필터링 |
 | 월급 | `/salary` | 월급 설정, 카테고리별 예산 배분, 고정 지출·자동 등록 |
-| 설정 | `/settings` | 포트폴리오 PDF, 도움말, 업데이트 내역, 카테고리 관리, 루틴 관리, 공지사항, 보안 |
+| 설정 | `/settings` | 편의 기능, 포트폴리오 PDF, 도움말, 업데이트 내역, 카테고리·루틴 관리, 공지사항, 보안 |
+| 카테고리 | `/categories` | 카테고리 목록 드래그 순서 변경, 실적·통계 제외 설정 (설정 탭에서 진입) |
+| 루틴 | `/routines` | 루틴 목록 관리, 한 루틴에 여러 카테고리 (설정 탭에서 진입) |
+| 내역 수정 | `/edit/:id` | 거래 편집 폼, 영수증 사진 첨부 (카메라·갤러리) |
 
 ---
 
@@ -207,9 +216,9 @@ UPDATES / VERSION_HISTORY 항목 구조:
 
 **수정 파일:** `frontend/src/pages/Settings.jsx`
 
-| 기능 | 위치 (grep 키워드) |
+| 기능 | grep 키워드 |
 |---|---|
-| 편의 기능 (화면 테마 + 피드백) | `편의 기능` |
+| 편의 기능 (화면 테마 + 진동·터치음 피드백) | `편의 기능` |
 | 업데이트 내역 버튼 | `showUpdateNotice` |
 | 포트폴리오 PDF 버튼 | `포트폴리오` |
 | 도움말 카드 | `helpItem` |
@@ -224,13 +233,26 @@ UPDATES / VERSION_HISTORY 항목 구조:
 
 **수정 파일:** `frontend/src/pages/Home.jsx`
 
-| 기능 | 위치 |
+| 기능 | grep 키워드 |
 |---|---|
-| 내역 추가 바텀시트 | `showAdd` state |
-| 루틴 칩 행 | `routines` 렌더링 부분 |
-| 날짜별 그룹화 목록 | `groupedTxs` 로직 |
-| 카테고리별 지출 목록 | `catStats` 렌더링 |
-| 실적 바 카드 목록 | `perfCards` 렌더링 |
+| 내역 추가 바텀시트 | `showAdd` |
+| 내역 검색 오버레이 | `showSearch` |
+| 루틴 칩 행 | `routines` |
+| 날짜별 그룹화 목록 | `groupedTxs` |
+| 카테고리별 지출 목록 | `catStats` |
+| 실적 바 카드 목록 | `perfCards` |
+
+검색은 상단 Navbar의 검색 아이콘을 누르면 열림 — 키워드·카테고리·타입·날짜·금액 범위 필터 지원, 결과에서 수정 화면 바로 이동 가능.
+
+---
+
+## 내역 수정 (거래 편집 폼)
+
+**수정 파일:** `frontend/src/pages/Edit.jsx`
+
+- 금액·날짜·카테고리·카드·메모 편집
+- 영수증 사진 첨부 (카메라·갤러리 선택, 썸네일 미리보기)
+- 삭제 시 커스텀 확인 모달
 
 ---
 
@@ -290,7 +312,7 @@ UPDATES / VERSION_HISTORY 항목 구조:
 
 **수정 파일:** `frontend/src/components/Navbar.jsx`
 
-- 상단 그라데이션 바, 닉네임 표시, 검색 아이콘
+- 상단 그라데이션 바, 닉네임 표시, 검색 아이콘 (클릭 시 검색 오버레이 열림)
 
 ---
 
@@ -328,8 +350,10 @@ DB 테이블 정의. 컬럼 추가 시 모델에 추가 후 `db.create_all()` (�
 ## Android 위젯 — 데이터 흐름
 
 ```
-React (JS) → WidgetDataPlugin.java → SharedPreferences("gaegyebu_widget")
-                                    ← CompactWidget / BudgetWidget / DashboardWidget / TodayWidget 읽어서 표시
+React (JS)
+  → WidgetDataPlugin.java
+  → SharedPreferences("gaegyebu_widget")
+  ← CompactWidget / BudgetWidget / DashboardWidget / TodayWidget 읽어서 표시
 ```
 
 **JS에서 위젯 데이터 업데이트하는 곳:** `frontend/src/pages/Home.jsx`
@@ -337,7 +361,7 @@ React (JS) → WidgetDataPlugin.java → SharedPreferences("gaegyebu_widget")
 
 **브릿지:** `frontend/android/app/src/main/java/com/gaegyebu/app/WidgetDataPlugin.java`
 - JS에서 넘어온 데이터를 SharedPreferences에 저장
-- 저장 키: `month`, `income`, `expense`, `balance`, `budget`, `updated`
+- 저장 키: `month`, `income`, `expense`, `balance`, `budget`, `updated`, `today_total`, `today_date`, `today_cats`
 
 ---
 
@@ -354,8 +378,12 @@ React (JS) → WidgetDataPlugin.java → SharedPreferences("gaegyebu_widget")
 
 **위젯 레이아웃 변경:** 각 `widget_*.xml` 수정 → Java에서 `RemoteViews`로 바인딩하는 ID도 함께 수정
 
-**위젯 배경색·테마 로직:** `WidgetTheme.java`
-- `isDark()`, `primary()`, `income()`, `expense()` 등 색상 헬퍼
+**위젯 색상·테마 로직:** `WidgetTheme.java`
+- `isDark()` — 위젯 배경 기준 다크 여부 판단 (white=false, black=true, system=SharedPrefs resolved_theme)
+- `isSystemDark()` — Android 시스템 야간모드 여부 (Configuration.UI_MODE_NIGHT_YES)
+- `applyWindowTheme()` — Activity에 edge-to-edge + 상태바 아이콘 색상 적용 (네이티브 Activity 전용)
+- `primary()`, `income()`, `expense()`, `text()`, `dim()`, `hint()` — 다크/라이트 색상 반환
+- `applyBg()` — RemoteViews에 위젯 배경 drawable 적용
 
 ---
 
@@ -367,10 +395,10 @@ React (JS) → WidgetDataPlugin.java → SharedPreferences("gaegyebu_widget")
 
 | 기능 | 메서드 |
 |---|---|
-| 화면 진입, 위젯 타입 감지 | `onCreate()` → `AppWidgetManager.getAppWidgetInfo()` |
+| 화면 진입, 위젯 타입 감지, SharedPrefs 로드 | `onCreate()` → `AppWidgetManager.getAppWidgetInfo()` |
+| window 테마·상태바 아이콘 색상 적용 | `onCreate()` → `WidgetTheme.applyWindowTheme(this)` |
 | 미리보기 업데이트 | `updatePreview()` — 위젯 레이아웃 inflate 후 실제 데이터 바인딩 |
-| 테마 선택 체크 표시 | `updateThemeChecks()` |
-| 모양 선택 체크 표시 | `updateShapeChecks()` |
+| 테마 선택 체크 표시 (투명·시스템·흰·검) | `updateThemeChecks()` |
 | 저장 후 위젯 갱신 | `save()` |
 
 **수정 파일:** `res/layout/activity_widget_config.xml`
@@ -379,10 +407,19 @@ React (JS) → WidgetDataPlugin.java → SharedPreferences("gaegyebu_widget")
 **수정 파일:** `res/values/config_colors.xml` (라이트), `res/values-night/config_colors.xml` (다크)
 - `config_bg`, `config_text`, `config_hint`, `config_divider`, `config_cancel` 색상
 
-**다크/라이트 테마 적용 방법:**
-- `AndroidManifest.xml`에서 `WidgetConfigActivity`에 `android:theme="@style/AppTheme.NoActionBar"` 적용
-- `styles.xml`의 `AppTheme.NoActionBar`가 `Theme.AppCompat.DayNight.NoActionBar` 상속
-- 상태바 아이콘 색상: `WidgetConfigActivity.onCreate()`에서 `WindowInsetsControllerCompat.setAppearanceLightStatusBars()` 호출
+**다크/라이트 테마가 동작하는 방식:**
+
+```
+AndroidManifest.xml
+  └─ WidgetConfigActivity android:theme="@style/AppTheme.NoActionBar"
+       └─ styles.xml: Theme.AppCompat.DayNight.NoActionBar 상속
+            → 시스템 야간모드에 따라 values/ vs values-night/ 자동 선택
+
+WidgetTheme.applyWindowTheme(activity)
+  └─ WindowCompat.setDecorFitsSystemWindows(false)   ← edge-to-edge
+  └─ WindowInsetsControllerCompat.setAppearanceLightStatusBars(!isSystemDark())
+       ← 라이트 모드이면 상태바 아이콘 어둡게, 다크이면 밝게
+```
 
 ---
 
@@ -404,7 +441,7 @@ Android Studio에서 frontend/android/ 폴더 열기
 → Build > Generate Signed APK
 ```
 
-위젯·네이티브 기능 변경 시 APK 재빌드·재설치 필요.
+위젯·네이티브 기능 변경 시 APK 재빌드·재설치 필요.  
 JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로드 방식).
 
 ---
@@ -452,7 +489,7 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 
 - **하단 빈 공간 (swipe-nav-zone)**: 모든 탭에서 컨텐츠 아래 90px 빈 공간을 스와이프 → 탭 이동
 - **캘린더, 통계, 설정**: 화면 어디서든 스와이프 → 탭 이동
-- **홈, 예산, 목록**: 스와이프 아이템이 있어 구분
+- **홈, 예산, 카테고리**: 스와이프 아이템이 있어 구분
   - 화면 끝 80px 내 시작 → 탭 이동
   - 중앙에서 시작 → 아이템 스와이프 (수정/삭제)
 
@@ -462,7 +499,7 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 |---|---|
 | 홈 | 내역 항목: 왼쪽으로 → 삭제, 오른쪽으로 → 수정 |
 | 예산 | 카드: 왼쪽으로 → 삭제, 오른쪽으로 → 수정 |
-| 목록 | 카테고리: 왼쪽으로 → 삭제, 오른쪽으로 → 수정 편집 폼 열기 |
+| 카테고리 | 카테고리: 왼쪽으로 → 삭제, 오른쪽으로 → 수정 편집 폼 열기 |
 
 ---
 
@@ -868,6 +905,18 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 | 269 | 위젯 설정 저장/취소 버튼 위치 변경 — 저장 왼쪽, 취소 오른쪽 |
 | 270 | 설정 탭 편의 기능 통합 — 화면 테마 + 피드백(진동·터치음)을 "⚙️ 편의 기능" 하나의 카드로 통합 |
 | 271 | 설정 탭 데이터 백업/복원 제거 — 서버 계정에 저장되므로 불필요 |
+
+## 2026-08-01 — ver 2.49
+
+| # | 내용 |
+|---|------|
+| 272 | SYSTEM 테마 위젯 다크모드 자동 전환 — `res/values/colors.xml` + `res/values-night/colors.xml`에 `w_*` 색상 추가, 레이아웃 XML 하드코딩 색상 → `@color/w_*` 참조 교체, Java에서 SYSTEM 테마 시 `setTextColor()` 생략 → 런처 re-inflation 시 자동 전환 |
+| 273 | `wbg_system_r14.xml` 추가 — `@color/w_bg` 참조 shape drawable (SYSTEM 테마 배경) |
+| 274 | 위젯 배경 반투명도 70%로 조정 — `wbg_white_r14.xml` `#B3FFFFFF`, `w_bg` 라이트 `#B3FFFFFF`, 다크 `#B32D1B69` |
+| 275 | Budget 위젯 링 트랙 라이트모드 가독성 개선 — 트랙 색상 `0xAA6832C0` (보라색 반투명) |
+| 276 | 오늘 지출 UTC→KST 날짜 버그 수정 — `Home.jsx` `todayStr` 계산을 `toISOString()` (UTC) → 로컬 날짜 조합으로 교체 |
+| 277 | 백엔드 KST 타임존 일관성 수정 — `app.py` 8곳 `datetime.now()` → `datetime.now(_KST)` (`api_home`, `api_card_stats`, `api_budget`, `api_salary`, `api_portfolio`, 고정 지출·자동 등록·청약 등) |
+| 278 | `index.html` no-cache 헤더 추가 — `serve_spa` 엔드포인트에 `Cache-Control: no-cache, no-store` 헤더 추가 (fly deploy 후 구버전 JS 로드 방지) |
 
 ---
 

@@ -28,6 +28,11 @@ export default function UpdateNoticeModal() {
   }, [])
 
   useEffect(() => {
+    document.body.classList.toggle('sheet-open', visible)
+    return () => document.body.classList.remove('sheet-open')
+  }, [visible])
+
+  useEffect(() => {
     const showIfNeeded = () => {
       const neverVer = localStorage.getItem('update_notice_never_version')
       if (neverVer === CURRENT_VERSION) return
@@ -214,7 +219,7 @@ export default function UpdateNoticeModal() {
         )}
 
         {/* 스크롤 본문 */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 14px' }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '12px 14px' }}>
           {editOpen && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />

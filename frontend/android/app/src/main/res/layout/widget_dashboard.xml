@@ -4,8 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="#CC2d1b69">
+    android:padding="14dp"
+    android:background="@android:color/transparent">
 
     <!-- 월 + 업데이트 시간 -->
     <LinearLayout
@@ -20,8 +20,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="--월"
-            android:textColor="#FFb088f9"
-            android:textSize="12sp"
+            android:textColor="@color/w_primary"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -29,27 +29,28 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=""
-            android:textColor="#55FFFFFF"
-            android:textSize="9sp" />
+            android:textColor="@color/w_hint"
+            android:textSize="10sp" />
 
     </LinearLayout>
 
-    <!-- 이번 달 잔액 -->
+    <!-- 이번 달 요약 -->
     <TextView
+        android:id="@+id/dash_balance_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="이번 달 잔액"
-        android:textColor="#88FFFFFF"
-        android:textSize="10sp"
-        android:layout_marginTop="6dp" />
+        android:text="이번 달 요약"
+        android:textColor="@color/w_dim"
+        android:textSize="11sp"
+        android:layout_marginTop="5dp" />
 
     <TextView
         android:id="@+id/dash_balance"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="---원"
-        android:textColor="#FFb088f9"
-        android:textSize="20sp"
+        android:textColor="@color/w_primary"
+        android:textSize="30sp"
         android:textStyle="bold"
         android:layout_marginTop="1dp" />
 
@@ -60,6 +61,7 @@
         android:orientation="horizontal"
         android:layout_marginTop="8dp">
 
+        <!-- 수입 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -67,11 +69,12 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/dash_income_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="↑ 수입"
-                android:textColor="#9934c759"
-                android:textSize="9sp"
+                android:textColor="@color/w_income_label"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -79,15 +82,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="---원"
-                android:textColor="#FF34c759"
-                android:textSize="11sp"
+                android:textColor="@color/w_income"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:layout_marginTop="1dp"
+                android:layout_marginTop="2dp"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
         </LinearLayout>
 
+        <!-- 지출 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -95,11 +99,12 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/dash_expense_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="↓ 지출"
-                android:textColor="#99ff6b6b"
-                android:textSize="9sp"
+                android:textColor="@color/w_expense_label"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -107,15 +112,16 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="---원"
-                android:textColor="#FFff6b6b"
-                android:textSize="11sp"
+                android:textColor="@color/w_expense"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:layout_marginTop="1dp"
+                android:layout_marginTop="2dp"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
         </LinearLayout>
 
+        <!-- 예산 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -123,11 +129,12 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/dash_budget_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="예산"
-                android:textColor="#88FFFFFF"
-                android:textSize="9sp"
+                android:textColor="@color/w_dim"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -135,10 +142,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0%"
-                android:textColor="#FFb088f9"
-                android:textSize="11sp"
+                android:textColor="@color/w_primary"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:layout_marginTop="1dp" />
+                android:layout_marginTop="2dp" />
 
         </LinearLayout>
 
@@ -148,8 +155,65 @@
     <ImageView
         android:id="@+id/dash_bar"
         android:layout_width="match_parent"
-        android:layout_height="6dp"
-        android:layout_marginTop="7dp"
+        android:layout_height="7dp"
+        android:layout_marginTop="8dp"
         android:scaleType="fitXY" />
+
+    <!-- 하단 구분선 -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="8dp"
+        android:background="@color/w_sep"
+        android:scaleType="fitXY" />
+
+    <!-- 오늘 지출 요약 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:layout_marginTop="7dp">
+
+        <TextView
+            android:id="@+id/dash_today_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="오늘"
+            android:textColor="@color/w_hint"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="3dp">
+
+            <TextView
+                android:id="@+id/dash_today_cats"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textColor="@color/w_text"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/dash_today_amount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="---원"
+                android:textColor="@color/w_expense"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

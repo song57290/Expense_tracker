@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#6c8fef</color>
+
+    <!-- Widget colors — light mode (values-night/ overrides for dark) -->
+    <color name="w_primary">#FF1C1B20</color>
+    <color name="w_income">#FF1A7A3A</color>
+    <color name="w_income_label">#991A7A3A</color>
+    <color name="w_expense">#FFCC2222</color>
+    <color name="w_expense_label">#99CC2222</color>
+    <color name="w_text">#DD000000</color>
+    <color name="w_dim">#88000000</color>
+    <color name="w_hint">#66000000</color>
+    <color name="w_sep">#22000000</color>
+    <color name="w_divider">#33000000</color>
+    <color name="w_bg">#B3FFFFFF</color>
 </resources>

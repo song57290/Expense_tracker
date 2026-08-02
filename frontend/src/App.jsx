@@ -57,11 +57,18 @@ export default function App() {
   const [selectedCard, setSelectedCard] = useState('')
 
   useEffect(() => {
+    // 서버 응답이 늦어도(Fly.io 콜드 스타트) 스플래시가 무한 대기하지 않도록 폴백
+    let done = false
+    const fallback = Capacitor.isNativePlatform()
+      ? setTimeout(() => { if (!done) SplashScreen.hide() }, 6000)
+      : null
     fetch('/api/me', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(d => setUser(d.user))
       .catch(() => setUser(null))
       .finally(() => {
+        done = true
+        clearTimeout(fallback)
         if (Capacitor.isNativePlatform()) SplashScreen.hide()
       })
   }, [])
@@ -86,6 +93,12 @@ export default function App() {
     document.addEventListener('touchmove', prevent, { passive: false })
     return () => document.removeEventListener('touchmove', prevent)
   }, [])
+
+  useEffect(() => {
+    const open = !!noticePopup || (pendingRegisters.length > 0 && registerIdx < pendingRegisters.length)
+    document.body.classList.toggle('sheet-open', open)
+    return () => document.body.classList.remove('sheet-open')
+  }, [noticePopup, pendingRegisters, registerIdx])
 
   useEffect(() => {
     let audioCtx = null
@@ -203,7 +216,7 @@ export default function App() {
               <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>📢 공지사항 · {noticePopup.created_at}</div>
               <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'white' }}>{noticePopup.title}</div>
             </div>
-            <div style={{ padding: '16px 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '40vh', overflowY: 'auto' }}>
+            <div style={{ padding: '16px 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '40vh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
               {noticePopup.content}
             </div>
             <div style={{ padding: '0 20px 20px', display: 'flex', gap: 8 }}>

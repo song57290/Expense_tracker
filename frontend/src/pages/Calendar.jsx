@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { Capacitor, registerPlugin } from '@capacitor/core'
+const WidgetData = registerPlugin('WidgetData')
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -69,6 +71,10 @@ export default function Calendar() {
   const [addSaving, setAddSaving] = useState(false)
   const [addTransferFrom, setAddTransferFrom] = useState('')
   const [addTransferTo, setAddTransferTo] = useState('')
+  const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
+  const calReceiptInputRef = useRef(null)
+  const [photoViewerTxId, setPhotoViewerTxId] = useState(null)
 
   function openAdd(date) {
     setAddOpen(true)
@@ -77,11 +83,15 @@ export default function Calendar() {
     setAddAmountDisplay('')
     setAddTransferFrom('')
     setAddTransferTo('')
+    setPendingReceiptFile(null)
+    setReceiptPreviewUrl(null)
     if (!homeData) api.get('/api/home').then(setHomeData).catch(console.error)
     requestAnimationFrame(() => requestAnimationFrame(() => setAddVisible(true)))
   }
   function closeAdd() {
     setAddVisible(false)
+    setPendingReceiptFile(null)
+    setReceiptPreviewUrl(null)
     setTimeout(() => setAddOpen(false), 280)
   }
   async function handleAddSubmit(e) {
@@ -93,9 +103,36 @@ export default function Calendar() {
     try {
       const payload = { ...addForm, amount: amt }
       if (isTransfer && addTransferFrom) payload.card = addTransferFrom
-      await api.post('/api/transactions', payload)
+      const res = await api.post('/api/transactions', payload)
+      if (pendingReceiptFile && res?.id) {
+        try {
+          const fd = new FormData()
+          fd.append('receipt', pendingReceiptFile)
+          await fetch(`/api/transactions/${res.id}/receipt`, { method: 'POST', credentials: 'include', body: fd })
+        } catch {}
+      }
       closeAdd()
       load(yearMonth)
+      if (Capacitor.isNativePlatform()) {
+        api.get('/api/home').then(d => {
+          const now = new Date()
+          const month = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
+          const updated = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} 업데이트`
+          const income = (d.income_total ?? 0).toLocaleString()
+          const expense = (d.expense_total ?? 0).toLocaleString()
+          const balance = ((d.income_total ?? 0) - (d.expense_total ?? 0)).toLocaleString()
+          const budget = String(d.budget_amount ?? 0)
+          const pad = n => String(n).padStart(2, '0')
+          const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+          const todayTxs = (d.transactions || []).filter(tx => tx.date === todayStr && tx.type === 'expense')
+          const todayTotal = String(todayTxs.reduce((s, tx) => s + tx.amount, 0))
+          const todayDate = `${now.getMonth() + 1}월 ${now.getDate()}일`
+          const catMap = {}
+          todayTxs.forEach(tx => { catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount })
+          const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, a]) => `${n}:${a}`).join(',')
+          WidgetData.update({ income, expense, balance, month, updated, budget, today_total: todayTotal, today_date: todayDate, today_cats: todayCats }).catch(() => {})
+        }).catch(() => {})
+      }
     } finally {
       setAddSaving(false)
     }
@@ -114,6 +151,12 @@ export default function Calendar() {
   }, [])
 
   useEffect(() => { load(yearMonth) }, [yearMonth, load])
+
+  useEffect(() => {
+    const open = !!photoViewerTxId || addOpen || !!selected || !!confirmSheet
+    document.body.classList.toggle('sheet-open', open)
+    return () => document.body.classList.remove('sheet-open')
+  }, [photoViewerTxId, addOpen, selected, confirmSheet])
 
   async function handleDelete(id) {
     await api.delete(`/api/transactions/${id}`)
@@ -259,7 +302,7 @@ export default function Calendar() {
                 </button>
               ))}
             </div>
-            <div style={{ overflowY: 'auto', padding: '16px 20px 32px' }}>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 20px 32px' }}>
               {addTab === 'manual' ? (
                 !homeData ? (
                   <div className="text-center py-4"><div className="spinner-border spinner-border-sm" style={{ color: '#b088f9' }} /></div>
@@ -342,6 +385,29 @@ export default function Calendar() {
                           <div className={`ios-track${addForm.exclude_stats ? ' on' : ''}`} />
                           <div className={`ios-dot${addForm.exclude_stats ? ' on' : ''}`} />
                         </div>
+                      </div>
+                    </div>
+                    <div className="col-12">
+                      <input type="file" id="cal-receipt-input" accept="image/*" ref={calReceiptInputRef} style={{ display: 'none' }}
+                        onChange={e => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          setPendingReceiptFile(f)
+                          setReceiptPreviewUrl(URL.createObjectURL(f))
+                          e.target.value = ''
+                        }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px' }}>
+                        <label htmlFor="cal-receipt-input" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                          📷 {pendingReceiptFile ? '사진 변경' : '사진 추가'}
+                        </label>
+                        {receiptPreviewUrl && (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <img src={receiptPreviewUrl} alt="사진 미리보기"
+                              style={{ height: 28, width: 28, objectFit: 'cover', borderRadius: 6, border: '1.5px solid var(--border-light)' }} />
+                            <button type="button" onClick={() => { setPendingReceiptFile(null); setReceiptPreviewUrl(null) }}
+                              style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.65)', border: 'none', borderRadius: '50%', width: 13, height: 13, color: 'white', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="col-12 mt-1">
@@ -427,7 +493,7 @@ export default function Calendar() {
                 <button onClick={() => { setSelectedVisible(false); setTimeout(() => setSelected(null), 300) }} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
               </div>
             </div>
-            <div style={{ overflowY: 'auto', padding: '8px 20px 40px' }}>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px 20px 40px' }}>
               {!selDay || selDay.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>이 날 내역이 없습니다</p>
               ) : selDay.map((tx, i) => (
@@ -436,7 +502,7 @@ export default function Calendar() {
                   onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                   onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                   onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                  <TxItem tx={tx} emojiMap={data.emoji_map} />
+                  <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                 </div>
               ))}
             </div>
@@ -532,7 +598,7 @@ export default function Calendar() {
                         onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                         onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                        <TxItem tx={tx} emojiMap={data.emoji_map} />
+                        <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                       </div>
                     </SwipeItem>
                   ))}
@@ -577,6 +643,19 @@ export default function Calendar() {
           </div>
         </div>,
         document.body
+      )}
+
+      {photoViewerTxId && (
+        <div onClick={() => setPhotoViewerTxId(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ position: 'relative', background: 'var(--bg-card)', borderRadius: 16, overflow: 'hidden', maxWidth: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
+            <button onClick={() => setPhotoViewerTxId(null)}
+              style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
+            <img src={`/api/transactions/${photoViewerTxId}/receipt`} alt="사진 보기"
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
+          </div>
+        </div>
       )}
     </div>
   )

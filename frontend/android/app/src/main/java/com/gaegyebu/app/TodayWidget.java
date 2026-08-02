@@ -2,7 +2,6 @@ package com.gaegyebu.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
-import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -10,7 +9,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.RemoteViews;
 
-public class TodayWidget extends AppWidgetProvider {
+public class TodayWidget extends BaseWidget {
 
     private static final String PREFS_NAME = "gaegyebu_widget";
     private static final String TAG = "TodayWidget";
@@ -31,31 +30,40 @@ public class TodayWidget extends AppWidgetProvider {
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
+            boolean isSystem = WidgetTheme.SYSTEM.equals(theme);
             WidgetTheme.applyBg(views, R.id.widget_today_root, theme, context);
-            views.setTextColor(R.id.today_date,  WidgetTheme.dim(dark));
-            views.setTextColor(R.id.today_total, WidgetTheme.expense(dark));
-            views.setTextColor(R.id.today_empty, WidgetTheme.hint(dark));
+            if (!isSystem) {
+                views.setTextColor(R.id.today_date,  WidgetTheme.primary(dark));
+                views.setTextColor(R.id.today_total, WidgetTheme.expense(dark));
+                views.setTextColor(R.id.today_empty, WidgetTheme.hint(dark));
+                views.setInt(R.id.today_divider, "setBackgroundColor",
+                        dark ? 0x33FFFFFF : 0x33000000);
+            }
 
             views.setTextViewText(R.id.today_date,  todayDate);
-            views.setTextViewText(R.id.today_total, fmt(parseLong(todayTotal)) + "원");
+            long totalAmt = parseLong(todayTotal);
+            views.setTextViewText(R.id.today_total,
+                    totalAmt > 0 ? "-" + fmt(totalAmt) + "원" : "0원");
 
-            // 카테고리 TOP 3 파싱 ("식비:23000,교통:8400,기타:16400")
-            int[] rowIds = {R.id.today_row1, R.id.today_row2, R.id.today_row3};
-            int[] nameIds = {R.id.today_cat1_name, R.id.today_cat2_name, R.id.today_cat3_name};
-            int[] amtIds  = {R.id.today_cat1_amt,  R.id.today_cat2_amt,  R.id.today_cat3_amt};
+            // 카테고리 TOP 5 파싱 ("식비:23000,교통:8400,기타:16400,...")
+            int[] rowIds  = {R.id.today_row1,      R.id.today_row2,      R.id.today_row3,      R.id.today_row4,      R.id.today_row5};
+            int[] nameIds = {R.id.today_cat1_name, R.id.today_cat2_name, R.id.today_cat3_name, R.id.today_cat4_name, R.id.today_cat5_name};
+            int[] amtIds  = {R.id.today_cat1_amt,  R.id.today_cat2_amt,  R.id.today_cat3_amt,  R.id.today_cat4_amt,  R.id.today_cat5_amt};
 
             String[] entries = todayCats.isEmpty() ? new String[0] : todayCats.split(",");
 
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 5; i++) {
                 if (i < entries.length) {
                     String[] parts = entries[i].split(":", 2);
                     String catName = parts.length > 0 ? parts[0] : "";
                     long   catAmt  = parts.length > 1 ? parseLong(parts[1]) : 0;
                     views.setViewVisibility(rowIds[i], View.VISIBLE);
-                    views.setTextColor(nameIds[i], WidgetTheme.text(dark));
-                    views.setTextColor(amtIds[i], WidgetTheme.expense(dark));
+                    if (!isSystem) {
+                        views.setTextColor(nameIds[i], WidgetTheme.text(dark));
+                        views.setTextColor(amtIds[i], WidgetTheme.expense(dark));
+                    }
                     views.setTextViewText(nameIds[i], catName);
-                    views.setTextViewText(amtIds[i],  fmt(catAmt) + "원");
+                    views.setTextViewText(amtIds[i],  "-" + fmt(catAmt) + "원");
                 } else {
                     views.setViewVisibility(rowIds[i], View.GONE);
                 }
@@ -67,7 +75,7 @@ public class TodayWidget extends AppWidgetProvider {
 
             // 클릭 → 앱 실행
             Intent intent = new Intent(context, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent pi = PendingIntent.getActivity(context, 4, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             views.setOnClickPendingIntent(R.id.widget_today_root, pi);
@@ -89,6 +97,11 @@ public class TodayWidget extends AppWidgetProvider {
 
     private static String fmt(long n) {
         return String.format("%,d", n);
+    }
+
+    @Override
+    protected void refreshAll(Context context) {
+        updateAll(context);
     }
 
     public static void updateAll(Context context) {

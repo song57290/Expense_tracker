@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
 import api from '../api.js'
 import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 
@@ -71,6 +72,10 @@ export default function Home() {
   const amountRef = useRef(null)
   const [routineSheet, setRoutineSheet] = useState(null)
   const [routineSheetVisible, setRoutineSheetVisible] = useState(false)
+  const [photoViewerTxId, setPhotoViewerTxId] = useState(null)
+  const [budgetDialog, setBudgetDialog] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
+  const [budgetSaving, setBudgetSaving] = useState(false)
   const [routineSheetDate, setRoutineSheetDate] = useState('')
   const [routineSheetCard, setRoutineSheetCard] = useState('')
   const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
@@ -95,18 +100,33 @@ export default function Home() {
       const budget = String(d.budget_amount ?? 0)
 
       // 오늘 지출 집계
-      const todayStr = now.toISOString().split('T')[0]
+      const pad = n => String(n).padStart(2, '0')
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
       const todayTxs = (d.transactions || []).filter(tx => tx.date === todayStr && tx.type === 'expense')
       const todayTotal = String(todayTxs.reduce((s, tx) => s + tx.amount, 0))
       const todayDate = `${now.getMonth() + 1}월 ${now.getDate()}일`
       const catMap = {}
       todayTxs.forEach(tx => { catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount })
-      const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, a]) => `${n}:${a}`).join(',')
+      const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, a]) => `${n}:${a}`).join(',')
 
       WidgetData.update({ income, expense, balance, month, updated, budget, today_total: todayTotal, today_date: todayDate, today_cats: todayCats }).catch(e => console.error('[Widget] update failed:', e))
     }
   }).catch(console.error), [])
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const checkNav = () => WidgetData.getPendingNavigation().then(r => {
+      if (r?.navigate === 'budget') setBudgetDialog(true)
+    }).catch(() => {})
+    checkNav()
+    // 위젯으로 앱을 열었을 때 이미 실행 중이면 onNewIntent → appStateChange active로 감지
+    let handle = null
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) checkNav()
+    }).then(h => { handle = h })
+    return () => { handle?.remove() }
+  }, [])
 
 
   useEffect(() => {
@@ -115,10 +135,10 @@ export default function Home() {
   }, [params])
 
   useEffect(() => {
-    const open = !!confirmSheet || !!cardSheet || importOpen
+    const open = !!confirmSheet || !!cardSheet || importOpen || !!photoViewerTxId || budgetDialog || !!routineSheet || hideCardConfirm
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [confirmSheet, cardSheet, importOpen])
+  }, [confirmSheet, cardSheet, importOpen, photoViewerTxId, budgetDialog, routineSheet, hideCardConfirm])
 
   // 안드로이드 뒤로가기로 열린 시트 닫기
   useEffect(() => {
@@ -199,6 +219,18 @@ export default function Home() {
     await api.delete(`/api/transactions/${id}`)
     setConfirmSheet(null)
     load()
+  }
+
+  async function saveBudget() {
+    const amt = parseInt(budgetInput.replace(/,/g, '')) || 0
+    setBudgetSaving(true)
+    try {
+      await api.post('/api/budget', { amount: amt })
+      setBudgetDialog(false)
+      load()
+    } finally {
+      setBudgetSaving(false)
+    }
   }
 
   function tierColor(pct, t1, t2, t3) {
@@ -310,18 +342,40 @@ export default function Home() {
         <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{summaryOpen ? '▴' : '▾'}</span>
       </div>
       {summaryOpen && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 24 }}>
-          {[
-            { label: '수입', color: '#34c759', amt: `+${fmt(data.income_total)}원` },
-            { label: '지출', color: '#ff3b30', amt: `-${fmt(data.expense_total)}원` },
-            { label: '총계', color: data.balance >= 0 ? '#409cff' : '#ff3b30', amt: `${data.balance >= 0 ? '+' : ''}${fmt(data.balance)}원` },
-          ].map(({ label, color, amt }) => (
-            <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
-            </div>
-          ))}
-        </div>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
+            {[
+              { label: '수입', color: '#34c759', amt: `+${fmt(data.income_total)}원` },
+              { label: '지출', color: '#ff3b30', amt: `-${fmt(data.expense_total)}원` },
+              { label: '총계', color: data.balance >= 0 ? '#409cff' : '#ff3b30', amt: `${data.balance >= 0 ? '+' : ''}${fmt(data.balance)}원` },
+            ].map(({ label, color, amt }) => (
+              <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 14, padding: '10px 14px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flexShrink: 0 }}>이달 예산</span>
+            {data.budget_amount > 0 ? (
+              <>
+                <div style={{ flex: 1, height: 6, background: 'var(--bg-accent)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${budgetPct}%`, background: budgetPct >= 100 ? '#ff3b30' : budgetPct >= 80 ? '#ff9f0a' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: budgetPct >= 100 ? '#ff3b30' : budgetPct >= 80 ? '#ff9f0a' : '#b088f9', flexShrink: 0 }}>{budgetPct}%</span>
+                <button onClick={() => { setBudgetInput(data.budget_amount.toLocaleString('ko-KR')); setBudgetDialog(true) }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
+                  {fmt(data.budget_amount)}원 ✎
+                </button>
+              </>
+            ) : (
+              <button onClick={() => { setBudgetInput(''); setBudgetDialog(true) }}
+                style={{ background: 'none', border: 'none', color: '#b088f9', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', padding: 0 }}>
+                미설정 — 탭하여 설정
+              </button>
+            )}
+          </div>
+        </>
       )}
 
       {/* 카드 실적 */}
@@ -534,7 +588,7 @@ export default function Home() {
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
-                  {pendingReceiptFile && <span style={{ background: '#b088f9', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: '0.7rem', fontWeight: 700 }}>영수증 ✓</span>}
+                  {pendingReceiptFile && <span style={{ background: '#b088f9', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: '0.7rem', fontWeight: 700 }}>사진 ✓</span>}
                 </button>
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn"
@@ -597,7 +651,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} />
+                          <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                         </div>
                       </SwipeItem>
                     ))}
@@ -622,7 +676,7 @@ export default function Home() {
               <span style={{ fontWeight: 700, fontSize: '1rem' }}>📋 {routineSheet.name}</span>
               <button onClick={closeRoutineSheet} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ overflowY: 'auto', flex: 1, padding: '14px 16px' }}>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '14px 16px' }}>
               {/* 날짜·카드 */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 <div style={{ flex: 1 }}>
@@ -727,7 +781,7 @@ export default function Home() {
       {cardSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3000, alignItems: 'flex-end', justifyContent: 'center', opacity: cardSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeCardSheet()}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', overscrollBehavior: 'contain', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
               <div className="d-flex align-items-center gap-2">
@@ -763,14 +817,14 @@ export default function Home() {
       {/* 가져오기 모달 */}
       {importOpen && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
             <div className="modal-header p-3">
               <h5 className="modal-title mb-0">내역 가져오기</h5>
               <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text') }} />
             </div>
             <div className="p-3">
               <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-accent)', borderRadius: 12, padding: 4 }}>
-                {[['text', '💬 문자'], ['excel', '📊 엑셀'], ['receipt', '🧾 영수증']].map(([t, label]) => (
+                {[['text', '💬 문자'], ['excel', '📊 엑셀'], ['receipt', '📷 사진']].map(([t, label]) => (
                   <button key={t} type="button" onClick={() => setImportTab(t)}
                     style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
                       background: importTab === t ? 'var(--bg-card)' : 'transparent',
@@ -808,8 +862,8 @@ export default function Home() {
               )}
               {importTab === 'receipt' && (
                 <div>
-                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>영수증 이미지를 첨부하세요. 내역 저장 시 함께 등록됩니다.</p>
-                  <input type="file" accept="image/*" ref={receiptInputRef} style={{ display: 'none' }} onChange={e => {
+                  <p className="text-muted" style={{ fontSize: '0.85rem' }}>사진을 첨부하세요. 내역 저장 시 함께 등록됩니다.</p>
+                  <input type="file" id="home-receipt-input" accept="image/*" ref={receiptInputRef} style={{ display: 'none' }} onChange={e => {
                     const f = e.target.files?.[0]
                     if (f) {
                       if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
@@ -820,7 +874,7 @@ export default function Home() {
                   }} />
                   {receiptPreviewUrl ? (
                     <div style={{ marginBottom: 14, position: 'relative', display: 'inline-block', width: '100%' }}>
-                      <img src={receiptPreviewUrl} alt="영수증 미리보기"
+                      <img src={receiptPreviewUrl} alt="사진 미리보기"
                         style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 12, border: '1.5px solid var(--border-light)', display: 'block', background: 'var(--bg-accent)' }} />
                       <button type="button" onClick={() => { URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null) }}
                         style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 28, height: 28, color: 'white', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
@@ -832,10 +886,10 @@ export default function Home() {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
-                    <button type="button" onClick={() => receiptInputRef.current?.click()}
-                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1.5px dashed var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                    <label htmlFor="home-receipt-input"
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1.5px dashed var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer', textAlign: 'center', display: 'block' }}>
                       {pendingReceiptFile ? '다른 이미지 선택' : '이미지 선택'}
-                    </button>
+                    </label>
                     <button type="button" onClick={() => { setImportOpen(false); setImportTab('text') }}
                       style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
                       확인
@@ -844,6 +898,51 @@ export default function Home() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {budgetDialog && (
+        <div onClick={() => setBudgetDialog(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, padding: '24px 20px', boxShadow: '0 12px 40px rgba(0,0,0,0.22)' }}>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>이달 예산 설정</div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>지출 목표 금액을 입력하세요</div>
+            <div style={{ position: 'relative', marginBottom: 16 }}>
+              <input
+                autoFocus
+                className="form-control"
+                inputMode="numeric"
+                placeholder="0"
+                value={budgetInput}
+                onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setBudgetInput(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                onKeyDown={e => e.key === 'Enter' && saveBudget()}
+                style={{ paddingRight: 36, fontSize: '1rem', fontWeight: 600 }}
+              />
+              <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem', pointerEvents: 'none' }}>원</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={saveBudget} disabled={budgetSaving}
+                style={{ flex: 2, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+                {budgetSaving ? '저장 중...' : '저장'}
+              </button>
+              <button onClick={() => setBudgetDialog(false)}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {photoViewerTxId && (
+        <div onClick={() => setPhotoViewerTxId(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ position: 'relative', background: 'var(--bg-card)', borderRadius: 16, overflow: 'hidden', maxWidth: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
+            <button onClick={() => setPhotoViewerTxId(null)}
+              style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
+            <img src={`/api/transactions/${photoViewerTxId}/receipt`} alt="사진 보기"
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
           </div>
         </div>
       )}

@@ -78,9 +78,9 @@ export default function Stats() {
   const [cmpFilterOpen, setCmpFilterOpen] = useState(false)
 
   useEffect(() => {
-    document.body.classList.toggle('sheet-open', assetDetail)
+    document.body.classList.toggle('sheet-open', assetDetail || pickerOpen)
     return () => document.body.classList.remove('sheet-open')
-  }, [assetDetail])
+  }, [assetDetail, pickerOpen])
 
   function openAssetDetail() {
     setAssetDetail(true)
@@ -719,7 +719,7 @@ export default function Stats() {
                       </div>
 
                       {/* 스크롤 영역 */}
-                      <div style={{ overflowY: 'auto', flex: 1, padding: '16px 20px 32px' }}>
+                      <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '16px 20px 32px' }}>
 
                         {/* 요약 카드 */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
