@@ -2,33 +2,32 @@ import { useEffect, useState } from 'react'
 import splashIcon from '../assets/splash_icon.png'
 import './SplashOverlay.css'
 
-export default function SplashOverlay({ onFinish }) {
+export default function SplashOverlay({ onFinish, onReady, loading = false }) {
   const [hide, setHide] = useState(false)
 
   useEffect(() => {
-    const t1 = setTimeout(() => {
-      setHide(true)
-    }, 900)
+    const t = setTimeout(() => {
+      onReady?.()
+    }, 50)
 
-    const t2 = setTimeout(() => {
-      onFinish?.()
-    }, 1250)
+    return () => clearTimeout(t)
+  }, [onReady])
+
+  useEffect(() => {
+    if (loading) return
+
+    const t1 = setTimeout(() => setHide(true), 1800)
+    const t2 = setTimeout(() => onFinish?.(), 2200)
 
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
     }
-  }, [onFinish])
+  }, [loading, onFinish])
 
-    return (
+  return (
     <div className={`splash ${hide ? 'hide' : ''}`}>
-        <div
-        style={{
-            width: 190,
-            height: 190,
-            background: 'red'
-        }}
-        />
+      <img src={splashIcon} alt="" className="splash-icon" />
     </div>
-    )
+  )
 }

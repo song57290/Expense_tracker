@@ -57,12 +57,18 @@ export default function App() {
   const [cardOptions, setCardOptions] = useState([])
   const [selectedCard, setSelectedCard] = useState('')
   const [showSplash, setShowSplash] = useState(true)
+  const splashHiddenRef = useRef(false)
 
   useEffect(() => {
     // 서버 응답이 늦어도(Fly.io 콜드 스타트) 스플래시가 무한 대기하지 않도록 폴백
     let done = false
     const fallback = Capacitor.isNativePlatform()
-      ? setTimeout(() => { if (!done) SplashScreen.hide() }, 6000)
+      ? setTimeout(() => {
+          if (!done && !splashHiddenRef.current) {
+            splashHiddenRef.current = true
+            SplashScreen.hide()
+          }
+        }, 6000)
       : null
     fetch('/api/me', { credentials: 'same-origin' })
       .then(r => r.json())
@@ -71,9 +77,25 @@ export default function App() {
       .finally(() => {
         done = true
         clearTimeout(fallback)
-        if (Capacitor.isNativePlatform()) SplashScreen.hide()
+        // 여기서 hide()를 호출하지 않음.
+        // user 상태가 실제로 반영되어 화면이 그려진 뒤 아래 useEffect에서 처리함.
       })
   }, [])
+
+  // user가 확정되고(undefined -> null 또는 값) 그 결과가 실제로 화면에 페인트된 뒤 스플래시 숨김
+  useEffect(() => {
+    if (user === undefined) return
+    if (splashHiddenRef.current) return
+
+    if (Capacitor.isNativePlatform()) {
+      splashHiddenRef.current = true
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          SplashScreen.hide()
+        })
+      })
+    }
+  }, [user])
 
   useEffect(() => {
     const refresh = () => fetch('/api/me', { credentials: 'same-origin' }).then(r => r.json()).then(d => setUser(d.user)).catch(() => {})

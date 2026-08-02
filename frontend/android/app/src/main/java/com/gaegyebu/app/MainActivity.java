@@ -5,6 +5,8 @@ import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
@@ -12,14 +14,21 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // super.onCreate()보다 먼저 Window 배경을 지정
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.parseColor("#A86AF6")));
+
         registerPlugin(RingerModePlugin.class);
         registerPlugin(WidgetDataPlugin.class);
         super.onCreate(savedInstanceState);
+
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setBackgroundColor(Color.parseColor("#A86AF6"));
+        }
         createNotificationChannel();
         refreshWidgets();
         storeWidgetNav(getIntent());
     }
-
+    
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
