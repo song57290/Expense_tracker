@@ -2,7 +2,6 @@ package com.gaegyebu.app;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
-import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,7 +12,7 @@ import android.graphics.RectF;
 import android.util.Log;
 import android.widget.RemoteViews;
 
-public class DashboardWidget extends AppWidgetProvider {
+public class DashboardWidget extends BaseWidget {
 
     private static final String PREFS_NAME = "gaegyebu_widget";
     private static final String TAG = "DashboardWidget";
@@ -26,24 +25,29 @@ public class DashboardWidget extends AppWidgetProvider {
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String month   = prefs.getString("month",   "--월");
-            String updated = prefs.getString("updated", "");
-            String income  = prefs.getString("income",  "---");
-            String expense = prefs.getString("expense", "---");
-            String balance = prefs.getString("balance", "---");
-            long   budget  = parseLong(prefs.getString("budget",  "0"));
-            long   expLong = parseLong(expense);
-            long   balLong = parseLongSigned(balance);
+            String month      = prefs.getString("month",       "--월");
+            String updated    = prefs.getString("updated",     "");
+            String income     = prefs.getString("income",      "---");
+            String expense    = prefs.getString("expense",     "---");
+            String balance    = prefs.getString("balance",     "---");
+            long   budget     = parseLong(prefs.getString("budget",      "0"));
+            long   expLong    = parseLong(expense);
+            long   balLong    = parseLongSigned(balance);
+            String todayTotal = prefs.getString("today_total", "0");
+            String todayCats  = prefs.getString("today_cats",  "");
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_dashboard);
 
             String theme = WidgetTheme.getTheme(prefs, widgetId);
             boolean dark = WidgetTheme.isDark(theme, context);
+            boolean isSystem = WidgetTheme.SYSTEM.equals(theme);
             WidgetTheme.applyBg(views, R.id.widget_dashboard_root, theme, context);
-            views.setTextColor(R.id.dash_month,   WidgetTheme.primary(dark));
-            views.setTextColor(R.id.dash_updated, WidgetTheme.hint(dark));
-            views.setTextColor(R.id.dash_income,  WidgetTheme.income(dark));
-            views.setTextColor(R.id.dash_expense, WidgetTheme.expense(dark));
+            if (!isSystem) {
+                views.setTextColor(R.id.dash_month,   WidgetTheme.primary(dark));
+                views.setTextColor(R.id.dash_updated, WidgetTheme.hint(dark));
+                views.setTextColor(R.id.dash_income,  WidgetTheme.income(dark));
+                views.setTextColor(R.id.dash_expense, WidgetTheme.expense(dark));
+            }
 
             views.setTextViewText(R.id.dash_month,   month);
             views.setTextViewText(R.id.dash_updated, updated);
@@ -57,16 +61,7 @@ public class DashboardWidget extends AppWidgetProvider {
             // 예산 퍼센트
             float percent    = (budget > 0) ? (float) expLong / budget : 0f;
             int   percentInt = Math.round(percent * 100);
-            int   arcColor;
-            if (dark) {
-                if (percent < 0.7f)      arcColor = 0xFFB088F9;
-                else if (percent < 0.9f) arcColor = 0xFFFFCC44;
-                else                     arcColor = 0xFFFF6B6B;
-            } else {
-                if (percent < 0.7f)      arcColor = 0xFF6832C0;
-                else if (percent < 0.9f) arcColor = 0xFFB8860B;
-                else                     arcColor = 0xFFCC2222;
-            }
+            int   arcColor   = WidgetTheme.arcColor(percent, dark);
 
             if (budget > 0) {
                 views.setTextViewText(R.id.dash_percent, percentInt + "%");
@@ -79,9 +74,43 @@ public class DashboardWidget extends AppWidgetProvider {
             // 프로그레스 바 비트맵
             views.setImageViewBitmap(R.id.dash_bar, createBarBitmap(percent, arcColor, dark));
 
+            // 오늘 지출 요약
+            if (!isSystem) {
+                views.setTextColor(R.id.dash_today_label,  WidgetTheme.hint(dark));
+                views.setTextColor(R.id.dash_today_amount, WidgetTheme.expense(dark));
+                views.setTextColor(R.id.dash_today_cats,   WidgetTheme.text(dark));
+            }
+            long todayAmt = parseLong(todayTotal);
+            views.setTextViewText(R.id.dash_today_amount,
+                    todayAmt > 0 ? "-" + fmt(todayAmt) + "원" : "0원");
+            String catsLabel = "";
+            if (!todayCats.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (String entry : todayCats.split(",")) {
+                    String[] parts = entry.split(":", 2);
+                    if (parts.length > 0 && !parts[0].isEmpty()) {
+                        if (sb.length() > 0) sb.append(" · ");
+                        sb.append(parts[0]);
+                    }
+                }
+                catsLabel = sb.toString();
+            }
+            views.setTextViewText(R.id.dash_today_cats, catsLabel);
+
+            // 예산 미설정 탭 → 예산 설정 화면으로
+            if (budget == 0) {
+                Intent budgetIntent = new Intent(context, MainActivity.class);
+                budgetIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                budgetIntent.putExtra("widget_nav", "budget");
+                PendingIntent budgetPi = PendingIntent.getActivity(context, 31, budgetIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                views.setOnClickPendingIntent(R.id.dash_percent, budgetPi);
+                views.setOnClickPendingIntent(R.id.dash_budget_label, budgetPi);
+            }
+
             // 클릭 → 앱 실행
             Intent intent = new Intent(context, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent pi = PendingIntent.getActivity(context, 3, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             views.setOnClickPendingIntent(R.id.widget_dashboard_root, pi);
@@ -102,7 +131,7 @@ public class DashboardWidget extends AppWidgetProvider {
 
         // 배경 트랙: 다크는 반투명 흰색, 라이트는 반투명 검정
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bg.setColor(dark ? 0x33FFFFFF : 0x22000000);
+        bg.setColor(dark ? 0x55FFFFFF : 0x22000000);
         canvas.drawRoundRect(new RectF(0, 0, w, h), radius, radius, bg);
 
         // 채움
@@ -114,6 +143,10 @@ public class DashboardWidget extends AppWidgetProvider {
         }
 
         return bmp;
+    }
+
+    private static String fmt(long n) {
+        return String.format("%,d", n);
     }
 
     // 콤마 제거 후 파싱 (부호 없는 값)
@@ -132,6 +165,11 @@ public class DashboardWidget extends AppWidgetProvider {
         } catch (Exception e) {
             return 0;
         }
+    }
+
+    @Override
+    protected void refreshAll(Context context) {
+        updateAll(context);
     }
 
     public static void updateAll(Context context) {

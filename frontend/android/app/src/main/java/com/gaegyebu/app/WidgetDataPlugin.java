@@ -3,6 +3,7 @@ package com.gaegyebu.app;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -68,6 +69,17 @@ public class WidgetDataPlugin extends Plugin {
 
         updateAllWidgets(ctx);
         call.resolve();
+    }
+
+    @PluginMethod
+    public void getPendingNavigation(PluginCall call) {
+        Context ctx = getContext();
+        SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String nav = prefs.getString("widget_nav", "");
+        if (!nav.isEmpty()) prefs.edit().remove("widget_nav").apply();
+        JSObject result = new JSObject();
+        result.put("navigate", nav);
+        call.resolve(result);
     }
 
     private void updateAllWidgets(Context ctx) {

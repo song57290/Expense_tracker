@@ -17,12 +17,30 @@ export default function Edit() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [receiptUrl, setReceiptUrl] = useState(null)
   const [receiptLoading, setReceiptLoading] = useState(false)
+  const [photoViewer, setPhotoViewer] = useState(false)
+  const [typeSheet, setTypeSheet] = useState(false)
+  const [typeSheetVisible, setTypeSheetVisible] = useState(false)
+  const [convOpen, setConvOpen] = useState(false)
   const receiptInputRef = useRef(null)
 
   useEffect(() => {
-    document.body.classList.toggle('sheet-open', deleteConfirm)
+    document.body.classList.toggle('sheet-open', deleteConfirm || photoViewer || typeSheet)
     return () => document.body.classList.remove('sheet-open')
-  }, [deleteConfirm])
+  }, [deleteConfirm, photoViewer, typeSheet])
+
+  function openTypeSheet() {
+    setTypeSheet(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setTypeSheetVisible(true)))
+  }
+  function closeTypeSheet() {
+    setTypeSheetVisible(false)
+    setTimeout(() => setTypeSheet(false), 300)
+  }
+  function selectType(newType) {
+    const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
+    setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false }))
+    closeTypeSheet()
+  }
 
   useEffect(() => {
     api.get(`/api/transactions/${id}`).then(d => {
@@ -73,19 +91,29 @@ export default function Edit() {
     try {
       const fd = new FormData()
       fd.append('receipt', file)
-      const res = await fetch(`/api/transactions/${id}/receipt`, { method: 'POST', credentials: 'same-origin', body: fd })
-      if (res.ok) setReceiptUrl(`/api/transactions/${id}/receipt?t=${Date.now()}`)
-    } catch { /* empty */ } finally {
+      const res = await fetch(`/api/transactions/${id}/receipt`, { method: 'POST', credentials: 'include', body: fd })
+      if (res.ok) {
+        setReceiptUrl(`/api/transactions/${id}/receipt?t=${Date.now()}`)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert('업로드 실패: ' + (body.error || res.status))
+      }
+    } catch (err) {
+      alert('업로드 오류: ' + err.message)
+    } finally {
       setReceiptLoading(false)
       e.target.value = ''
     }
   }
 
   async function handleReceiptDelete() {
-    if (!window.confirm('영수증을 삭제할까요?')) return
-    await fetch(`/api/transactions/${id}/receipt`, { method: 'DELETE', credentials: 'same-origin' })
+    if (!window.confirm('사진을 삭제할까요?')) return
+    await fetch(`/api/transactions/${id}/receipt`, { method: 'DELETE', credentials: 'include' })
     setReceiptUrl(null)
   }
+
+  const typeLabel = form.type === 'expense' ? '지출' : '수입'
+  const typeColor = form.type === 'expense' ? '#FF6B6B' : '#34C759'
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -104,17 +132,17 @@ export default function Edit() {
               <label className="form-label fw-semibold">날짜</label>
               <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
             </div>
+
+            {/* 유형 — 커스텀 버튼 */}
             <div className="mb-3">
               <label className="form-label fw-semibold">유형</label>
-              <select className="form-select" value={form.type} onChange={e => {
-                const newType = e.target.value
-                const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
-                setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false }))
-              }}>
-                <option value="expense">지출</option>
-                <option value="income">수입</option>
-              </select>
+              <button type="button" onClick={openTypeSheet}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', cursor: 'pointer' }}>
+                <span style={{ fontWeight: 600, color: typeColor, fontSize: '0.95rem' }}>{typeLabel}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>▼</span>
+              </button>
             </div>
+
             <div className="mb-3">
               <label className="form-label fw-semibold">카테고리</label>
               <CategoryPicker cats={cats} value={form.category} onChange={handleCategoryChange} />
@@ -149,39 +177,51 @@ export default function Edit() {
                 onChange={name => setForm(f => ({ ...f, card: name }))}
               />
             </div>
-            {form.type === 'expense' && (
-              <div className="mb-2">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
-                  <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem' }}>💱 카드 실적에서 제외</label>
-                  <div className="ios-toggle">
-                    <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
-                    <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
+
+            {/* 편의 기능 — 접이식 */}
+            <div className="mb-3" style={{ borderRadius: 12, border: '1.5px solid var(--border-light)', overflow: 'hidden' }}>
+              <div onClick={() => setConvOpen(o => !o)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', cursor: 'pointer', background: 'var(--bg-section)', userSelect: 'none' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>⚙️ 편의 기능</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', transition: 'transform 0.2s', display: 'inline-block', transform: convOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              </div>
+              {convOpen && (
+                <div style={{ padding: '4px 14px 8px', borderTop: '1px solid var(--border-light)' }}>
+                  {form.type === 'expense' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}
+                      onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+                      <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>💱 카드 실적에서 제외</label>
+                      <div className="ios-toggle">
+                        <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
+                        <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+                    onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+                    <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>📊 통계에서 제외</label>
+                    <div className="ios-toggle">
+                      <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
+                      <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div className="mb-4">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 0' }} onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
-                <label className="form-label fw-semibold mb-0" style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem' }}>📊 통계에서 제외</label>
-                <div className="ios-toggle">
-                  <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
-                  <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
-                </div>
-              </div>
+              )}
             </div>
-            {/* 영수증 */}
+
+            {/* 사진 */}
             <div className="mb-4">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <label className="form-label fw-semibold mb-0" style={{ fontSize: '0.82rem' }}>🧾 영수증</label>
-                <input type="file" accept="image/*" ref={receiptInputRef} onChange={handleReceiptUpload} style={{ display: 'none' }} />
-                <button type="button" onClick={() => receiptInputRef.current?.click()} disabled={receiptLoading}
-                  style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-                  {receiptLoading ? '업로드 중...' : receiptUrl ? '교체' : '+ 추가'}
-                </button>
+                <span className="form-label fw-semibold mb-0" style={{ fontSize: '0.82rem' }}>🧾 사진</span>
+                <label htmlFor="receipt-file-input" style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: receiptLoading ? 'var(--text-muted)' : '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: receiptLoading ? 'default' : 'pointer', pointerEvents: receiptLoading ? 'none' : 'auto' }}>
+                  {receiptLoading ? '업로드 중...' : receiptUrl ? '변경' : '+ 추가'}
+                </label>
+                <input type="file" id="receipt-file-input" accept="image/*" ref={receiptInputRef} onChange={handleReceiptUpload} style={{ display: 'none' }} />
               </div>
               {receiptUrl && (
                 <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <img src={receiptUrl} alt="영수증" style={{ width: '100%', maxWidth: 260, borderRadius: 12, border: '1.5px solid var(--border-light)', display: 'block' }} />
+                  <img src={receiptUrl} alt="사진" onClick={() => setPhotoViewer(true)}
+                    style={{ width: '100%', maxWidth: 260, borderRadius: 12, border: '1.5px solid var(--border-light)', display: 'block', cursor: 'zoom-in' }} />
                   <button type="button" onClick={handleReceiptDelete}
                     style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: 'white', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 </div>
@@ -198,6 +238,44 @@ export default function Edit() {
           </form>
         </div>
       </div>
+
+      {/* 유형 선택 시트 */}
+      {typeSheet && (
+        <div onClick={closeTypeSheet}
+          style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${typeSheetVisible ? 0.45 : 0})`, zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', transition: 'background 0.3s ease' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)', transform: typeSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
+            </div>
+            <div style={{ padding: '8px 20px 4px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>유형 선택</div>
+            {[['expense', '지출', '#FF6B6B'], ['income', '수입', '#34C759']].map(([val, label, color]) => (
+              <div key={val} onClick={() => selectType(val)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', cursor: 'pointer', borderTop: '1px solid var(--border-light)' }}>
+                <span style={{ fontSize: '1rem', fontWeight: 600, color: form.type === val ? color : 'var(--text-primary)' }}>{label}</span>
+                {form.type === val && (
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 700 }}>✓</span>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {photoViewer && (
+        <div onClick={() => setPhotoViewer(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ position: 'relative', background: 'var(--bg-card)', borderRadius: 16, overflow: 'hidden', maxWidth: '100%', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
+            <button onClick={() => setPhotoViewer(false)}
+              style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
+            <img src={receiptUrl} alt="사진 보기"
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
+          </div>
+        </div>
+      )}
 
       {deleteConfirm && (
         <div onClick={() => setDeleteConfirm(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>

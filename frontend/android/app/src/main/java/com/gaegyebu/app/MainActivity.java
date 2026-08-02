@@ -2,6 +2,8 @@ package com.gaegyebu.app;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,12 +17,30 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         createNotificationChannel();
         refreshWidgets();
+        storeWidgetNav(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        storeWidgetNav(intent);
     }
 
     @Override
     public void onResume() {
         super.onResume();
         refreshWidgets();
+    }
+
+    private void storeWidgetNav(Intent intent) {
+        if (intent == null) return;
+        String nav = intent.getStringExtra("widget_nav");
+        if (nav != null && !nav.isEmpty()) {
+            getSharedPreferences("gaegyebu_widget", MODE_PRIVATE)
+                .edit().putString("widget_nav", nav).apply();
+            intent.removeExtra("widget_nav");
+        }
     }
 
     @Override

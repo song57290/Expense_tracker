@@ -135,6 +135,7 @@ function InfiniteDrum({ items, value, onChange, onWrap, renderItem, fontSize = '
         style={{
           position: 'absolute', inset: 0,
           overflowY: 'scroll',
+          overscrollBehavior: 'contain',
           scrollSnapType: 'y mandatory',
           scrollbarWidth: 'none',
           WebkitOverflowScrolling: 'touch',
@@ -173,6 +174,11 @@ export default function NotifySheet() {
     window.openNotifySheet = () => { setOpen(true); setTimeout(() => setVisible(true), 10) }
     window.closeNotifySheet = () => { setVisible(false); setTimeout(() => setOpen(false), 320) }
   }, [])
+
+  useEffect(() => {
+    document.body.classList.toggle('sheet-open', open)
+    return () => document.body.classList.remove('sheet-open')
+  }, [open])
 
   const close = () => { setVisible(false); setTimeout(() => { setOpen(false); setPickerOpen(false) }, 320) }
 

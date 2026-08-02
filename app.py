@@ -763,7 +763,7 @@ def _investment_stats(inv):
 @login_required
 def api_home():
     uid = session['user_id']
-    current_month = datetime.now().strftime('%Y-%m')
+    current_month = datetime.now(_KST).strftime('%Y-%m')
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
 
@@ -896,7 +896,8 @@ def api_transaction(tx_id):
     return jsonify({
         'transaction': {'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
-                        'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats)},
+                        'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
+                        'has_receipt': bool(getattr(tx, 'has_receipt', False))},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in Card.query.filter_by(user_id=uid).all()],
@@ -920,7 +921,7 @@ def api_cards():
         ))
         db.session.commit()
         return jsonify({'ok': True})
-    current_month = datetime.now().strftime('%Y-%m')
+    current_month = datetime.now(_KST).strftime('%Y-%m')
     month_txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
     cards = Card.query.filter_by(user_id=uid).all()
     excl_cats_cards = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
@@ -1503,7 +1504,7 @@ def api_portfolio_pdf():
             f'<div class="cn2" style="display:flex;align-items:center;gap:10px">{logo}<span style="color:#dc3545">{c["name"]}</span></div>'
             '<div class="ig">'
             f'<div class="ic"><div class="l">대출 잔액</div><div class="v ce">-{fmt(abs(c["balance"]))}원</div></div>'
-            f'<div class="ic"><div class="l">이달 상환</div><div class="v ci">{fmt(repaid)}원</div></div>'
+            f'<div class="ic"><div class="l">상환 금액</div><div class="v ci">{fmt(repaid)}원</div></div>'
             + tgt_html + rate_html +
             '</div></div>'
         )
@@ -1780,7 +1781,7 @@ tbody tr:last-child td{border-bottom:none}
 @login_required
 def api_budget():
     uid = session['user_id']
-    current_month = datetime.now().strftime('%Y-%m')
+    current_month = datetime.now(_KST).strftime('%Y-%m')
     if request.method == 'POST':
         data = request.json or {}
         amount = int(data.get('amount', 0))
@@ -1808,10 +1809,9 @@ def api_budget():
         if c.linked_account_id:
             linked_names.setdefault(c.linked_account_id, []).append(c.name)
 
-    loan_repayments_this_month = {}
+    loan_repayments_all = {}
     for r in LoanRepayment.query.filter_by(user_id=uid).all():
-        if r.date.startswith(current_month):
-            loan_repayments_this_month[r.card_id] = loan_repayments_this_month.get(r.card_id, 0) + r.amount
+        loan_repayments_all[r.card_id] = loan_repayments_all.get(r.card_id, 0) + r.amount
 
     card_stats = []
     for card in cards:
@@ -1819,14 +1819,15 @@ def api_budget():
         is_loan = initial_balance < 0
         linked_account_id = card.linked_account_id
         if is_loan:
+            all_repaid = loan_repayments_all.get(card.id, 0)
             card_stats.append({
                 'id': card.id, 'name': card.name,
                 'initial_balance': initial_balance, 'total_income': 0,
-                'total_expense': 0, 'balance': initial_balance,
+                'total_expense': 0, 'balance': initial_balance + all_repaid,
                 'spent': 0, 'target': card.monthly_target or 0, 'percent': 0,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': True, 'linked_account_id': linked_account_id,
-                'total_repaid': loan_repayments_this_month.get(card.id, 0),
+                'total_repaid': all_repaid,
             })
         else:
             card_txs = [tx for tx in all_txs if tx.card == card.name]
@@ -1837,7 +1838,7 @@ def api_budget():
             perf_spent = sum(tx.amount for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
                              and _is_perf_tx(tx, excl_cats_budget))
-            # account card: balance includes all linked cards' transactions
+            # account card: balance includes all linked cards' transactions (이달 기준)
             if card.id in linked_names:
                 for lname in linked_names[card.id]:
                     ltxs = [tx for tx in all_txs if tx.card == lname]
@@ -2111,7 +2112,7 @@ def api_salary():
         cfg = SalaryConfig.query.filter_by(user_id=uid).first()
         allocs = BudgetAllocation.query.filter_by(user_id=uid).all()
         fixed = FixedExpense.query.filter_by(user_id=uid).all()
-        current_month = datetime.now().strftime('%Y-%m')
+        current_month = datetime.now(_KST).strftime('%Y-%m')
         txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
         actual = {}
         for tx in txs:
@@ -2205,7 +2206,7 @@ def api_savings_deposits(sid):
         data = request.get_json()
         dep = SavingsDeposit(savings_id=sid, user_id=uid,
                              amount=int(data.get('amount', 0)),
-                             date=data.get('date', datetime.now().strftime('%Y-%m-%d')),
+                             date=data.get('date', datetime.now(_KST).strftime('%Y-%m-%d')),
                              memo=data.get('memo', ''))
         db.session.add(dep)
         db.session.commit()
@@ -2276,7 +2277,7 @@ def api_pending_registers():
 def api_fixed_register(fid):
     uid = session['user_id']
     f = FixedExpense.query.filter_by(id=fid, user_id=uid).first_or_404()
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now(_KST).strftime('%Y-%m-%d')
     data = request.get_json() or {}
     card = data.get('card', f.tx_card) or None
     tx = Transaction(date=today, type=f.tx_type or 'expense',
@@ -2291,7 +2292,7 @@ def api_fixed_register(fid):
 def api_savings_auto_register(sid):
     uid = session['user_id']
     s = Savings.query.filter_by(id=sid, user_id=uid).first_or_404()
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now(_KST).strftime('%Y-%m-%d')
     data = request.get_json() or {}
     card = data.get('card', getattr(s, 'auto_tx_card', '')) or None
     tx = Transaction(date=today, type='expense',
@@ -2348,7 +2349,7 @@ def api_update_notice_config_put():
 def api_portfolio():
     uid = session['user_id']
     user = User.query.get(uid)
-    current_month = datetime.now().strftime('%Y-%m')
+    current_month = datetime.now(_KST).strftime('%Y-%m')
     transactions = Transaction.query.filter_by(user_id=uid).order_by(Transaction.date.desc()).all()
     month_txs = [tx for tx in transactions if tx.date.startswith(current_month)]
     excl_stat_cats_port = {c.name for c in Category.query.filter_by(user_id=uid, exclude_stats=True).all()}
@@ -2577,7 +2578,11 @@ def assetlinks():
 @app.route('/<path:path>')
 def serve_spa(path):
     if os.path.exists(_DIST_INDEX):
-        return send_file(_DIST_INDEX)
+        resp = send_file(_DIST_INDEX)
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
     return 'Frontend not built. Run: cd frontend && npm run build', 503
 
 # ── Excel import helpers ──────────────────────────────────────────────────────
@@ -2906,8 +2911,8 @@ def _parse_sms_line(line):
         date_val = f"{d.group(1)}-{int(d.group(2)):02d}-{int(d.group(3)):02d}"
     else:
         d = re.search(r'(\d{1,2})[/.-](\d{1,2})', line)
-        year = datetime.now().year
-        date_val = f"{year}-{int(d.group(1)):02d}-{int(d.group(2)):02d}" if d else datetime.now().strftime('%Y-%m-%d')
+        year = datetime.now(_KST).year
+        date_val = f"{year}-{int(d.group(1)):02d}-{int(d.group(2)):02d}" if d else datetime.now(_KST).strftime('%Y-%m-%d')
 
     tx_type = 'income' if re.search(r'입금|환급|취소|환불', line) else 'expense'
 

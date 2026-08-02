@@ -33,7 +33,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="이번 달 잔액"
+        android:text="이번 달 요약"
         android:textColor="#88FFFFFF"
         android:textSize="10sp"
         android:layout_marginTop="6dp" />
