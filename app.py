@@ -1297,6 +1297,14 @@ def api_portfolio_pdf():
 
     excl_cats_report = {c.name for c in Category.query.filter_by(user_id=uid, exclude_perf=True).all()}
     excl_stat_cats_report = {c.name for c in Category.query.filter_by(user_id=uid, exclude_stats=True).all()}
+    loan_repayments_pdf = {}
+
+    for r in LoanRepayment.query.filter_by(user_id=uid).all():
+
+        if r.date.startswith(current_month):
+
+            loan_repayments_pdf[r.card_id] = loan_repayments_pdf.get(r.card_id, 0) + r.amount    
+            
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
@@ -1312,11 +1320,6 @@ def api_portfolio_pdf():
                            'spent': spent, 'target': card.monthly_target, 'percent': percent,
                            'interest_rate': card.interest_rate,
                            'total_repaid': loan_repayments_pdf.get(card.id, 0)})
-
-    loan_repayments_pdf = {}
-    for r in LoanRepayment.query.filter_by(user_id=uid).all():
-        if r.date.startswith(current_month):
-            loan_repayments_pdf[r.card_id] = loan_repayments_pdf.get(r.card_id, 0) + r.amount
 
     extra_deposits_pdf = {}
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
