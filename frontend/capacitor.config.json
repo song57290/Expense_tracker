@@ -7,11 +7,6 @@
     "cleartext": false
   },
   "plugins": {
-    "SplashScreen": {
-      "launchShowDuration": 0,
-      "launchAutoHide": false,
-      "backgroundColor": "#6c8fef"
-    },
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
     },

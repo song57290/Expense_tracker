@@ -5,37 +5,16 @@ import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.view.View;
-import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        getWindow().setBackgroundDrawable(new ColorDrawable(Color.parseColor("#A86AF6")));
-
         registerPlugin(RingerModePlugin.class);
         registerPlugin(WidgetDataPlugin.class);
         super.onCreate(savedInstanceState);
-
-        if (getBridge() != null && getBridge().getWebView() != null) {
-            WebView webView = getBridge().getWebView();
-            webView.setBackgroundColor(Color.parseColor("#A86AF6"));
-
-            // WebView 첫 attach 시 검은 프레임(known Android issue)을 막기 위해
-            // 잠깐 소프트웨어 렌더링 사용 후 하드웨어 렌더링으로 복귀
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            }, 500);
-        }
-
         createNotificationChannel();
         refreshWidgets();
         storeWidgetNav(getIntent());
