@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify, abort, session
 from functools import wraps
+
+from sqlalchemy import func
 from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
@@ -995,7 +997,6 @@ def api_card_repayments(card_id):
         db.session.flush()
         tx_id = tx.id
     rep = LoanRepayment(card_id=card_id, user_id=uid, amount=amt, date=data.get('date', ''), memo=data.get('memo', ''), transaction_id=tx_id)
-    card.account_balance = (card.account_balance or 0) + amt
     db.session.add(rep)
     db.session.commit()
     return jsonify({'ok': True, 'id': rep.id, 'balance': card.account_balance})
@@ -1006,7 +1007,6 @@ def api_delete_repayment(rid):
     uid = session['user_id']
     rep = LoanRepayment.query.filter_by(id=rid, user_id=uid).first_or_404()
     card = Card.query.filter_by(id=rep.card_id, user_id=uid).first_or_404()
-    card.account_balance = (card.account_balance or 0) - rep.amount
     if rep.transaction_id:
         tx = Transaction.query.filter_by(id=rep.transaction_id, user_id=uid).first()
         if tx:
@@ -1166,7 +1166,17 @@ def api_stats():
     def _is_cash_card(c):
         return '현금' in c.name or '지갑' in c.name
     card_pos = sum(c.account_balance or 0 for c in cards if not _is_cash_card(c) and (c.account_balance or 0) > 0)
-    loan_total = sum(c.account_balance or 0 for c in cards if not _is_cash_card(c) and (c.account_balance or 0) < 0)
+    loan_total = sum(
+        (c.account_balance or 0)
+        + db.session.query(func.coalesce(func.sum(LoanRepayment.amount), 0))
+            .filter(
+                LoanRepayment.card_id == c.id,
+                LoanRepayment.user_id == uid
+            )
+            .scalar()
+        for c in cards
+        if not _is_cash_card(c) and (c.account_balance or 0) < 0
+    )
     cash_total = sum(c.account_balance or 0 for c in cards if _is_cash_card(c) and (c.account_balance or 0) > 0)
     card_balance_now = card_pos + loan_total  # 순 통장잔고 (대출 차감)
     card_balance_all = sum(c.account_balance or 0 for c in cards)  # 자산 추이용 (현금 포함)
