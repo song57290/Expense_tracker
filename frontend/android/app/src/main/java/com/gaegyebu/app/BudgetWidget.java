@@ -68,7 +68,7 @@ public class BudgetWidget extends BaseWidget {
                 remainColor = WidgetTheme.hint(dark);
             } else if (remaining >= 0) {
                 remainText  = fmt(remaining) + "원 남음";
-                // 다크 모드(투명/검정)에서는 흰색으로 — 배경 위 보라색은 가독성 낮음
+                // 다크 모드(투명/검정) -> 흰색
                 remainColor = dark ? WidgetTheme.dim(dark) : arcColor;
             } else {
                 remainText  = fmt(-remaining) + "원 초과";
@@ -128,7 +128,7 @@ public class BudgetWidget extends BaseWidget {
         float cy = size / 2f + pct.getTextSize() * 0.35f;
         canvas.drawText(percentInt + "%", size / 2f, cy, pct);
 
-        // "사용" 레이블
+        // 사용 레이블
         Paint lbl = new Paint(Paint.ANTI_ALIAS_FLAG);
         lbl.setTextAlign(Paint.Align.CENTER);
         lbl.setTextSize(size * 0.09f);
