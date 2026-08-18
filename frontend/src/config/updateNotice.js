@@ -2,11 +2,20 @@
 //   x.0  → 대형 업데이트 (새 탭, 전면 개편 등)
 //   x.x0 → 기능 추가 (몇 가지 새 기능)
 //   x.xx → 버그 수정 · 소소한 개선
-export const CURRENT_VERSION = 'ver 2.48'
-export const UPDATE_DATE = '2026년 7월 31일'
+export const CURRENT_VERSION = 'ver 2.49'
+export const UPDATE_DATE = '2026년 8월 18일'
 
 export const UPDATES = [
   {
+    section: '📱 위젯 설정',
+    items: [
+      { tag: 'fix', title: '원형 위젯 라이트 & 다크모드 정상 지원', desc: '위젯 텍스트가 시스템 테마를 자동으로 따르도록 개선\n ☞ 다크 모드에서 "사용" 텍스트가 잘 보이지 않던 문제 수정' },
+    ],
+  }
+]
+
+export const VERSION_HISTORY = [
+    {
     section: '📱 위젯 설정',
     items: [
       { tag: 'imp', title: '위젯 설정 화면 다크/라이트 모드 지원', desc: '위젯 설정 창이 시스템 테마를 자동으로 따르도록 개선\n— 라이트 모드에서 상태바 아이콘이 잘 보이지 않던 문제 수정\n— 상태바가 설정 화면에 가려지던 문제 수정' },
@@ -58,9 +67,6 @@ export const UPDATES = [
       { tag: 'imp', title: '루틴 카드 실적·통계 제외 설정', desc: '루틴 편집 시 항목마다 카드 실적 제외·통계 제외 토글 미리 설정 가능\n— 루틴 시트로 내역 추가 시 자동 적용' },
     ],
   },
-]
-
-export const VERSION_HISTORY = [
   {
     version: 'ver 2.48',
     date: '2026년 7월 31일',

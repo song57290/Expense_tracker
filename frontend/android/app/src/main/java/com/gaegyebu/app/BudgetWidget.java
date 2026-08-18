@@ -64,16 +64,16 @@ public class BudgetWidget extends BaseWidget {
             String remainText;
             int    remainColor;
             if (budget == 0) {
-                remainText  = "예산 미설정";
-                remainColor = WidgetTheme.hint(dark);
+                remainText = "예산 미설정";
+                remainColor = dark ? 0x99FFFFFF : 0x88000000;
             } else if (remaining >= 0) {
-                remainText  = fmt(remaining) + "원 남음";
-                // 다크 모드(투명/검정) -> 흰색
-                remainColor = dark ? WidgetTheme.dim(dark) : arcColor;
+                remainText = fmt(remaining) + "원 남음";
+                remainColor = dark ? 0x99FFFFFF : arcColor;
             } else {
-                remainText  = fmt(-remaining) + "원 초과";
-                remainColor = WidgetTheme.expense(dark);
+                remainText = fmt(-remaining) + "원 초과";
+                remainColor = dark ? 0xFFFF6B6B : 0xFFCC2222;
             }
+
             views.setTextViewText(R.id.budget_remaining, remainText);
             views.setTextColor(R.id.budget_remaining, remainColor);
 
@@ -119,21 +119,14 @@ public class BudgetWidget extends BaseWidget {
             canvas.drawArc(oval, -90f, sweep, false, arc);
         }
 
-        // 퍼센트 텍스트 (중앙)
+        // 중앙 텍스트(%)
         Paint pct = new Paint(Paint.ANTI_ALIAS_FLAG);
         pct.setTextAlign(Paint.Align.CENTER);
         pct.setTextSize(size * 0.2f);
         pct.setTypeface(Typeface.DEFAULT_BOLD);
         pct.setColor(arcColor);
-        float cy = size / 2f + pct.getTextSize() * 0.35f;
-        canvas.drawText(percentInt + "%", size / 2f, cy, pct);
-
-        // 사용 레이블
-        Paint lbl = new Paint(Paint.ANTI_ALIAS_FLAG);
-        lbl.setTextAlign(Paint.Align.CENTER);
-        lbl.setTextSize(size * 0.09f);
-        lbl.setColor(dark ? 0xCCFFFFFF : 0x88000000);
-        canvas.drawText("사용", size / 2f, cy + pct.getTextSize() * 0.65f, lbl);
+        float cy = size / 2f + pct.getTextSize() * 0.25f;
+        canvas.drawText(percentInt + "%", size / 2f+8f, cy, pct);
 
         return bmp;
     }
