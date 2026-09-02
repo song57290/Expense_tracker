@@ -26,9 +26,10 @@ public class BudgetWidget extends BaseWidget {
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String month   = prefs.getString("month", "--월");
+            boolean monthStale = isStale(prefs.getString("month_key", ""), currentMonthKey());
+            String month   = monthStale ? currentMonthLabel() : prefs.getString("month", "--월");
             long   budget  = parseLong(prefs.getString("budget", "0"));
-            long   expense = parseLong(prefs.getString("expense", "0"));
+            long   expense = monthStale ? 0 : parseLong(prefs.getString("expense", "0"));
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_budget);
 

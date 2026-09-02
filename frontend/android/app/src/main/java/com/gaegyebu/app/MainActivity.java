@@ -5,8 +5,11 @@ import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.webkit.WebView;
+import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -18,6 +21,23 @@ public class MainActivity extends BridgeActivity {
         createNotificationChannel();
         refreshWidgets();
         storeWidgetNav(getIntent());
+        setupDownloadListener();
+    }
+
+    // Capacitor's WebView has no built-in file-download support — a request whose
+    // response is Content-Disposition: attachment (e.g. the APK update download)
+    // is silently dropped otherwise. Hand it off to the system browser instead.
+    private void setupDownloadListener() {
+        WebView webView = getBridge().getWebView();
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e("MainActivity", "Failed to hand off download to browser", e);
+            }
+        });
     }
 
     @Override

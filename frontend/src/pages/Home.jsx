@@ -8,6 +8,8 @@ import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
 
 const WidgetData = registerPlugin('WidgetData')
 import TxItem from '../components/TxItem.jsx'
+import TxListFilter from '../components/TxListFilter.jsx'
+import { syncWidget } from '../widgetSync.js'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 
@@ -46,6 +48,8 @@ export default function Home() {
   const [data, setData] = useState(null)
   const [filter, setFilter] = useState('all')
   const [sortAsc, setSortAsc] = useState(false)
+  const [showBalance, setShowBalance] = useState(true)
+  const [showTime, setShowTime] = useState(true)
   const [summaryOpen, setSummaryOpen] = useState(true)
   const [cardStatOpen, setCardStatOpen] = useState(true)
   const [catOpen, setCatOpen] = useState(true)
@@ -90,27 +94,7 @@ export default function Home() {
 
   const load = useCallback(() => api.get('/api/home').then(d => {
     setData(d)
-    if (Capacitor.isNativePlatform()) {
-      const now = new Date()
-      const month = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
-      const updated = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} 업데이트`
-      const income = (d.income_total ?? 0).toLocaleString()
-      const expense = (d.expense_total ?? 0).toLocaleString()
-      const balance = ((d.income_total ?? 0) - (d.expense_total ?? 0)).toLocaleString()
-      const budget = String(d.budget_amount ?? 0)
-
-      // 오늘 지출 집계
-      const pad = n => String(n).padStart(2, '0')
-      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-      const todayTxs = (d.transactions || []).filter(tx => tx.date === todayStr && tx.type === 'expense')
-      const todayTotal = String(todayTxs.reduce((s, tx) => s + tx.amount, 0))
-      const todayDate = `${now.getMonth() + 1}월 ${now.getDate()}일`
-      const catMap = {}
-      todayTxs.forEach(tx => { catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount })
-      const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, a]) => `${n}:${a}`).join(',')
-
-      WidgetData.update({ income, expense, balance, month, updated, budget, today_total: todayTotal, today_date: todayDate, today_cats: todayCats }).catch(e => console.error('[Widget] update failed:', e))
-    }
+    syncWidget(d)
   }).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
@@ -409,7 +393,7 @@ export default function Home() {
                         <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }}
                           onClick={() => { if (!wasLongPress.current) openCardSheet(cs.name); wasLongPress.current = false }}>
                           <div className={`progress-bar ${tierColor(cs.percent, cs.tier1, cs.tier2, cs.tier3)}`} style={{ width: `${cs.percent}%` }} />
-                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
+                          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', fontSize: '0.72rem', fontWeight: 700, color: '#000', whiteSpace: 'nowrap', textShadow: '0 0 4px rgba(0,0,0,0.3)' }}>{cs.percent}%</span>
                         </div>
                       </div>
                     )
@@ -610,22 +594,11 @@ export default function Home() {
               <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{txOpen ? '▴' : '▾'}</span>
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button className="btn btn-sm" onClick={() => setSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent' }}>
-                {sortAsc ? '과거순' : '최신순'}
-              </button>
+              <TxListFilter sortAsc={sortAsc} onSortChange={setSortAsc} showBalance={showBalance} onShowBalanceChange={setShowBalance} showTime={showTime} onShowTimeChange={setShowTime}
+                cards={allCards} cardFilter={cardFilter} onCardFilterChange={setCardFilter} />
               <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
             </div>
           </div>
-          {allCards.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
-              {[['all', '전체'], ...allCards.map(c => [c, c])].map(([val, label]) => (
-                <button key={val} onClick={() => setCardFilter(val)}
-                  style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: cardFilter === val ? 700 : 400, border: `1.5px solid ${cardFilter === val ? '#b088f9' : 'var(--border-light)'}`, background: cardFilter === val ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)', color: cardFilter === val ? '#b088f9' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
           {txOpen && (
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
@@ -651,7 +624,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                         </div>
                       </SwipeItem>
                     ))}

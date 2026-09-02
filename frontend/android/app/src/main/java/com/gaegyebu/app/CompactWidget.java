@@ -25,10 +25,11 @@ public class CompactWidget extends BaseWidget {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
-            String income = prefs.getString("income", "0");
-            String expense = prefs.getString("expense", "0");
-            String balance = prefs.getString("balance", "0");
-            String month = prefs.getString("month", "--월");
+            boolean monthStale = isStale(prefs.getString("month_key", ""), currentMonthKey());
+            String income = monthStale ? "0" : prefs.getString("income", "0");
+            String expense = monthStale ? "0" : prefs.getString("expense", "0");
+            String balance = monthStale ? "0" : prefs.getString("balance", "0");
+            String month = monthStale ? currentMonthLabel() : prefs.getString("month", "--월");
             String updated = prefs.getString("updated", "");
 
             RemoteViews views = new RemoteViews(

@@ -22,9 +22,10 @@ public class TodayWidget extends BaseWidget {
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String todayDate  = prefs.getString("today_date",  "--월 --일");
-            String todayTotal = prefs.getString("today_total", "0");
-            String todayCats  = prefs.getString("today_cats",  "");
+            boolean dayStale  = isStale(prefs.getString("today_key", ""), currentTodayKey());
+            String todayDate  = dayStale ? currentTodayLabel() : prefs.getString("today_date",  "--월 --일");
+            String todayTotal = dayStale ? "0" : prefs.getString("today_total", "0");
+            String todayCats  = dayStale ? "" : prefs.getString("today_cats",  "");
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_today);
 

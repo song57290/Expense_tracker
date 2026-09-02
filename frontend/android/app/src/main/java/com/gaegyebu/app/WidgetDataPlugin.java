@@ -20,10 +20,12 @@ public class WidgetDataPlugin extends Plugin {
         String expense = call.getString("expense", "0");
         String balance = call.getString("balance", "0");
         String month = call.getString("month", "");
+        String monthKey = call.getString("month_key", "");
         String updated = call.getString("updated", "");
         String budget = call.getString("budget", "0");
         String todayTotal = call.getString("today_total", "0");
         String todayDate = call.getString("today_date", "");
+        String todayKey = call.getString("today_key", "");
         String todayCats = call.getString("today_cats", "");
 
         Context ctx = getContext();
@@ -34,10 +36,12 @@ public class WidgetDataPlugin extends Plugin {
                 .putString("expense", expense)
                 .putString("balance", balance)
                 .putString("month", month)
+                .putString("month_key", monthKey)
                 .putString("updated", updated)
                 .putString("budget", budget)
                 .putString("today_total", todayTotal)
                 .putString("today_date", todayDate)
+                .putString("today_key", todayKey)
                 .putString("today_cats", todayCats)
                 .apply();
 
