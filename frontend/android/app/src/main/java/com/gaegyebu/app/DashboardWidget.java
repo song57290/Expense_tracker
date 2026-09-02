@@ -25,16 +25,18 @@ public class DashboardWidget extends BaseWidget {
     static void updateWidget(Context context, AppWidgetManager manager, int widgetId) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            String month      = prefs.getString("month",       "--월");
+            boolean monthStale = isStale(prefs.getString("month_key", ""), currentMonthKey());
+            boolean dayStale   = isStale(prefs.getString("today_key", ""), currentTodayKey());
+            String month      = monthStale ? currentMonthLabel() : prefs.getString("month",       "--월");
             String updated    = prefs.getString("updated",     "");
-            String income     = prefs.getString("income",      "---");
-            String expense    = prefs.getString("expense",     "---");
-            String balance    = prefs.getString("balance",     "---");
+            String income     = monthStale ? "0" : prefs.getString("income",      "---");
+            String expense    = monthStale ? "0" : prefs.getString("expense",     "---");
+            String balance    = monthStale ? "0" : prefs.getString("balance",     "---");
             long   budget     = parseLong(prefs.getString("budget",      "0"));
             long   expLong    = parseLong(expense);
             long   balLong    = parseLongSigned(balance);
-            String todayTotal = prefs.getString("today_total", "0");
-            String todayCats  = prefs.getString("today_cats",  "");
+            String todayTotal = dayStale ? "0" : prefs.getString("today_total", "0");
+            String todayCats  = dayStale ? "" : prefs.getString("today_cats",  "");
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_dashboard);
 
