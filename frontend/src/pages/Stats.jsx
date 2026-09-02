@@ -72,7 +72,7 @@ export default function Stats() {
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
   const [pickerMode, setPickerMode] = useState('month')
   const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
-  const [barMode, setBarMode] = useState('expense')
+  const [barMode, setBarMode] = useState('both')
   const [bdOpen, setBdOpen] = useState({})
   const [cmpSelected, setCmpSelected] = useState(null)
   const [cmpFilterOpen, setCmpFilterOpen] = useState(false)
@@ -358,7 +358,7 @@ export default function Stats() {
             <div className="d-flex align-items-center gap-2">
               <h5 className="card-title mb-0">월별 추이</h5>
               <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: 'var(--bg-section)', borderRadius: 10, padding: 3, gap: 2 }}>
-                {[['expense', '지출'], ['income', '수입'], ['both', '전체']].map(([mode, label]) => (
+                {[['both', '전체'], ['income', '수입'], ['expense', '지출']].map(([mode, label]) => (
                   <button key={mode} onClick={() => setBarMode(mode)}
                     style={{ border: 'none', borderRadius: 7, padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
                       background: barMode === mode ? (mode === 'expense' ? '#b088f9' : mode === 'income' ? '#34c759' : '#5b8def') : 'transparent',

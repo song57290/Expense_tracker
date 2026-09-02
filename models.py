@@ -56,6 +56,7 @@ class Card(db.Model):
     tier2 = db.Column(db.Integer, nullable=True, server_default='50')
     tier3 = db.Column(db.Integer, nullable=True, server_default='80')
     account_balance = db.Column(db.Integer, nullable=False, default=0)
+    balance_since = db.Column(db.String(10), nullable=True)
     user_id = db.Column(db.Integer, nullable=True)
     linked_account_id = db.Column(db.Integer, nullable=True)
     interest_rate = db.Column(db.Float, nullable=True)

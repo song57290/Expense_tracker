@@ -137,7 +137,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '월초 잔고 (저번달 말 잔고, 선택)'} inputMode="text"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode="text"
                 value={initialBalance} onChange={e => {
                   const forceNeg = assetType === 'loan'
                   const neg = forceNeg || e.target.value.startsWith('-')
@@ -335,7 +335,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
             </div>
           </>) : (<>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
-              <div className="text-muted" style={{ fontSize: '0.8rem' }}>월초 잔고</div>
+              <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기 잔고</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(card.initial_balance)}</div>
             </div>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
@@ -1310,6 +1310,22 @@ export default function Budget() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
+  const [balHistOpen, setBalHistOpen] = useState(false)
+  const [balHistCardId, setBalHistCardId] = useState('')
+  const [balHistStart, setBalHistStart] = useState('')
+  const [balHistEnd, setBalHistEnd] = useState('')
+  const [balHistResults, setBalHistResults] = useState(null)
+  const [balHistError, setBalHistError] = useState('')
+  const [balHistLoading, setBalHistLoading] = useState(false)
+  const loadBalHist = () => {
+    if (!balHistCardId || !balHistStart || !balHistEnd) return
+    setBalHistLoading(true)
+    setBalHistError('')
+    api.get(`/api/budget/monthly-balances?card_id=${balHistCardId}&start=${balHistStart}&end=${balHistEnd}`)
+      .then(d => setBalHistResults(d.results || []))
+      .catch(err => { setBalHistResults(null); setBalHistError(err.message || '조회 중 오류가 발생했습니다.') })
+      .finally(() => setBalHistLoading(false))
+  }
   const load = useCallback(() => api.get('/api/budget').then(setData).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
@@ -1541,6 +1557,67 @@ export default function Budget() {
         )
       })()}
 
+      {/* 월별 잔고 추이 */}
+      {data.card_stats.filter(c => !c.is_loan && !c.linked_account_id).length > 0 && (
+        <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
+          <div className="card-body py-3">
+            <div className="d-flex align-items-center justify-content-between" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setBalHistOpen(o => !o)}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9' }}>월별 잔고 추이</span>
+              <span style={{ fontSize: '1.2rem', color: '#b088f9', lineHeight: 1 }}>{balHistOpen ? '▴' : '▾'}</span>
+            </div>
+            {balHistOpen && (
+              <div className="mt-3">
+                <div className="d-flex gap-2 mb-2" style={{ flexWrap: 'wrap' }}>
+                  <select className="form-select form-select-sm" style={{ flex: '1 1 140px', borderRadius: 8 }}
+                    value={balHistCardId} onChange={e => setBalHistCardId(e.target.value)}>
+                    <option value="">계좌 선택</option>
+                    {data.card_stats.filter(c => !c.is_loan && !c.linked_account_id).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <input type="month" className="form-control form-control-sm" style={{ flex: '1 1 120px', borderRadius: 8 }}
+                    value={balHistStart} onChange={e => setBalHistStart(e.target.value)} />
+                  <span className="align-self-center text-muted">~</span>
+                  <input type="month" className="form-control form-control-sm" style={{ flex: '1 1 120px', borderRadius: 8 }}
+                    value={balHistEnd} onChange={e => setBalHistEnd(e.target.value)} />
+                  <button onClick={loadBalHist} disabled={!balHistCardId || !balHistStart || !balHistEnd || balHistLoading}
+                    style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 8, padding: '4px 14px', fontSize: '0.82rem', fontWeight: 600, opacity: (!balHistCardId || !balHistStart || !balHistEnd || balHistLoading) ? 0.5 : 1 }}>
+                    {balHistLoading ? '조회 중…' : '조회'}
+                  </button>
+                </div>
+                {balHistError && <p className="text-danger mb-0" style={{ fontSize: '0.82rem' }}>{balHistError}</p>}
+                {balHistResults && (
+                  balHistResults.length === 0 ? (
+                    <p className="text-muted mb-0" style={{ fontSize: '0.82rem' }}>표시할 데이터가 없습니다.</p>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="table table-sm mb-0" style={{ fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr>
+                            <th>월</th>
+                            <th className="text-end">잔고</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {balHistResults.map(r => (
+                            <tr key={r.month}>
+                              <td>{fmtMonth(r.month)}</td>
+                              <td className="text-end" style={{ fontWeight: 600, color: r.balance == null ? 'var(--text-muted)' : (r.balance < 0 ? '#dc3545' : 'var(--text-primary)') }}>
+                                {r.balance == null ? '데이터 없음' : `${fmt(r.balance)}원`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 예·적금 섹션 */}
       <div id="budget-section-savings" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>예·적금</span>
@@ -1703,7 +1780,7 @@ export default function Budget() {
             <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
               <form id="edit-card-form" onSubmit={handleEditSave}>
                 <div className="mb-3">
-                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월초 잔고 (저번달 말 실제 잔고 입력)</label>
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (계좌를 처음 등록했을 때의 잔고)</label>
                   <div style={{ position: 'relative' }}>
                     <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
                       value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true)} />

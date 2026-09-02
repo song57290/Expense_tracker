@@ -265,6 +265,7 @@ with app.app_context():
         'ALTER TABLE "transaction" ADD COLUMN has_receipt BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE budget_allocation ADD COLUMN monthly_limit INTEGER',
         'ALTER TABLE fixed_expense ADD COLUMN auto_silent BOOLEAN NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN balance_since VARCHAR(10)',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -296,6 +297,21 @@ with app.app_context():
             _help_v_cfg.value = _help_version
         else:
             db.session.add(AppConfig(key='help_version', value=_help_version))
+        db.session.commit()
+
+    # apk version registry — bumped in code each native release; the in-app
+    # update prompt (AppUpdateModal) reads this via GET /api/app-version.
+    _apk_version_code = 3
+    _apk_version_name = 'ver 2.50'
+    _apk_notice = None
+    _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
+                              'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice}, ensure_ascii=False)
+    _apk_cfg = AppConfig.query.get('apk_version')
+    if _apk_cfg is None:
+        db.session.add(AppConfig(key='apk_version', value=_apk_value))
+        db.session.commit()
+    elif _apk_cfg.value != _apk_value:
+        _apk_cfg.value = _apk_value
         db.session.commit()
 
     # one-time fix: reset price_updated_at for 해외주식 so auto-fetch re-runs
@@ -494,6 +510,37 @@ def _is_stats_tx(tx, excl_cats=frozenset()):
 def _is_perf_tx(tx, excl_cats=frozenset()):
     return not tx.exclude_perf and tx.category not in excl_cats
 
+def _since_balance(tx_date, since):
+    # since=None means the card has no recorded baseline date yet (legacy data) — count everything.
+    return since is None or tx_date >= since
+
+def _running_balances_for_user(uid):
+    """{transaction_id: balance_after_tx} for every transaction tied to a non-loan
+    card, walking that card's (or its linked account's) ledger in chronological order
+    starting from its account_balance as of balance_since."""
+    cards = Card.query.filter_by(user_id=uid).all()
+    all_txs = Transaction.query.filter_by(user_id=uid).order_by(
+        Transaction.date, Transaction.time, Transaction.id).all()
+
+    linked_names = {}
+    for c in cards:
+        if c.linked_account_id:
+            linked_names.setdefault(c.linked_account_id, []).append(c.name)
+
+    result = {}
+    for card in cards:
+        if card.linked_account_id:
+            continue  # covered together with its parent account below
+        if (card.account_balance or 0) < 0:
+            continue  # loan cards don't track a running balance this way
+        names = {card.name} | set(linked_names.get(card.id, []))
+        group_txs = [tx for tx in all_txs if tx.card in names and _since_balance(tx.date, card.balance_since)]
+        running = card.account_balance or 0
+        for tx in group_txs:
+            running += tx.amount if tx.type == 'income' else -tx.amount
+            result[tx.id] = running
+    return result
+
 # ── Savings helper ───────────────────────────────────────────────────────────
 
 def _savings_stats(s, extra_deposit=0):
@@ -673,8 +720,10 @@ def _needs_price_update(inv):
     last = inv.price_updated_at.replace(tzinfo=timezone.utc).astimezone(_KST)
     return last < _last_market_close(market)
 
+_PRICE_FETCH_TIMEOUT = 8  # seconds — bounds how long a request can block on external price sources
+
 def _auto_fetch_investment_prices(inv_list):
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor, wait
     from datetime import date, timedelta
     import FinanceDataReader as fdr
 
@@ -684,17 +733,18 @@ def _auto_fetch_investment_prices(inv_list):
 
     start = (date.today() - timedelta(days=7)).strftime('%Y-%m-%d')
 
-    usd_krw = 1380
-    try:
-        fx = fdr.DataReader('USD/KRW', start)
-        if not fx.empty:
-            usd_krw = float(fx['Close'].iloc[-1])
-    except Exception:
-        pass
+    def fetch_fx():
+        try:
+            fx = fdr.DataReader('USD/KRW', start)
+            if not fx.empty:
+                return float(fx['Close'].iloc[-1])
+        except Exception:
+            pass
+        return None
 
     def fetch_price(inv):
+        market = _inv_market(inv)
         try:
-            market = _inv_market(inv)
             t = (inv.ticker or '').strip()
             if market == 'KR':
                 t_clean = t.replace('.KS', '').replace('.KQ', '')
@@ -702,31 +752,43 @@ def _auto_fetch_investment_prices(inv_list):
             elif market == 'US':
                 df = fdr.DataReader(t, start)
             else:
-                return inv.id, None, None
+                return inv.id, None, market
             if df.empty:
-                return inv.id, None, None
+                return inv.id, None, market
             price = float(df['Close'].iloc[-1])
-            # US stocks: store in USD (same unit as avg_price). KR stocks: store in KRW.
-            new_fx = usd_krw if market == 'US' else None
-            return inv.id, price, new_fx
+            return inv.id, price, market
         except Exception:
-            return inv.id, None, None
+            return inv.id, None, market
 
     id_map = {inv.id: inv for inv in todo}
-    with ThreadPoolExecutor(max_workers=min(3, len(todo))) as ex:
-        futures = {ex.submit(fetch_price, inv): inv.id for inv in todo}
-        results = {}
-        for f in as_completed(futures):
-            inv_id, price, new_fx = f.result()
-            results[inv_id] = (price, new_fx)
+    # Don't use ThreadPoolExecutor as a context manager here: __exit__ calls
+    # shutdown(wait=True), which would block on stragglers past our timeout anyway.
+    ex = ThreadPoolExecutor(max_workers=min(4, len(todo) + 1))
+    try:
+        fx_future = ex.submit(fetch_fx)
+        price_futures = {ex.submit(fetch_price, inv): inv.id for inv in todo}
+        done, _not_done = wait([fx_future] + list(price_futures), timeout=_PRICE_FETCH_TIMEOUT)
+    finally:
+        ex.shutdown(wait=False)
+
+    usd_krw = 1380
+    if fx_future in done:
+        fx_result = fx_future.result()
+        if fx_result is not None:
+            usd_krw = fx_result
 
     changed = False
-    for inv_id, (price, new_fx) in results.items():
+    for f in done:
+        if f is fx_future:
+            continue
+        inv_id, price, market = f.result()
         if price is not None:
-            id_map[inv_id].current_price = price
-            if new_fx is not None:
-                id_map[inv_id].exchange_rate = new_fx
-            id_map[inv_id].price_updated_at = datetime.utcnow()
+            inv = id_map[inv_id]
+            inv.current_price = price
+            # US stocks: store in USD (same unit as avg_price). KR stocks: store in KRW.
+            if market == 'US':
+                inv.exchange_rate = usd_krw
+            inv.price_updated_at = datetime.utcnow()
             changed = True
     if changed:
         db.session.commit()
@@ -803,11 +865,13 @@ def api_home():
 
     routines = Routine.query.filter_by(user_id=uid).order_by(Routine.position, Routine.id).all()
     by_routine = _routine_items(uid)
+    running_balances = _running_balances_for_user(uid)
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                           'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
-                          'has_receipt': bool(getattr(tx, 'has_receipt', False))} for tx in month_txs],
+                          'has_receipt': bool(getattr(tx, 'has_receipt', False)),
+                          'balance_after': running_balances.get(tx.id)} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
         'balance': income_total - expense_total,
@@ -917,6 +981,7 @@ def api_cards():
             name=data['name'], monthly_target=int(data.get('target', 0)),
             tier1=int(data.get('tier1', 20)), tier2=int(data.get('tier2', 50)), tier3=int(data.get('tier3', 80)),
             account_balance=int(data.get('account_balance', 0)),
+            balance_since=datetime.now(_KST).strftime('%Y-%m-%d'),
             url=data.get('url') or None,
             user_id=uid,
             linked_account_id=data.get('linked_account_id') or None,
@@ -961,6 +1026,7 @@ def api_card(card_id):
     card.tier3 = int(data.get('tier3', card.tier3 or 80))
     if 'account_balance' in data:
         card.account_balance = int(data['account_balance'])
+        card.balance_since = datetime.now(_KST).strftime('%Y-%m-%d')
     if 'url' in data:
         card.url = data['url'] or None
     if 'linked_account_id' in data:
@@ -1027,6 +1093,7 @@ def api_calendar():
     emoji_map = {c.name: c.icon for c in cats}
     excl_stat_cats = {c.name for c in cats if c.exclude_stats}
 
+    running_balances = _running_balances_for_user(uid)
     day_totals = defaultdict(lambda: {'expense': 0, 'income': 0})
     day_transactions = defaultdict(list)
     for tx in transactions:
@@ -1035,6 +1102,7 @@ def api_calendar():
             'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
             'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
             'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
+            'balance_after': running_balances.get(tx.id),
         })
 
     return jsonify({
@@ -1318,8 +1386,8 @@ def api_portfolio_pdf():
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
-        c_inc = sum(tx.amount for tx in card_txs if tx.type == 'income')
-        c_exp = sum(tx.amount for tx in card_txs if tx.type == 'expense')
+        c_inc = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+        c_exp = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
         initial = card.account_balance or 0
         balance = initial + c_inc - c_exp
         spent = sum(tx.amount for tx in card_txs
@@ -1844,19 +1912,19 @@ def api_budget():
             })
         else:
             card_txs = [tx for tx in all_txs if tx.card == card.name]
-            month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
-            month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+            all_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+            all_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
             display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             perf_spent = sum(tx.amount for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
                              and _is_perf_tx(tx, excl_cats_budget))
-            # account card: balance includes all linked cards' transactions (이달 기준)
+            # account card: balance includes all linked cards' transactions (전체 누적, 월별로 초기화되지 않음)
             if card.id in linked_names:
                 for lname in linked_names[card.id]:
                     ltxs = [tx for tx in all_txs if tx.card == lname]
-                    month_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month))
-                    month_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month))
+                    all_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+                    all_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
                     display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             # linked card: show account card's balance
@@ -1864,11 +1932,11 @@ def api_budget():
                 acc = card_by_id[linked_account_id]
                 acc_initial = acc.account_balance or 0
                 acc_txs_names = [acc.name] + linked_names.get(linked_account_id, [])
-                acc_inc = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and tx.date.startswith(current_month))
-                acc_exp = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and tx.date.startswith(current_month))
+                acc_inc = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and _since_balance(tx.date, acc.balance_since))
+                acc_exp = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and _since_balance(tx.date, acc.balance_since))
                 balance = acc_initial + acc_inc - acc_exp
             else:
-                balance = initial_balance + month_income - month_expense
+                balance = initial_balance + all_income - all_expense
             percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
             card_stats.append({
                 'id': card.id, 'name': card.name,
@@ -2357,6 +2425,101 @@ def api_update_notice_config_put():
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.route('/api/app-version', methods=['GET'])
+def api_app_version_get():
+    config = AppConfig.query.get('apk_version')
+    if config:
+        return jsonify(json.loads(config.value))
+    return jsonify({'version_code': 0, 'version_name': '', 'url': ''})
+
+@app.route('/api/app-version', methods=['PUT'])
+@login_required
+def api_app_version_put():
+    u = User.query.get(session['user_id'])
+    if u.email != ADMIN_EMAIL:
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json() or {}
+    value = {
+        'version_code': int(data.get('version_code', 0)),
+        'version_name': data.get('version_name', ''),
+        'url': '/download/gaegyebu-latest.apk',
+    }
+    config = AppConfig.query.get('apk_version')
+    if config:
+        config.value = json.dumps(value, ensure_ascii=False)
+    else:
+        db.session.add(AppConfig(key='apk_version', value=json.dumps(value, ensure_ascii=False)))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/download/gaegyebu-latest.apk')
+def download_latest_apk():
+    releases_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'releases')
+    return send_from_directory(releases_dir, 'gaegyebu-latest.apk', as_attachment=True,
+                                download_name='gaegyebu.apk', mimetype='application/vnd.android.package-archive')
+
+@app.route('/api/budget/monthly-balances')
+@login_required
+def api_budget_monthly_balances():
+    import calendar as _cal
+
+    uid = session['user_id']
+    card = Card.query.filter_by(id=request.args.get('card_id', type=int), user_id=uid).first_or_404()
+    if (card.account_balance or 0) < 0:
+        return jsonify({'error': '대출/빚 계좌는 잔고 추이를 지원하지 않습니다.'}), 400
+
+    start = request.args.get('start', '')
+    end = request.args.get('end', '')
+    try:
+        sy, sm = (int(p) for p in start.split('-'))
+        ey, em = (int(p) for p in end.split('-'))
+        assert 1 <= sm <= 12 and 1 <= em <= 12
+    except (ValueError, AssertionError):
+        return jsonify({'error': 'invalid start/end'}), 400
+    if (sy, sm) > (ey, em):
+        return jsonify({'error': 'start must be before end'}), 400
+
+    cards = Card.query.filter_by(user_id=uid).all()
+    linked_names = {}
+    for c in cards:
+        if c.linked_account_id:
+            linked_names.setdefault(c.linked_account_id, []).append(c.name)
+    names = {card.name} | set(linked_names.get(card.id, []))
+
+    group_txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.card.in_(names)).order_by(
+        Transaction.date, Transaction.time, Transaction.id).all()
+    group_txs = [tx for tx in group_txs if _since_balance(tx.date, card.balance_since)]
+    checkpoints = []
+    running = card.account_balance or 0
+    for tx in group_txs:
+        running += tx.amount if tx.type == 'income' else -tx.amount
+        checkpoints.append((tx.date, running))
+
+    months = []
+    y, m = sy, sm
+    while (y, m) <= (ey, em):
+        months.append(f'{y:04d}-{m:02d}')
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+
+    results = []
+    idx = 0
+    running = card.account_balance or 0
+    for ym in months:
+        last_day = _cal.monthrange(*[int(p) for p in ym.split('-')])[1]
+        cutoff = f'{ym}-{last_day:02d}'
+        if card.balance_since is not None and cutoff < card.balance_since:
+            results.append({'month': ym, 'balance': None})
+            continue
+        while idx < len(checkpoints) and checkpoints[idx][0] <= cutoff:
+            running = checkpoints[idx][1]
+            idx += 1
+        results.append({'month': ym, 'balance': running})
+
+    return jsonify({'card_id': card.id, 'card_name': card.name, 'results': results})
+
 @app.route('/api/portfolio')
 @login_required
 def api_portfolio():
@@ -2378,11 +2541,11 @@ def api_portfolio():
         card_txs = [tx for tx in transactions if tx.card == card.name]
         initial_balance = card.account_balance or 0
         is_loan = initial_balance < 0
-        month_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month))
-        month_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month))
+        all_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+        all_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
         display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
-        balance = initial_balance + month_income - month_expense
+        balance = initial_balance + all_income - all_expense
         percent = min(int(display_expense / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
         card_stats.append({'name': card.name, 'initial_balance': initial_balance,
                            'balance': balance,
@@ -3472,6 +3635,7 @@ def api_backup():
         'categories': [{'name': c.name, 'icon': c.icon, 'cat_type': c.cat_type, 'position': c.position,
                         'exclude_perf': bool(c.exclude_perf), 'exclude_stats': bool(c.exclude_stats)} for c in cats],
         'cards': [{'name': c.name, 'monthly_target': c.monthly_target, 'account_balance': c.account_balance or 0,
+                   'balance_since': c.balance_since,
                    'tier1': c.tier1, 'tier2': c.tier2, 'tier3': c.tier3} for c in cards],
         'savings': [{'stype': s.stype, 'bank': s.bank, 'name': s.name, 'amount': s.amount,
                      'interest_rate': s.interest_rate, 'interest_type': s.interest_type,
@@ -3528,6 +3692,7 @@ def api_restore():
     for c in data.get('cards', []):
         db.session.add(Card(user_id=uid, name=c['name'], monthly_target=c.get('monthly_target', 0),
                             account_balance=c.get('account_balance', 0),
+                            balance_since=c.get('balance_since'),
                             tier1=c.get('tier1', 20), tier2=c.get('tier2', 50), tier3=c.get('tier3', 80)))
     for s in data.get('savings', []):
         db.session.add(Savings(user_id=uid, stype=s.get('stype', '예금'), bank=s.get('bank', ''),

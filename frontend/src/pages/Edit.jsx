@@ -5,6 +5,7 @@ import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import TransferPicker from '../components/TransferPicker.jsx'
+import { syncWidget } from '../widgetSync.js'
 
 export default function Edit() {
   const { id } = useParams()
@@ -76,11 +77,13 @@ export default function Edit() {
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
     if (!amt || !form.category) return
     await api.put(`/api/transactions/${id}`, { ...form, amount: amt })
+    syncWidget()
     navigate('/')
   }
 
   async function handleDelete() {
     await api.delete(`/api/transactions/${id}`)
+    syncWidget()
     navigate('/')
   }
 

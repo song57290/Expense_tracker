@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Capacitor, registerPlugin } from '@capacitor/core'
-const WidgetData = registerPlugin('WidgetData')
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
 import { fmt, fmtMonth, fmtDate, bankColor } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
+import TxListFilter from '../components/TxListFilter.jsx'
+import { syncWidget } from '../widgetSync.js'
 import SwipeItem from '../components/SwipeItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
@@ -49,6 +49,8 @@ export default function Calendar() {
   const [selectedVisible, setSelectedVisible] = useState(false)
   const [txFilter, setTxFilter] = useState('all')
   const [txSortAsc, setTxSortAsc] = useState(true)
+  const [showBalance, setShowBalance] = useState(true)
+  const [showTime, setShowTime] = useState(true)
   const [cardFilter, setCardFilter] = useState('all')
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
@@ -113,26 +115,7 @@ export default function Calendar() {
       }
       closeAdd()
       load(yearMonth)
-      if (Capacitor.isNativePlatform()) {
-        api.get('/api/home').then(d => {
-          const now = new Date()
-          const month = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
-          const updated = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} 업데이트`
-          const income = (d.income_total ?? 0).toLocaleString()
-          const expense = (d.expense_total ?? 0).toLocaleString()
-          const balance = ((d.income_total ?? 0) - (d.expense_total ?? 0)).toLocaleString()
-          const budget = String(d.budget_amount ?? 0)
-          const pad = n => String(n).padStart(2, '0')
-          const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-          const todayTxs = (d.transactions || []).filter(tx => tx.date === todayStr && tx.type === 'expense')
-          const todayTotal = String(todayTxs.reduce((s, tx) => s + tx.amount, 0))
-          const todayDate = `${now.getMonth() + 1}월 ${now.getDate()}일`
-          const catMap = {}
-          todayTxs.forEach(tx => { catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount })
-          const todayCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n, a]) => `${n}:${a}`).join(',')
-          WidgetData.update({ income, expense, balance, month, updated, budget, today_total: todayTotal, today_date: todayDate, today_cats: todayCats }).catch(() => {})
-        }).catch(() => {})
-      }
+      syncWidget()
     } finally {
       setAddSaving(false)
     }
@@ -162,6 +145,7 @@ export default function Calendar() {
     await api.delete(`/api/transactions/${id}`)
     setConfirmSheet(null)
     load(yearMonth)
+    syncWidget()
   }
 
   function goPrev() {
@@ -502,7 +486,7 @@ export default function Calendar() {
                   onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                   onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                   onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                  <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                  <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                 </div>
               ))}
             </div>
@@ -563,22 +547,11 @@ export default function Calendar() {
             <div className="d-flex justify-content-between align-items-center mb-2">
               <h3 className="mb-0 fw-bold">내역 목록</h3>
               <div className="d-flex align-items-center gap-2">
-                <button onClick={() => setTxSortAsc(a => !a)} style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.8rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', whiteSpace: 'nowrap' }}>
-                  {txSortAsc ? '최신순' : '과거순'}
-                </button>
+                <TxListFilter sortAsc={txSortAsc} onSortChange={setTxSortAsc} showBalance={showBalance} onShowBalanceChange={setShowBalance} showTime={showTime} onShowTimeChange={setShowTime}
+                  cards={allCards} cardFilter={cardFilter} onCardFilterChange={setCardFilter} />
                 <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={txFilter} onChange={setTxFilter} />
               </div>
             </div>
-            {allCards.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
-                {[['all', '전체'], ...allCards.map(c => [c, c])].map(([val, label]) => (
-                  <button key={val} onClick={() => setCardFilter(val)}
-                    style={{ flexShrink: 0, padding: '4px 12px', borderRadius: 20, fontSize: '0.75rem', fontWeight: cardFilter === val ? 700 : 400, border: `1.5px solid ${cardFilter === val ? '#b088f9' : 'var(--border-light)'}`, background: cardFilter === val ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)', color: cardFilter === val ? '#b088f9' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
             {filtered.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 0', fontSize: '0.9rem' }}>내역이 없습니다</div>
             ) : dates.map(date => (
@@ -598,7 +571,7 @@ export default function Calendar() {
                         onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                         onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                        <TxItem tx={tx} emojiMap={data.emoji_map} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                       </div>
                     </SwipeItem>
                   ))}
