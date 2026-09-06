@@ -71,7 +71,7 @@ public class WidgetTheme {
         return resolvedTheme != null ? "dark".equals(resolvedTheme) : isSystemDark(context);
     }
 
-    // 예산 퍼센트 → 아크/막대 색상 (BudgetWidget·DashboardWidget 공용)
+    // 예산 퍼센트 → 아크/막대 색상 (BudgetWidget 전용)
     static int arcColor(float percent, boolean dark) {
         if (percent < 0.7f) return dark ? 0xFFB088F9 : 0xFF6832C0;
         if (percent < 0.9f) return dark ? 0xFFFFCC44 : 0xFFB8860B;

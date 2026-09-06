@@ -34,7 +34,13 @@ export default function AppUpdateModal() {
     close()
   }
   function update() {
-    if (info?.url) window.location.href = new URL(info.url, window.location.origin).href
+    if (info?.url) {
+      // version_code가 같아도 매 클릭마다 새 URL이 되도록 타임스탬프를 붙인다
+      const u = new URL(info.url, window.location.origin)
+      if (info.version_code) u.searchParams.set('v', info.version_code)
+      u.searchParams.set('t', Date.now())
+      window.location.href = u.href
+    }
     close()
   }
 

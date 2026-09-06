@@ -512,8 +512,8 @@ export default function Calendar() {
             </div>
             {selDay && selDay.length > 0 && (
               <div style={{ padding: '10px 20px 16px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
-                <span>수입 <strong style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0))}원</strong></span>
-                <span>지출 <strong style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}원</strong></span>
+                <span>수입 <strong style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
+                <span>지출 <strong style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
               </div>
             )}
           </div>
@@ -584,7 +584,7 @@ export default function Calendar() {
                   <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
                   <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    {(() => { const s = byDate[date].reduce((a, t) => t.type === 'income' ? a + t.amount : a - t.amount, 0); return `${s >= 0 ? '+' : ''}${fmt(s)}원` })()}
+                    {(() => { const s = byDate[date].filter(t => !t.exclude_stats).reduce((a, t) => t.type === 'income' ? a + t.amount : a - t.amount, 0); return `${s >= 0 ? '+' : ''}${fmt(s)}원` })()}
                   </span>
                 </div>
                 <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>

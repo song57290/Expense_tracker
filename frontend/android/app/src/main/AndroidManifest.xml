@@ -68,7 +68,7 @@
         <receiver
             android:name=".BudgetWidget"
             android:exported="true"
-            android:label="가계부 예산">
+            android:label="예산">
 
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -81,28 +81,11 @@
 
         </receiver>
 
-        <!-- 4x2 대시보드 위젯 -->
-        <receiver
-            android:name=".DashboardWidget"
-            android:exported="true"
-            android:label="가계부 대시보드">
-
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="android.intent.action.CONFIGURATION_CHANGED" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_dashboard_info" />
-
-        </receiver>
-
         <!-- 3x2 오늘 지출 위젯 -->
         <receiver
             android:name=".TodayWidget"
             android:exported="true"
-            android:label="가계부 오늘">
+            android:label="오늘 지출">
 
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -112,6 +95,40 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_info" />
+
+        </receiver>ㄴ
+
+        <!-- 2x2 지출 추이 위젯 -->
+        <receiver
+            android:name=".PaceWidget"
+            android:exported="true"
+            android:label="지출 추이">
+
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.CONFIGURATION_CHANGED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_pace_info" />
+
+        </receiver>
+
+        <!-- 4x2 이번 주 위젯 -->
+        <receiver
+            android:name=".WeeklyWidget"
+            android:exported="true"
+            android:label="이번 주">
+
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.CONFIGURATION_CHANGED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_weekly_info" />
 
         </receiver>
 
@@ -135,5 +152,6 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
 </manifest>
