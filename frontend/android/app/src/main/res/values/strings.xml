@@ -8,6 +8,7 @@
     <string name="widget_description">이번 달 수입·지출·잔액을 홈 화면에서 확인</string>
     <string name="widget_desc_compact">잔액·수입·지출을 한눈에</string>
     <string name="widget_desc_budget">월 예산 대비 지출 비율</string>
-    <string name="widget_desc_dashboard">잔액·수입·지출·예산 대시보드</string>
     <string name="widget_desc_today">오늘 지출 TOP 3 카테고리</string>
+    <string name="widget_desc_pace">일 평균 지출과 이번달 예상 지출</string>
+    <string name="widget_desc_weekly">이번 주 요일별 지출 그래프</string>
 </resources>

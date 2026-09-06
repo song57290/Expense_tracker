@@ -31,6 +31,10 @@ public class WidgetConfigActivity extends AppCompatActivity {
     private String prefsExpense = "0";
     private String prefsBalance = "0";
     private long prefsBudget = 0;
+    private String prefsWeekDaily = "";
+    private int prefsWeekTodayIndex = 0;
+    private long prefsWeekTotal = 0;
+    private long prefsWeekAvg = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +72,10 @@ public class WidgetConfigActivity extends AppCompatActivity {
         prefsExpense = prefs.getString("expense", "0");
         prefsBalance = prefs.getString("balance", "0");
         prefsBudget = parseLong(prefs.getString("budget", "0"));
+        prefsWeekDaily = prefs.getString("week_daily", "");
+        prefsWeekTodayIndex = parseInt(prefs.getString("week_today_index", "0"));
+        prefsWeekTotal = parseLong(prefs.getString("week_total", "0"));
+        prefsWeekAvg = parseLong(prefs.getString("week_avg", "0"));
 
         setContentView(R.layout.activity_widget_config);
 
@@ -112,15 +120,18 @@ public class WidgetConfigActivity extends AppCompatActivity {
         boolean dark = WidgetTheme.isDark(selectedTheme, this);
 
         boolean isBudget = widgetClass.contains("Budget");
-        boolean isDash = widgetClass.contains("Dashboard");
         boolean isToday = widgetClass.contains("Today");
+        boolean isPace = widgetClass.contains("Pace");
+        boolean isWeekly = widgetClass.contains("Weekly");
 
         int layoutRes = isBudget
                 ? R.layout.widget_budget
-                : isDash
-                ? R.layout.widget_dashboard
                 : isToday
                 ? R.layout.widget_today
+                : isPace
+                ? R.layout.widget_pace
+                : isWeekly
+                ? R.layout.widget_weekly
                 : R.layout.widget_compact;
 
         View wv = LayoutInflater.from(this).inflate(layoutRes, container, false);
@@ -133,11 +144,15 @@ public class WidgetConfigActivity extends AppCompatActivity {
             contH = (int) (130 * dp);
             wW = (int) (130 * dp);
             wH = (int) (130 * dp);
-        } else if (isDash) {
-            contH = (int) (210 * dp);
-            wW = FrameLayout.LayoutParams.MATCH_PARENT;
-            wH = (int) (210 * dp);
         } else if (isToday) {
+            contH = (int) (190 * dp);
+            wW = FrameLayout.LayoutParams.MATCH_PARENT;
+            wH = (int) (190 * dp);
+        } else if (isPace) {
+            contH = (int) (160 * dp);
+            wW = (int) (160 * dp);
+            wH = (int) (160 * dp);
+        } else if (isWeekly) {
             contH = (int) (190 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
             wH = (int) (190 * dp);
@@ -157,10 +172,12 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         int rootId = isBudget
                 ? R.id.widget_budget_root
-                : isDash
-                ? R.id.widget_dashboard_root
                 : isToday
                 ? R.id.widget_today_root
+                : isPace
+                ? R.id.widget_pace_root
+                : isWeekly
+                ? R.id.widget_weekly_root
                 : R.id.widget_compact_root;
 
         View root = wv.findViewById(rootId);
@@ -173,10 +190,12 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         if (isBudget) {
             setupBudgetPreview(wv, dark, pct, pctInt, arcColor, expenseLong);
-        } else if (isDash) {
-            setupDashboardPreview(wv, dark, pct, pctInt, arcColor);
         } else if (isToday) {
             setupTodayPreview(wv, dark);
+        } else if (isPace) {
+            setupPacePreview(wv, dark, expenseLong);
+        } else if (isWeekly) {
+            setupWeeklyPreview(wv, dark);
         } else {
             setupCompactPreview(wv, dark);
         }
@@ -292,12 +311,15 @@ public class WidgetConfigActivity extends AppCompatActivity {
         month.setTextColor(WidgetTheme.primary(dark));
         month.setText(prefsMonth);
 
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int daysLeft = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH) - cal.get(java.util.Calendar.DAY_OF_MONTH);
         Bitmap ring = BudgetWidget.createRingBitmap(
                 300,
                 pct,
                 arcColor,
                 pctInt,
-                dark
+                dark,
+                daysLeft
         );
 
         ImageView ringView = wv.findViewById(R.id.budget_ring);
@@ -321,87 +343,27 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView remaining = wv.findViewById(R.id.budget_remaining);
         remaining.setTextColor(remainingColor);
         remaining.setText(remainingText);
-    }
 
-    private void setupDashboardPreview(
-            View wv,
-            boolean dark,
-            float pct,
-            int pctInt,
-            int arcColor
-    ) {
-        int primary = WidgetTheme.primary(dark);
-        int text = WidgetTheme.text(dark);
-        int dim = WidgetTheme.dim(dark);
-        int hint = WidgetTheme.hint(dark);
-        int income = WidgetTheme.income(dark);
-        int expense = WidgetTheme.expense(dark);
-
-        TextView month = wv.findViewById(R.id.dash_month);
-        month.setTextColor(primary);
-        month.setText(prefsMonth);
-
-        TextView updated = wv.findViewById(R.id.dash_updated);
-        updated.setTextColor(hint);
+        TextView updated = wv.findViewById(R.id.budget_updated);
+        updated.setTextColor(WidgetTheme.hint(dark));
         updated.setText(prefsUpdated);
-
-        TextView balanceLabel = wv.findViewById(R.id.dash_balance_label);
-        if (balanceLabel != null) {
-            balanceLabel.setTextColor(text);
-        }
-
-        TextView balance = wv.findViewById(R.id.dash_balance);
-        balance.setTextColor(primary);
-        balance.setText(fmtSigned(prefsBalance) + "원");
-
-        TextView incomeLabel = wv.findViewById(R.id.dash_income_label);
-        if (incomeLabel != null) {
-            incomeLabel.setTextColor(income);
-        }
-
-        TextView incomeValue = wv.findViewById(R.id.dash_income);
-        incomeValue.setTextColor(income);
-        incomeValue.setText(fmtUnsigned(prefsIncome) + "원");
-
-        TextView expenseLabel = wv.findViewById(R.id.dash_expense_label);
-        if (expenseLabel != null) {
-            expenseLabel.setTextColor(expense);
-        }
-
-        TextView expenseValue = wv.findViewById(R.id.dash_expense);
-        expenseValue.setTextColor(expense);
-        expenseValue.setText(fmtUnsigned(prefsExpense) + "원");
-
-        TextView budgetLabel = wv.findViewById(R.id.dash_budget_label);
-        if (budgetLabel != null) {
-            budgetLabel.setTextColor(dim);
-        }
-
-        TextView percent = wv.findViewById(R.id.dash_percent);
-
-        if (prefsBudget > 0) {
-            percent.setTextColor(arcColor);
-            percent.setText(pctInt + "%");
-        } else {
-            percent.setTextColor(hint);
-            percent.setText("미설정");
-        }
-
-        Bitmap bar = DashboardWidget.createBarBitmap(pct, arcColor, dark);
-
-        ImageView barView = wv.findViewById(R.id.dash_bar);
-        barView.setImageBitmap(bar);
     }
 
     private void setupTodayPreview(View wv, boolean dark) {
         int primary = WidgetTheme.primary(dark);
         int text = WidgetTheme.text(dark);
-        int dim = WidgetTheme.dim(dark);
         int hint = WidgetTheme.hint(dark);
         int expense = WidgetTheme.expense(dark);
 
+        TextView title = wv.findViewById(R.id.today_title);
+        title.setTextColor(primary);
+
         TextView date = wv.findViewById(R.id.today_date);
-        date.setTextColor(dim);
+        date.setTextColor(hint);
+
+        TextView updated = wv.findViewById(R.id.today_updated);
+        updated.setTextColor(hint);
+        updated.setText(prefsUpdated);
 
         TextView total = wv.findViewById(R.id.today_total);
         total.setTextColor(expense);
@@ -428,6 +390,74 @@ public class WidgetConfigActivity extends AppCompatActivity {
             name.setTextColor(text);
             amount.setTextColor(expense);
         }
+    }
+
+    private void setupPacePreview(View wv, boolean dark, long expenseLong) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        int today = cal.get(java.util.Calendar.DAY_OF_MONTH);
+        int daysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH);
+        long dailyAvg = today > 0 ? expenseLong / today : 0;
+        long projected = dailyAvg * daysInMonth;
+
+        TextView title = wv.findViewById(R.id.pace_title);
+        title.setTextColor(WidgetTheme.dim(dark));
+
+        TextView daily = wv.findViewById(R.id.pace_daily);
+        daily.setTextColor(WidgetTheme.text(dark));
+        daily.setText(fmt(dailyAvg) + "원");
+
+        TextView dailyLabel = wv.findViewById(R.id.pace_daily_label);
+        dailyLabel.setTextColor(WidgetTheme.hint(dark));
+
+        TextView projLabel = wv.findViewById(R.id.pace_proj_label);
+        projLabel.setTextColor(WidgetTheme.hint(dark));
+
+        TextView proj = wv.findViewById(R.id.pace_proj);
+        proj.setTextColor(dark ? 0xFF7BAFF0 : 0xFF0D6EFD);
+        proj.setText(fmt(projected) + "원");
+
+        TextView updated = wv.findViewById(R.id.pace_updated);
+        updated.setTextColor(WidgetTheme.hint(dark));
+        updated.setText(prefsUpdated);
+    }
+
+    private void setupWeeklyPreview(View wv, boolean dark) {
+        int accentColor = dark ? 0xFF7BAFF0 : 0xFF0D6EFD;
+        int hint = WidgetTheme.hint(dark);
+        String[] dayLabels = {"월", "화", "수", "목", "금", "토", "일"};
+
+        TextView title = wv.findViewById(R.id.weekly_title);
+        title.setTextColor(WidgetTheme.dim(dark));
+
+        TextView updated = wv.findViewById(R.id.weekly_updated);
+        updated.setTextColor(hint);
+        updated.setText(prefsUpdated);
+
+        TextView total = wv.findViewById(R.id.weekly_total);
+        total.setTextColor(WidgetTheme.text(dark));
+        total.setText(fmt(prefsWeekTotal) + "원");
+
+        TextView avg = wv.findViewById(R.id.weekly_avg);
+        avg.setTextColor(hint);
+        avg.setText("평균 " + fmt(prefsWeekAvg) + "원/일");
+
+        long[] daily = new long[7];
+        if (!prefsWeekDaily.isEmpty()) {
+            String[] parts = prefsWeekDaily.split(",");
+            for (int i = 0; i < 7 && i < parts.length; i++) daily[i] = parseLong(parts[i]);
+        }
+
+        int[] dayIds = {R.id.weekly_day1, R.id.weekly_day2, R.id.weekly_day3, R.id.weekly_day4,
+                R.id.weekly_day5, R.id.weekly_day6, R.id.weekly_day7};
+        for (int i = 0; i < 7; i++) {
+            TextView day = wv.findViewById(dayIds[i]);
+            day.setText(dayLabels[i]);
+            day.setTextColor(i == prefsWeekTodayIndex ? accentColor : hint);
+        }
+
+        int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
+        ImageView bars = wv.findViewById(R.id.weekly_bars);
+        bars.setImageBitmap(WeeklyWidget.createBarsBitmap(700, 220, daily, prefsWeekTodayIndex, accentColor, mutedColor));
     }
 
     private void updateThemeChecks() {
@@ -473,16 +503,19 @@ public class WidgetConfigActivity extends AppCompatActivity {
                 CompactWidget.updateWidget(this, manager, appWidgetId);
             } else if (className.contains("Budget")) {
                 BudgetWidget.updateWidget(this, manager, appWidgetId);
-            } else if (className.contains("Dashboard")) {
-                DashboardWidget.updateWidget(this, manager, appWidgetId);
             } else if (className.contains("Today")) {
                 TodayWidget.updateWidget(this, manager, appWidgetId);
+            } else if (className.contains("Pace")) {
+                PaceWidget.updateWidget(this, manager, appWidgetId);
+            } else if (className.contains("Weekly")) {
+                WeeklyWidget.updateWidget(this, manager, appWidgetId);
             }
         } catch (Exception e) {
             CompactWidget.updateAll(this);
             BudgetWidget.updateAll(this);
-            DashboardWidget.updateAll(this);
             TodayWidget.updateAll(this);
+            PaceWidget.updateAll(this);
+            WeeklyWidget.updateAll(this);
         }
 
         Intent result = new Intent();
@@ -532,6 +565,14 @@ public class WidgetConfigActivity extends AppCompatActivity {
                             .replace("-", "")
                             .trim()
             );
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int parseInt(String s) {
+        try {
+            return Integer.parseInt(s.trim());
         } catch (Exception e) {
             return 0;
         }

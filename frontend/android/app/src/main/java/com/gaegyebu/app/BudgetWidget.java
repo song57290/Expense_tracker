@@ -15,6 +15,8 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
 
+import java.util.Calendar;
+
 public class BudgetWidget extends BaseWidget {
 
     private static final String PREFS_NAME = "gaegyebu_widget";
@@ -32,6 +34,7 @@ public class BudgetWidget extends BaseWidget {
             String month   = monthStale ? currentMonthLabel() : prefs.getString("month", "--월");
             long   budget  = parseLong(prefs.getString("budget", "0"));
             long   expense = monthStale ? 0 : parseLong(prefs.getString("expense", "0"));
+            String updated = prefs.getString("updated", "");
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_budget);
 
@@ -51,16 +54,18 @@ public class BudgetWidget extends BaseWidget {
                         R.id.budget_month,
                         WidgetTheme.primary(dark)
                 );
+                views.setTextColor(R.id.budget_updated, WidgetTheme.hint(dark));
             }
 
             views.setTextViewText(R.id.budget_month, month);
+            views.setTextViewText(R.id.budget_updated, updated);
 
             float percent    = (budget > 0) ? (float) expense / budget : 0f;
             int   percentInt = Math.round(percent * 100);
             int   arcColor   = WidgetTheme.arcColor(percent, dark);
 
-            // 원형 링 비트맵 생성 (퍼센트 텍스트 포함)
-            views.setImageViewBitmap(R.id.budget_ring, createRingBitmap(300, percent, arcColor, percentInt, dark));
+            // 원형 링 비트맵 생성 (퍼센트 텍스트 + 이번 달 남은 일수 포함)
+            views.setImageViewBitmap(R.id.budget_ring, createRingBitmap(300, percent, arcColor, percentInt, dark, daysLeftInMonth()));
 
             // 하단 남은/초과 금액
             long   remaining = budget - expense;
@@ -81,22 +86,21 @@ public class BudgetWidget extends BaseWidget {
             views.setTextColor(R.id.budget_remaining, remainColor);
 
             // minWidth/minHeight 110dp(2x2)는 선언일 뿐, 실제로 받는 픽셀 크기는
-            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수 있다. 링
-            // 비트맵 자체는 ImageView에 맞춰 알아서 축소되지만, 그 위에 겹쳐진
-            // "사용" 라벨의 고정 translationY는 자동으로 따라가지 않으므로
-            // 좁게 받은 경우 텍스트 크기·오프셋·여백을 함께 줄인다.
+            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수 있다. budget_usage_label은
+            // 숨기고(D-day는 createRingBitmap에서 그림) 남은 텍스트들만 좁게 받은 경우 크기를 줄인다.
             int widthDp = grantedWidthDp(manager, widgetId, 110);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
             boolean tight = widthDp < 100 || heightDp < 100;
 
-            views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, tight ? 9f : 11f);
-            views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, tight ? 9f : 11f);
-            views.setFloat(R.id.budget_usage_label, "setTranslationY", dpToPx(context, tight ? 24 : 34));
+            views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, tight ? 16.5f : 19.5f);
+            views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, tight ? 9.9f : 12.1f);
+            views.setTextViewTextSize(R.id.budget_updated, TypedValue.COMPLEX_UNIT_DIP, tight ? 8f : 9f);
+            views.setViewVisibility(R.id.budget_usage_label, android.view.View.GONE);
             views.setViewPadding(R.id.widget_budget_root,
                     dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10),
                     dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, tight ? 18 : 30, TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, tight ? 6 : 14, TypedValue.COMPLEX_UNIT_DIP);
             }
 
             // 클릭 → 앱 실행 (예산 미설정 시 예산 설정 화면으로 이동)
@@ -114,7 +118,14 @@ public class BudgetWidget extends BaseWidget {
         }
     }
 
-    static Bitmap createRingBitmap(int size, float percent, int arcColor, int percentInt, boolean dark) {
+    private static int daysLeftInMonth() {
+        Calendar cal = Calendar.getInstance();
+        int today = cal.get(Calendar.DAY_OF_MONTH);
+        int lastDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+        return lastDay - today;
+    }
+
+    static Bitmap createRingBitmap(int size, float percent, int arcColor, int percentInt, boolean dark, int daysLeft) {
         Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
 
@@ -148,7 +159,15 @@ public class BudgetWidget extends BaseWidget {
         pct.setTypeface(Typeface.DEFAULT_BOLD);
         pct.setColor(arcColor);
         float cy = size / 2f + pct.getTextSize() * 0.25f;
-        canvas.drawText(percentInt + "%", size / 2f+8f, cy, pct);
+        canvas.drawText(percentInt + "%", size / 2f, cy, pct);
+
+        // 이번 달 남은 일수(D-day) — % 글자와 같은 비트맵에, 그 크기에 비례한 위치로 배치
+        Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
+        label.setTextAlign(Paint.Align.CENTER);
+        label.setTextSize(pct.getTextSize() * 0.38f);
+        label.setColor(dark ? 0x99FFFFFF : 0x88000000);
+        float labelY = cy + pct.getTextSize() * 0.85f;
+        canvas.drawText("D-" + daysLeft, size / 2f, labelY, label);
 
         return bmp;
     }

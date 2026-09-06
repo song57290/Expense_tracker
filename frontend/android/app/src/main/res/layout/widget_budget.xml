@@ -15,8 +15,10 @@
         android:layout_height="wrap_content"
         android:text="--월"
         android:textColor="@color/w_primary"
-        android:textSize="11dp"
+        android:textSize="19.5dp"
         android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:gravity="center_horizontal" />
 
     <FrameLayout
@@ -24,7 +26,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="30dp"
+        android:layout_marginTop="14dp"
         android:layout_marginBottom="4dp">
 
         <ImageView
@@ -41,7 +43,7 @@
             android:translationY="34dp"
             android:text="사용"
             android:textColor="@color/budget_usage"
-            android:textSize="24dp" />
+            android:textSize="19dp" />
 
     </FrameLayout>
 
@@ -51,8 +53,22 @@
         android:layout_height="wrap_content"
         android:text="---원 남음"
         android:textColor="@color/w_primary"
-        android:textSize="11dp"
+        android:textSize="12.1dp"
         android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:gravity="center_horizontal" />
+
+    <TextView
+        android:id="@+id/budget_updated"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="@color/w_hint"
+        android:textSize="9dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:layout_marginTop="2dp" />
 
 </LinearLayout>

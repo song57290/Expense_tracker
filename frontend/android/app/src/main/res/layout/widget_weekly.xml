@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_weekly_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@android:color/transparent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/weekly_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="이번 주"
+            android:textColor="@color/w_dim"
+            android:textSize="12dp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/weekly_updated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="@color/w_hint"
+            android:textSize="9dp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/weekly_total"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="---원"
+        android:textColor="@color/w_text"
+        android:textSize="24dp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginTop="4dp" />
+
+    <TextView
+        android:id="@+id/weekly_avg"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="평균 ---원/일"
+        android:textColor="@color/w_hint"
+        android:textSize="12dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginTop="14dp" />
+
+    <ImageView
+        android:id="@+id/weekly_bars"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"
+        android:scaleType="fitXY" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="2dp">
+
+        <TextView android:id="@+id/weekly_day1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" android:textStyle="bold" />
+        <TextView android:id="@+id/weekly_day2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+        <TextView android:id="@+id/weekly_day3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+        <TextView android:id="@+id/weekly_day4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+        <TextView android:id="@+id/weekly_day5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+        <TextView android:id="@+id/weekly_day6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+        <TextView android:id="@+id/weekly_day7" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="@color/w_hint" android:textSize="11dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

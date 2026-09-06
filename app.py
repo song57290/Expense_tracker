@@ -324,8 +324,8 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 5
-    _apk_version_name = 'ver 2.51'
+    _apk_version_code = 28
+    _apk_version_name = 'ver 2.52'
     _apk_build_date = '2026-09-06'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
@@ -2755,12 +2755,25 @@ def download_latest_apk():
     if cfg:
         info = json.loads(cfg.value)
         vname = (info.get('version_name') or '').replace('ver', 'v').replace(' ', '')
+        # version_name(예: v2.51)은 여러 빌드에 걸쳐 그대로 두고 version_code만
+        # 다운로드한 파일명만 보고도 어떤 빌드인지 구분할 수 있도록 build 번호 추가.
+        vcode = info.get('version_code')
+        bcode = f'build{vcode}' if vcode else ''
         bdate = (info.get('build_date') or '').replace('-', '')
-        parts = [p for p in (vname, bdate) if p]
+        parts = [p for p in (vname, bcode, bdate) if p]
         if parts:
             fname = 'gaegyebu_' + '_'.join(parts) + '.apk'
-    return send_from_directory(releases_dir, 'gaegyebu-latest.apk', as_attachment=True,
-                                download_name=fname, mimetype='application/vnd.android.package-archive')
+    resp = send_from_directory(releases_dir, 'gaegyebu-latest.apk', as_attachment=True,
+                                download_name=fname, mimetype='application/vnd.android.package-archive',
+                                conditional=False, last_modified=False, etag=False)
+    # 파일 이름(URL)이 항상 동일해서, 통신사 프록시나 기기의 DownloadManager가 이전에
+    # 받았던 구버전 바이트를 그대로 재사용해버리는 문제가 있었다(index.html에서
+    # 이미 한 번 겪었던 것과 같은 종류의 캐싱 버그) — 강하게 캐시를 금지해 항상
+    # 지금 releases/gaegyebu-latest.apk의 실제 내용을 새로 받도록 한다.
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @app.route('/api/budget/monthly-balances')
 @login_required

@@ -70,4 +70,13 @@
         android:textStyle="bold"
         android:gravity="center_horizontal" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="22:31 업데이트"
+        android:textColor="#AAFFFFFF"
+        android:textSize="9dp"
+        android:gravity="end"
+        android:layout_marginTop="2dp" />
+
 </LinearLayout>

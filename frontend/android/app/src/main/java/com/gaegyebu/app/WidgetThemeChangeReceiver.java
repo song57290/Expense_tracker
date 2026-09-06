@@ -31,7 +31,8 @@ public class WidgetThemeChangeReceiver extends BroadcastReceiver {
 
         CompactWidget.updateAll(context);
         BudgetWidget.updateAll(context);
-        DashboardWidget.updateAll(context);
         TodayWidget.updateAll(context);
+        PaceWidget.updateAll(context);
+        WeeklyWidget.updateAll(context);
     }
 }

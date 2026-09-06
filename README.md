@@ -17,7 +17,7 @@ http://127.0.0.1:5000/                    ← 로컬 개발용
 | 인증 | 이메일 + 비밀번호 (Flask session, werkzeug PBKDF2) |
 | 알림 | Web Push API (VAPID) + FCM (Firebase Cloud Messaging) |
 | 네이티브 앱 | Capacitor (Android APK, gaegyebu.fly.dev 원격 로드) |
-| 위젯 | Android AppWidgetProvider (4종 위젯, WidgetConfigActivity) |
+| 위젯 | Android AppWidgetProvider (5종 위젯, WidgetConfigActivity) |
 | 드래그 | @dnd-kit/core (카테고리 순서 변경) |
 | 캘린더 | FullCalendar (@fullcalendar/react) |
 | 차트 | Chart.js |
@@ -89,24 +89,29 @@ Expense_tracker/
 │           │   ├─ WidgetTheme.java               ← 위젯 색상 상수·헬퍼 + Activity window 테마 적용
 │           │   ├─ WidgetThemeChangeReceiver.java ← 시스템 야간모드 변경 수신 (폴백)
 │           │   ├─ WidgetDataPlugin.java          ← JS↔Java 브릿지 (위젯 데이터 전달)
-│           │   ├─ CompactWidget.java             ← 3×1 간편 위젯 (잔액·수입·지출)
+│           │   ├─ CompactWidget.java             ← 4×1 간편 위젯 (잔액·수입·지출)
 │           │   ├─ BudgetWidget.java              ← 2×2 예산 링 위젯 (링 그래프)
-│           │   ├─ DashboardWidget.java           ← 4×2 대시보드 위젯 (막대 그래프)
-│           │   └─ TodayWidget.java               ← 3×2 오늘 지출 위젯
+│           │   ├─ TodayWidget.java               ← 3×2 오늘 지출 위젯
+│           │   ├─ PaceWidget.java                ← 2×2 지출 추이 위젯 (일 평균·월말 예상)
+│           │   └─ WeeklyWidget.java              ← 4×2 이번 주 위젯 (요일별 막대그래프)
 │           └─ res/
 │               ├─ layout/
 │               │   ├─ activity_widget_config.xml ← 위젯 설정 화면 레이아웃
 │               │   ├─ widget_compact.xml          ← 간편 위젯 레이아웃
 │               │   ├─ widget_budget.xml           ← 예산 위젯 레이아웃
-│               │   ├─ widget_dashboard.xml        ← 대시보드 위젯 레이아웃
-│               │   └─ widget_today.xml            ← 오늘 위젯 레이아웃
+│               │   ├─ widget_today.xml            ← 오늘 위젯 레이아웃
+│               │   ├─ widget_pace.xml             ← 지출 추이 위젯 레이아웃
+│               │   └─ widget_weekly.xml           ← 이번 주 위젯 레이아웃
 │               ├─ drawable/
-│               │   └─ wbg_system_r14.xml          ← SYSTEM 테마 배경 (@color/w_bg, 야간모드 자동 전환)
+│               │   ├─ wbg_system_r14.xml          ← SYSTEM 테마 배경 (@color/w_bg, 야간모드 자동 전환)
+│               │   ├─ widget_bar_accent.xml       ← 이번 주 위젯 미리보기용 강조색 막대 드로어블
+│               │   └─ widget_bar_muted.xml        ← 이번 주 위젯 미리보기용 무채색 막대 드로어블
 │               ├─ xml/
 │               │   ├─ widget_compact_info.xml     ← 간편 위젯 메타데이터 (크기·업데이트 주기)
 │               │   ├─ widget_budget_info.xml      ← 예산 위젯 메타데이터
-│               │   ├─ widget_dashboard_info.xml   ← 대시보드 위젯 메타데이터
-│               │   └─ widget_today_info.xml       ← 오늘 위젯 메타데이터
+│               │   ├─ widget_today_info.xml       ← 오늘 위젯 메타데이터
+│               │   ├─ widget_pace_info.xml        ← 지출 추이 위젯 메타데이터
+│               │   └─ widget_weekly_info.xml      ← 이번 주 위젯 메타데이터
 │               ├─ values/
 │               │   ├─ colors.xml                  ← 위젯 라이트모드 색상 (w_primary, w_income, …)
 │               │   ├─ config_colors.xml           ← 위젯 설정 화면 라이트모드 색상
@@ -355,7 +360,7 @@ DB 테이블 정의. 컬럼 추가 시 모델에 추가 후 `db.create_all()` (�
 React (JS)
   → WidgetDataPlugin.java
   → SharedPreferences("gaegyebu_widget")
-  ← CompactWidget / BudgetWidget / DashboardWidget / TodayWidget 읽어서 표시
+  ← CompactWidget / BudgetWidget / TodayWidget 읽어서 표시
 ```
 
 **JS에서 위젯 데이터 업데이트하는 곳:** `frontend/src/pages/Home.jsx`
@@ -371,10 +376,11 @@ React (JS)
 
 | 위젯 | Java 파일 | 레이아웃 XML | 메타데이터 XML |
 |---|---|---|---|
-| 3×1 간편 | `CompactWidget.java` | `res/layout/widget_compact.xml` | `res/xml/widget_compact_info.xml` |
+| 4×1 간편 | `CompactWidget.java` | `res/layout/widget_compact.xml` | `res/xml/widget_compact_info.xml` |
 | 2×2 예산 링 | `BudgetWidget.java` | `res/layout/widget_budget.xml` | `res/xml/widget_budget_info.xml` |
-| 4×2 대시보드 | `DashboardWidget.java` | `res/layout/widget_dashboard.xml` | `res/xml/widget_dashboard_info.xml` |
 | 3×2 오늘 지출 | `TodayWidget.java` | `res/layout/widget_today.xml` | `res/xml/widget_today_info.xml` |
+| 2×2 지출 추이 | `PaceWidget.java` | `res/layout/widget_pace.xml` | `res/xml/widget_pace_info.xml` |
+| 4×2 이번 주 | `WeeklyWidget.java` | `res/layout/widget_weekly.xml` | `res/xml/widget_weekly_info.xml` |
 
 **위젯 크기·업데이트 주기 변경:** 각 `widget_*_info.xml`의 `minWidth`, `minHeight`, `updatePeriodMillis` 수정
 
@@ -958,6 +964,32 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 | 305 | 안드로이드 위젯 텍스트 단위 `sp` → `dp` 전체 교체 (4개 위젯 레이아웃 + 미리보기 + Java `COMPLEX_UNIT_SP`→`COMPLEX_UNIT_DIP`) — 기기 접근성 글자 크기 설정이 큰 폰에서 위젯 글씨가 커져 잘리던 문제 개선 (다양한 기기에서 계속 확인 중) |
 | 306 | `UpdateNoticeModal.jsx`에 `wip`("진행중") 태그 추가 — 검증 전 항목을 new/imp/fix와 구분해 표시 |
 | 307 | 앱 버전 `_apk_version_code` 4→5, `_apk_build_date` → 2026-09-06 (`app.py`) |
+| 308 | 예산 위젯 "%"/라벨 텍스트를 진짜 중앙(`size/2f`)에 그리도록 수정 — 기존 `+8f` 보정값 때문에 전체가 오른쪽으로 치우쳐 보이던 문제 |
+| 309 | 대시보드 위젯 텍스트 크기를 "좁다/넉넉하다" 이분법 대신 그랜트 크기 비율(`scale`)로 연속 조정하도록 변경, 그랜트 정보 미보고 시 보수적 기본값 사용 (`DashboardWidget.java`) |
+| 310 | 설정 탭 — 잔고 점검 기능 제거, "설치된 앱"/"서버 최신 버전"(build 번호 포함) 확인 카드 추가 (`Settings.jsx`, `CapApp.getInfo()` + `/api/app-version`) |
+| 311 | 앱 업데이트 다운로드 방식을 브라우저 우회(`Intent.ACTION_VIEW`) 대신 `DownloadManager` 직접 다운로드+설치로 전환 — `REQUEST_INSTALL_PACKAGES` 권한 추가, `FileProvider`로 설치 인텐트 실행 (`MainActivity.java`) — 다운로드 확인창이 2번 뜨던 문제 수정 |
+| 312 | 다운로드 파일을 타임스탬프 포함 파일명으로 공개 Downloads 폴더에 저장, 알림 제목 커스터마이징 제거(실제 파일명이 그대로 노출되도록) |
+| 313 | `/download/gaegyebu-latest.apk`에 `Cache-Control: no-store` 등 캐시 금지 헤더 추가, 다운로드 파일명에 build 번호 포함(버전명이 같아도 build마다 구분), 다운로드 URL에 `?v=` 버전 쿼리스트링 추가 — 통신사 프록시 등의 캐싱으로 구버전이 재사용되는 문제 방어 |
+| 314 | `frontend/android/app/build.gradle`의 `versionCode`가 `app.py`의 `_apk_version_code`와 어긋나 있던 문제 발견·수정 — 이후 새 빌드마다 두 값을 함께 올리도록 정정 |
+| 315 | 예산 위젯 "사용" 라벨을 이번 달 남은 일수 표시(`D-N`)로 변경 (`BudgetWidget.java`) |
+| 316 | 대시보드 위젯("이번 달 요약") 전체 제거 — `DashboardWidget.java`, `widget_dashboard.xml`, `widget_dashboard_preview.xml`, `widget_dashboard_info.xml` 삭제, `MainActivity`/`WidgetDataPlugin`/`WidgetThemeChangeReceiver`/`WidgetConfigActivity`의 참조 정리 — 3종 위젯(간편·예산 링·오늘 지출) 체제로 전환 |
+
+## 2026-09-06 — ver 2.52
+
+| # | 내용 |
+|---|------|
+| 317 | 지출 추이(Pace)·이번 주(Weekly) 위젯 2종 신규 추가 — `PaceWidget.java`/`WeeklyWidget.java`, `widget_pace.xml`/`widget_weekly.xml` + 미리보기/info, `WidgetConfigActivity` 미리보기 연동, `widgetSync.js`에 주간 요일별 지출·평균 계산 추가 — 5종 위젯 체제로 전환 |
+| 318 | 5개 위젯 전체에 `maxLines`/`ellipsize` 안전망 추가 — RemoteViews `TextView`가 부모 폭보다 넓으면 줄바꿈 대신 그대로 잘려 보이던(글씨 깨짐) 문제 근본 수정 |
+| 319 | `WeeklyWidget` 막대그래프에서 오늘 금액 라벨이 일요일 등 마지막 칸일 때 비트맵 오른쪽 밖으로 잘리던 문제 수정 — `measureText`로 라벨 폭을 측정해 그리는 위치를 clamp |
+| 320 | 이번 주 위젯 개편 — 수입 항목 제거, 평균 지출 표시를 아래로 이동, 5개 위젯 전체에 마지막 업데이트 시각(`updated`) 표시 추가 |
+| 321 | 예산·지출 추이·오늘 지출 위젯의 업데이트 시각 표시를 우측 하단으로 재배치 |
+| 322 | 오늘 지출 위젯이 RemoteViews가 지원하지 않는 순수 `<View>` 태그 때문에 홈 화면 추가 시 "위젯을 추가할 수 없습니다" 오류로 실패하던 문제 수정 (`widget_today.xml`의 spacer를 `LinearLayout`으로 교체) |
+| 323 | 이번 주 위젯 미리보기가 동일한 `<View>` 문제로 위젯 추가 화면에 아예 표시되지 않던 문제 수정, 미리보기 막대를 실제 위젯과 비슷한 얇은 원형(pill) 막대로 개선 (`widget_bar_accent.xml`/`widget_bar_muted.xml` 드로어블 추가) |
+| 324 | 간편 위젯 텍스트 축소 비율(`scale`) 계산이 너비만 보고 높이(`heightDp`)를 반영하지 않던 문제 수정 — 위젯을 짧게 배치하면 카드 높이를 넘겨 숫자가 잘리던 문제, 축소 하한도 0.6→0.4로 완화 |
+| 325 | 앱 업데이트 설치 흐름 재구성 — 다운로드 완료를 기다리지 않고 버튼 클릭 즉시 설치 권한을 확인해 없으면 허용 화면으로 이동(`MainActivity.startApkDownload`), 삼성 자동 차단 등 OS 보안 기능으로 설치가 실제로 진행되지 않은 경우를 감지해 보안 설정 화면으로 자동 이동(`checkInstallOutcome`), 다운로드 진행 중에도 알림 표시 |
+| 326 | 캘린더 날짜별 상세 팝업 수입·지출 합계, 전체 내역 목록 날짜별 순액, `widgetSync.js`의 오늘·이번 주 위젯 계산에서 `exclude_stats`(통계 제외) 처리된 거래가 그대로 합산되던 문제 수정 |
+| 327 | `releases/*.apk`를 git 추적에서 제외(`.gitignore`) — 버전마다 반복 커밋되는 바이너리로 저장소가 계속 불어나는 문제 방지, APK는 로컬에서만 관리하고 `fly deploy`는 `.dockerignore`에 영향받지 않아 로컬 파일 그대로 배포됨 |
+| 328 | 앱 버전 2.52 — `_apk_version_code`/`versionCode` 28, `versionName` "2.52" |
 
 ---
 
