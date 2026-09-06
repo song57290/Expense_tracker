@@ -27,6 +27,11 @@ public class WidgetDataPlugin extends Plugin {
         String todayDate = call.getString("today_date", "");
         String todayKey = call.getString("today_key", "");
         String todayCats = call.getString("today_cats", "");
+        String weekDaily = call.getString("week_daily", "");
+        String weekTodayIndex = call.getString("week_today_index", "0");
+        String weekTotal = call.getString("week_total", "0");
+        String weekAvg = call.getString("week_avg", "0");
+        String weekIncome = call.getString("week_income", "0");
 
         Context ctx = getContext();
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -43,6 +48,11 @@ public class WidgetDataPlugin extends Plugin {
                 .putString("today_date", todayDate)
                 .putString("today_key", todayKey)
                 .putString("today_cats", todayCats)
+                .putString("week_daily", weekDaily)
+                .putString("week_today_index", weekTodayIndex)
+                .putString("week_total", weekTotal)
+                .putString("week_avg", weekAvg)
+                .putString("week_income", weekIncome)
                 .apply();
 
         updateAllWidgets(ctx);
@@ -89,7 +99,8 @@ public class WidgetDataPlugin extends Plugin {
     private void updateAllWidgets(Context ctx) {
         CompactWidget.updateAll(ctx);
         BudgetWidget.updateAll(ctx);
-        DashboardWidget.updateAll(ctx);
         TodayWidget.updateAll(ctx);
+        PaceWidget.updateAll(ctx);
+        WeeklyWidget.updateAll(ctx);
     }
 }

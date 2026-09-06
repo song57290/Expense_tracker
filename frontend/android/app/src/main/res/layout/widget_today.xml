@@ -7,7 +7,7 @@
     android:padding="14dp"
     android:background="#CC2d1b69">
 
-    <!-- 날짜(좌) + 오늘 총액(우) 인라인 헤더 -->
+    <!-- 제목(좌) + 날짜(우) 헤더 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -15,25 +15,41 @@
         android:gravity="center_vertical">
 
         <TextView
-            android:id="@+id/today_date"
+            android:id="@+id/today_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="--월 --일"
+            android:text="오늘 지출"
             android:textColor="@color/w_primary"
-            android:textSize="14dp"
-            android:textStyle="bold" />
+            android:textSize="12dp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
-            android:id="@+id/today_total"
+            android:id="@+id/today_date"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="---원"
-            android:textColor="@color/w_expense"
-            android:textSize="20dp"
-            android:textStyle="bold" />
+            android:text="--월 --일"
+            android:textColor="@color/w_hint"
+            android:textSize="10dp"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
     </LinearLayout>
+
+    <!-- 오늘 총액 (크게) -->
+    <TextView
+        android:id="@+id/today_total"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="---원"
+        android:textColor="@color/w_expense"
+        android:textSize="20dp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginTop="6dp" />
 
     <!-- 구분선 -->
     <ImageView
@@ -195,5 +211,21 @@
             android:textStyle="bold" />
 
     </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/today_updated"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="@color/w_hint"
+        android:textSize="9dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="end" />
 
 </LinearLayout>

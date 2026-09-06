@@ -26,12 +26,8 @@ public abstract class BaseWidget extends AppWidgetProvider {
         }
     }
 
-    // The launcher's actual grid can hand this widget a very different pixel size
-    // than another device's grid does for the "same" declared cell count (screen
-    // size, grid density setting, or a manual resize all matter) — a layout tuned
-    // for one device's grant can visibly overflow/clip on another's. Re-render
-    // whenever the granted size changes so each widget's size-aware scaling
-    // (see grantedWidthDp/grantedHeightDp below) can react to the real value.
+    // Granted widget size varies by launcher/screen density, not just declared cell
+    // count — re-render on change so grantedWidthDp/grantedHeightDp reflect it.
     @Override
     public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle newOptions) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions);

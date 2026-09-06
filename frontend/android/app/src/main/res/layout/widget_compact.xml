@@ -27,7 +27,9 @@
             android:text="2026년 7월"
             android:textColor="@color/w_primary"
             android:textSize="13dp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/compact_updated"
@@ -72,6 +74,8 @@
                 android:textColor="@color/w_primary"
                 android:textSize="20dp"
                 android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:layout_marginTop="2dp" />
 
         </LinearLayout>
@@ -108,6 +112,8 @@
                 android:textColor="#F1F1F1F1"
                 android:textSize="16dp"
                 android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:layout_marginTop="3dp" />
 
         </LinearLayout>
@@ -144,6 +150,8 @@
                 android:textColor="#F1F1F1F1"
                 android:textSize="16dp"
                 android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:layout_marginTop="3dp" />
 
         </LinearLayout>

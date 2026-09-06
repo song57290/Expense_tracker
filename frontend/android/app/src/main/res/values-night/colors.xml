@@ -13,4 +13,5 @@
     <color name="w_divider">#66FFFFFF</color>
     <color name="w_bg">#CC000000</color>
     <color name="budget_usage">#99FFFFFF</color>
+    <color name="pace_projected">#FF7BAFF0</color>
 </resources>

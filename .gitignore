@@ -8,3 +8,5 @@ subscriptions.json
 expense.db
 *.db
 firebase-adminsdk.json
+releases/*.apk
+releases/archive/*.apk

@@ -93,22 +93,25 @@ public class CompactWidget extends BaseWidget {
                     formatUnsigned(expense) + "원"
             );
 
-            // 이 위젯은 4칸(minWidth 250dp)을 선언하지만 그건 힌트일 뿐, 실제로
-            // 받는 픽셀 너비는 기기 화면·홈 화면 그리드 밀도에 따라 그보다 좁을
-            // 수 있다 (예: 폴드처럼 화면이 넓은 기기 대비 일반 플래그십). 좁게
-            // 받은 경우 글씨·여백을 줄여서 겹치거나 잘리지 않도록 한다.
+            // 너비·높이 중 더 좁게 받은 쪽 비율(scale)로 같이 줄인다.
             int widthDp = grantedWidthDp(manager, widgetId, 250);
-            boolean tight = widthDp < 230;
+            int heightDp = grantedHeightDp(manager, widgetId, 60);
+            // 런처가 실제로 보고하는 위젯 크기를 화면에서 바로 확인하기 위한 임시 진단 표시
+            views.setTextViewText(R.id.compact_updated, updated + " [" + widthDp + "x" + heightDp + "]");
+            float scale = Math.min(1f, Math.min(widthDp / 250f, heightDp / 60f));
+            
+            // 카드 높이를 넘겨 잘리는 사례가 있어 하한 낮춤
+            scale = Math.max(scale, 0.4f);
 
-            views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, tight ? 16f : 20f);
-            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, tight ? 12f : 14f);
-            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, tight ? 12f : 14f);
-            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, tight ? 13f : 16f);
-            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, tight ? 13f : 16f);
+            views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, 20f * scale);
+            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
+            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
+            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
+            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
 
-            int padH = dpToPx(context, tight ? 6 : 10);
-            int padEnd = dpToPx(context, tight ? 5 : 8);
-            int padV = dpToPx(context, tight ? 5 : 7);
+            int padH = dpToPx(context, 10 * scale);
+            int padEnd = dpToPx(context, 8 * scale);
+            int padV = dpToPx(context, 7 * scale);
             views.setViewPadding(R.id.compact_income_card, padH, padV, padEnd, padV);
             views.setViewPadding(R.id.compact_expense_card, padH, padV, padEnd, padV);
 
