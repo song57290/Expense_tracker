@@ -10,7 +10,9 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.util.Log;
+import android.util.TypedValue;
 import android.widget.RemoteViews;
 
 public class BudgetWidget extends BaseWidget {
@@ -77,6 +79,25 @@ public class BudgetWidget extends BaseWidget {
 
             views.setTextViewText(R.id.budget_remaining, remainText);
             views.setTextColor(R.id.budget_remaining, remainColor);
+
+            // minWidth/minHeight 110dp(2x2)는 선언일 뿐, 실제로 받는 픽셀 크기는
+            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수 있다. 링
+            // 비트맵 자체는 ImageView에 맞춰 알아서 축소되지만, 그 위에 겹쳐진
+            // "사용" 라벨의 고정 translationY는 자동으로 따라가지 않으므로
+            // 좁게 받은 경우 텍스트 크기·오프셋·여백을 함께 줄인다.
+            int widthDp = grantedWidthDp(manager, widgetId, 110);
+            int heightDp = grantedHeightDp(manager, widgetId, 110);
+            boolean tight = widthDp < 100 || heightDp < 100;
+
+            views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, tight ? 9f : 11f);
+            views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, tight ? 9f : 11f);
+            views.setFloat(R.id.budget_usage_label, "setTranslationY", dpToPx(context, tight ? 24 : 34));
+            views.setViewPadding(R.id.widget_budget_root,
+                    dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10),
+                    dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, tight ? 18 : 30, TypedValue.COMPLEX_UNIT_DIP);
+            }
 
             // 클릭 → 앱 실행 (예산 미설정 시 예산 설정 화면으로 이동)
             Intent intent = new Intent(context, MainActivity.class);

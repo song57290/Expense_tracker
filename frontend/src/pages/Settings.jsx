@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
+import { fmt } from '../utils.js'
 
 
 function makeSvgDonut(items, colors, size = 180, netTotal = null) {
@@ -368,6 +369,9 @@ export default function Settings() {
   const [deleteInput, setDeleteInput] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [portfolioExporting, setPortfolioExporting] = useState(false)
+  const [balanceCheck, setBalanceCheck] = useState(null)
+  const [balanceChecking, setBalanceChecking] = useState(false)
+  const [balanceFixing, setBalanceFixing] = useState(false)
   const [pfSections, setPfSections] = useState({ summary: true, asset_composition: true, cards: true, savings: true, investments: true, transactions: false })
   const [pfSheetOpen, setPfSheetOpen] = useState(false)
   const [pfSheetVisible, setPfSheetVisible] = useState(false)
@@ -536,6 +540,30 @@ export default function Settings() {
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
   }, [pfSheetOpen])
+
+  async function runBalanceCheck() {
+    setBalanceChecking(true)
+    try {
+      const d = await api.get('/api/debug/balance-check')
+      setBalanceCheck(d)
+    } catch (e) {
+      alert('잔고 점검에 실패했습니다')
+    } finally {
+      setBalanceChecking(false)
+    }
+  }
+
+  async function fixBalanceIssues() {
+    setBalanceFixing(true)
+    try {
+      await api.get('/api/debug/fix-balance-since')
+      await runBalanceCheck()
+    } catch (e) {
+      alert('복구에 실패했습니다')
+    } finally {
+      setBalanceFixing(false)
+    }
+  }
 
   async function exportPortfolio() {
     setPortfolioExporting(true)
@@ -937,6 +965,43 @@ export default function Settings() {
             style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
             포트폴리오 PDF 출력
           </button>
+        </div>
+      </div>
+
+      {/* 잔고 점검 */}
+      <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+        <div className="card-body">
+          <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>잔고 점검</div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>카드/계좌 잔고가 실제 거래를 제대로 반영하고 있는지 확인합니다.</p>
+          <button onClick={runBalanceCheck} disabled={balanceChecking}
+            style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: balanceChecking ? 'var(--bg-section)' : 'linear-gradient(135deg,#b088f9,#7baff0)', color: balanceChecking ? 'var(--text-muted)' : 'white', fontWeight: 600, fontSize: '0.9rem', cursor: balanceChecking ? 'not-allowed' : 'pointer' }}>
+            {balanceChecking ? '점검 중...' : '잔고 점검하기'}
+          </button>
+          {balanceCheck && (() => {
+            const problems = balanceCheck.filter(c => c.tx_excluded_by_balance_since > 0)
+            return (
+              <div className="mt-3">
+                {balanceCheck.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>점검할 카드/계좌가 없습니다.</p>
+                ) : problems.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: '#198754', margin: 0 }}>✓ 모든 카드/계좌가 정상입니다.</p>
+                ) : (
+                  <>
+                    <p style={{ fontSize: '0.85rem', color: '#dc3545', fontWeight: 600, marginBottom: 8 }}>⚠ {problems.length}개 카드/계좌에서 거래가 잔고에 반영되지 않고 있어요</p>
+                    {problems.map(c => (
+                      <div key={c.name} style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
+                        <b>{c.name}</b> — {c.tx_excluded_by_balance_since}건 미반영 (현재 {fmt(c.current_balance_now)}원 → 복구 시 {fmt(c.current_balance_if_counting_everything)}원)
+                      </div>
+                    ))}
+                    <button onClick={fixBalanceIssues} disabled={balanceFixing}
+                      style={{ width: '100%', marginTop: 12, padding: '10px 0', borderRadius: 10, border: 'none', background: balanceFixing ? 'var(--bg-section)' : '#dc3545', color: balanceFixing ? 'var(--text-muted)' : 'white', fontWeight: 600, fontSize: '0.9rem', cursor: balanceFixing ? 'not-allowed' : 'pointer' }}>
+                      {balanceFixing ? '복구 중...' : '지금 복구하기'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 

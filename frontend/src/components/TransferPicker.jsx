@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { bankLogo } from '../utils.js'
+import { cardLogo } from '../utils.js'
 
 function AccountSheet({ title, accounts, value, onChange, onClose, visible, drag, onTouchStart, onTouchMove, onTouchEnd }) {
   return createPortal(
@@ -27,7 +27,7 @@ function AccountSheet({ title, accounts, value, onChange, onClose, visible, drag
         </div>
         {accounts.map(acc => {
           const isSelected = value === acc.name
-          const logo = bankLogo(acc.name)
+          const logo = cardLogo(acc)
           return (
             <div key={acc.id ?? acc.name} onClick={() => { onChange(acc.name); onClose() }} style={{
               display: 'flex', alignItems: 'center', gap: 14,
@@ -38,7 +38,7 @@ function AccountSheet({ title, accounts, value, onChange, onClose, visible, drag
             }}>
               <div style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {logo
-                  ? <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+                  ? <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8 }} />
                   : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700 }}>{acc.name.slice(0, 2)}</span>}
               </div>
               <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: isSelected ? 600 : 400, color: isSelected ? '#b088f9' : 'var(--text-primary)' }}>
@@ -88,7 +88,7 @@ export default function TransferPicker({ accounts, from, to, onFromChange, onToC
 
   function AccountCard({ value, which }) {
     const acc = accounts.find(a => a.name === value)
-    const logo = acc ? bankLogo(acc.name) : null
+    const logo = cardLogo(acc)
     return (
       <button type="button" onClick={() => open(which)} style={{
         flex: 1, display: 'flex', alignItems: 'center', gap: 8,
@@ -97,7 +97,7 @@ export default function TransferPicker({ accounts, from, to, onFromChange, onToC
         border: acc ? '1.5px solid rgba(176,136,249,0.35)' : '1.5px solid var(--border-light)',
         minHeight: 42, cursor: 'pointer',
       }}>
-        {acc && logo && <img src={logo} style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }} />}
+        {acc && logo && <img src={logo} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 4, flexShrink: 0 }} />}
         {acc && !logo && <span style={{ fontSize: '0.78rem', color: '#b088f9', fontWeight: 700, flexShrink: 0 }}>{acc.name.slice(0, 2)}</span>}
         <span style={{ flex: 1, fontSize: '0.88rem', fontWeight: acc ? 600 : 400, color: acc ? 'var(--text-primary)' : 'var(--text-muted)', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {acc ? acc.name : '선택'}

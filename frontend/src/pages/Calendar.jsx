@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
-import { fmt, fmtMonth, fmtDate, bankColor } from '../utils.js'
+import { fmt, fmtMonth, fmtDate, bankColor, useCardColorMap } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
 import TxListFilter from '../components/TxListFilter.jsx'
 import { syncWidget } from '../widgetSync.js'
@@ -43,6 +43,7 @@ function SlidingTabs({ options, value, onChange }) {
 
 export default function Calendar() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState(null)
   const [selected, setSelected] = useState(null)
   const [confirmSheet, setConfirmSheet] = useState(null)
@@ -56,9 +57,17 @@ export default function Calendar() {
   const [txMenuVisible, setTxMenuVisible] = useState(false)
   const longPressTimer = useRef(null)
   const [yearMonth, setYearMonth] = useState(() => {
+    const fromUrl = searchParams.get('month')
+    if (fromUrl && /^\d{4}-\d{2}$/.test(fromUrl)) return fromUrl
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
+
+  // 조회 중인 월을 URL에 반영 — 내역 수정 등으로 다른 페이지에 갔다가 뒤로가기로
+  // 돌아왔을 때 캘린더가 이 컴포넌트를 다시 마운트하면서 이번 달로 리셋되지 않도록.
+  useEffect(() => {
+    setSearchParams({ month: yearMonth }, { replace: true })
+  }, [yearMonth])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
   const [pickerMode, setPickerMode] = useState('month')
@@ -70,6 +79,7 @@ export default function Calendar() {
   const [homeData, setHomeData] = useState(null)
   const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [addAmountDisplay, setAddAmountDisplay] = useState('')
+  const [addAmountError, setAddAmountError] = useState(false)
   const [addSaving, setAddSaving] = useState(false)
   const [addTransferFrom, setAddTransferFrom] = useState('')
   const [addTransferTo, setAddTransferTo] = useState('')
@@ -99,7 +109,9 @@ export default function Calendar() {
   async function handleAddSubmit(e) {
     e.preventDefault()
     const amt = parseInt(addAmountDisplay.replace(/,/g, ''))
-    if (!amt || !addForm.category) return
+    if (!amt) { setAddAmountError(true); return }
+    setAddAmountError(false)
+    if (!addForm.category) return
     const isTransfer = addForm.category === '계좌 이체'
     setAddSaving(true)
     try {
@@ -134,6 +146,11 @@ export default function Calendar() {
   }, [])
 
   useEffect(() => { load(yearMonth) }, [yearMonth, load])
+
+  // 거래 추가 시트를 열 때만 불러오던 걸 미리 가져오도록 — 은행/카드 필터가 카드의
+  // has_custom_icon 여부를 이 데이터로 판단하는데, 늦게 불러오면 필터를 열자마자는
+  // 직접 올린 로고 색상 없이(기본 회색으로) 표시됐다.
+  useEffect(() => { if (!homeData) api.get('/api/home').then(setHomeData).catch(console.error) }, [])
 
   useEffect(() => {
     const open = !!photoViewerTxId || addOpen || !!selected || !!confirmSheet
@@ -193,6 +210,8 @@ export default function Calendar() {
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
   }, [addOpen, selected, confirmSheet, pickerOpen, txMenu])
+
+  const getCardColor = useCardColorMap(homeData?.card_list)
 
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
@@ -324,10 +343,11 @@ export default function Calendar() {
                       />
                     </div>
                     <div className="col-12" style={{ position: 'relative' }}>
-                      <input className="form-control" inputMode="numeric" placeholder="금액" value={addAmountDisplay}
-                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
-                        required style={{ paddingRight: 36 }} />
+                      <input className={`form-control${addAmountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={addAmountDisplay}
+                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAddAmountError(false) }}
+                        style={{ paddingRight: 36 }} />
                       <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                      {addAmountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}
                     </div>
                     <div className="col-12">
                       {addForm.category === '계좌 이체' ? (
@@ -486,7 +506,7 @@ export default function Calendar() {
                   onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                   onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                   onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                  <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                  <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                 </div>
               ))}
             </div>
@@ -525,10 +545,14 @@ export default function Calendar() {
         const allTxs = Object.entries(data.day_transactions)
           .sort(([a], [b]) => b.localeCompare(a))
           .flatMap(([date, txs]) => txs.map(tx => ({ ...tx, date })))
-        const allCards = [...new Set(allTxs.map(tx => tx.card).filter(Boolean))].sort()
+        const allCardNames = [...new Set(allTxs.map(tx => tx.card).filter(Boolean))].sort()
+        const allCards = allCardNames.map(name => {
+          const c = (homeData?.card_list || []).find(cc => cc.name === name)
+          return { name, id: c?.id, has_custom_icon: c?.has_custom_icon || false }
+        })
         const filtered = allTxs.filter(tx =>
           (txFilter === 'all' || tx.type === txFilter) &&
-          (cardFilter === 'all' || tx.card === cardFilter)
+          (cardFilter === 'all' || cardFilter.includes(tx.card))
         )
         const byDate = filtered.reduce((acc, tx) => {
           if (!acc[tx.date]) acc[tx.date] = []
@@ -571,7 +595,7 @@ export default function Calendar() {
                         onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                         onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                       </div>
                     </SwipeItem>
                   ))}
@@ -587,7 +611,7 @@ export default function Calendar() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
-              <button className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button autoFocus className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSheet(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>

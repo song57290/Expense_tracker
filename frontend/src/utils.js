@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 const BANK_COLORS = [
   ['신한', '#0046A0', 'white'], ['KB', '#FFB800', '#333'], ['국민', '#FFB800', '#333'],
   ['농협', '#009900', 'white'], ['NH', '#009900', 'white'], ['하나', '#009A8C', 'white'],
@@ -43,6 +45,80 @@ export function bankLogo(name) {
     if (name.includes(k)) return path
   }
   return null
+}
+
+// Prefer a user-uploaded logo (for banks/point companies not in the preset list,
+// e.g. PAYCO) over the built-in name-matched one.
+export function cardLogo(card) {
+  if (!card) return null
+  if (card.has_custom_icon && card.id) return `/api/cards/${card.id}/icon`
+  return bankLogo(card.name)
+}
+
+const _customIconColorCache = new Map()
+
+// For a user-uploaded logo (no built-in bankColor entry), sample a small block near the
+// top-left corner (not a single pixel — a lone corner pixel is too likely to land on
+// anti-aliased edge/padding and give a near-white or near-black false read) and average
+// it. Also rejects the result if it's too light or too dark to be readable as text on a
+// light chip background — resolves to null in that case (and on load/transparent-corner
+// failures), so the caller falls back to bankColor's gray default instead of producing
+// an invisible (e.g. white-on-white) badge.
+export function getCustomIconColor(cardId) {
+  if (!cardId) return Promise.resolve(null)
+  if (_customIconColorCache.has(cardId)) return _customIconColorCache.get(cardId)
+  const promise = new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const SAMPLE = 8
+        const canvas = document.createElement('canvas')
+        canvas.width = SAMPLE
+        canvas.height = SAMPLE
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, SAMPLE, SAMPLE)
+        const data = ctx.getImageData(0, 0, SAMPLE, SAMPLE).data
+        let r = 0, g = 0, b = 0, n = 0
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] < 10) continue // skip transparent pixels
+          r += data[i]; g += data[i + 1]; b += data[i + 2]; n++
+        }
+        if (n === 0) { resolve(null); return }
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n)
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        if (luminance > 0.85 || luminance < 0.15) { resolve(null); return }
+        const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
+        resolve(hex)
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = `/api/cards/${cardId}/icon`
+  })
+  _customIconColorCache.set(cardId, promise)
+  return promise
+}
+
+// Resolves each custom-icon card's color once and hands back a bankColor()-shaped
+// lookup by name — for lists that render many transaction rows sharing a handful of
+// distinct cards (TxItem badges), so the color isn't re-derived (or missed) per row.
+export function useCardColorMap(cards) {
+  const [colors, setColors] = useState({})
+  useEffect(() => {
+    (cards || []).forEach(c => {
+      if (c.has_custom_icon && c.id && !(c.name in colors)) {
+        getCustomIconColor(c.id).then(hex => {
+          setColors(prev => (prev[c.name] !== undefined ? prev : { ...prev, [c.name]: hex }))
+        })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards])
+  return function cardBadgeColor(name) {
+    const custom = colors[name]
+    return custom ? { background: custom, color: 'white' } : bankColor(name)
+  }
 }
 
 export function fmt(n) {

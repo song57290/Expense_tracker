@@ -18,6 +18,15 @@ except ImportError:
 DATA_DIR = os.environ.get('DATA_DIR', '/data')
 RECEIPTS_DIR = os.path.join(DATA_DIR, 'receipts')
 os.makedirs(RECEIPTS_DIR, exist_ok=True)
+CARD_ICONS_DIR = os.path.join(DATA_DIR, 'card_icons')
+os.makedirs(CARD_ICONS_DIR, exist_ok=True)
+# The server runs on a small (256MB) VM. Pillow decodes a full pixel buffer before
+# any resize happens, so a large photo (a phone camera shot easily runs 4000x3000+)
+# can spike memory enough to OOM-kill the whole gunicorn worker — not a catchable
+# Python exception, just a 502 with no server-side error to log. Reject oversized
+# uploads up front instead of finding out via a crash.
+_MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024
+_MAX_IMAGE_PIXELS = 20_000_000
 from email.mime.text import MIMEText
 
 _listing_cache = {}
@@ -266,6 +275,17 @@ with app.app_context():
         'ALTER TABLE budget_allocation ADD COLUMN monthly_limit INTEGER',
         'ALTER TABLE fixed_expense ADD COLUMN auto_silent BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE card ADD COLUMN balance_since VARCHAR(10)',
+        'ALTER TABLE card ADD COLUMN cashback_type VARCHAR(10)',
+        'ALTER TABLE card ADD COLUMN cashback_rate FLOAT',
+        'ALTER TABLE "transaction" ADD COLUMN cashback INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN has_custom_icon BOOLEAN NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN point_reset_day INTEGER',
+        'ALTER TABLE card ADD COLUMN point_reset_amount INTEGER',
+        'ALTER TABLE card ADD COLUMN point_reset_last_date VARCHAR(10)',
+        'ALTER TABLE card ADD COLUMN point_carryover INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE savings ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE investment ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -301,11 +321,16 @@ with app.app_context():
 
     # apk version registry — bumped in code each native release; the in-app
     # update prompt (AppUpdateModal) reads this via GET /api/app-version.
-    _apk_version_code = 3
-    _apk_version_name = 'ver 2.50'
+    # build_date is set by hand to when that APK was actually built (not the
+    # server's restart date) — it's what makes the downloaded filename below
+    # distinguishable from the previous release.
+    _apk_version_code = 5
+    _apk_version_name = 'ver 2.51'
+    _apk_build_date = '2026-09-06'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
-                              'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice}, ensure_ascii=False)
+                              'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
+                              'build_date': _apk_build_date}, ensure_ascii=False)
     _apk_cfg = AppConfig.query.get('apk_version')
     if _apk_cfg is None:
         db.session.add(AppConfig(key='apk_version', value=_apk_value))
@@ -514,6 +539,71 @@ def _since_balance(tx_date, since):
     # since=None means the card has no recorded baseline date yet (legacy data) — count everything.
     return since is None or tx_date >= since
 
+def _net_amount(tx):
+    # Effective balance/perf contribution of a transaction once its card's cashback
+    # is applied: payment-type cashback shrinks an expense's net cost, charge-type
+    # bonus grows an income's net deposit. Both are stored in tx.cashback at write
+    # time (see _compute_cashback) so downstream sums never need to look the card up.
+    cashback = tx.cashback or 0
+    return tx.amount - cashback if tx.type == 'expense' else tx.amount + cashback
+
+def _compute_cashback(uid, card_name, tx_type, amount):
+    if not card_name or tx_type not in ('income', 'expense'):
+        return 0
+    card = Card.query.filter_by(user_id=uid, name=card_name).first()
+    if not card or not card.cashback_type or not card.cashback_rate:
+        return 0
+    if (card.cashback_type == 'payment' and tx_type == 'expense') or \
+       (card.cashback_type == 'charge' and tx_type == 'income'):
+        return round(amount * card.cashback_rate / 100)
+    return 0
+
+def _effective_point_reset_date(year, month, day):
+    """The nominal reset day, pulled back to the preceding weekday if it lands on a
+    weekend — matches how most companies actually pay out benefit points."""
+    import calendar as _calendar
+    from datetime import date as _date
+    day = min(day, _calendar.monthrange(year, month)[1])
+    d = _date(year, month, day)
+    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+        d -= timedelta(days=1)
+    return d
+
+def _effective_withdrawal_date(year, month, day):
+    """The nominal auto-transfer day, pushed forward to the next weekday if it lands
+    on a weekend — the opposite convention from point resets: money being withdrawn
+    (savings auto-transfer, bills, ...) typically goes out on the next business day,
+    not early."""
+    import calendar as _calendar
+    from datetime import date as _date
+    day = min(day, _calendar.monthrange(year, month)[1])
+    d = _date(year, month, day)
+    while d.weekday() >= 5:
+        d += timedelta(days=1)
+    return d
+
+def _apply_point_resets():
+    """Runs daily: any card with point_reset_day set gets its balance snapped to
+    point_reset_amount on its (weekend-adjusted) reset day, discarding whatever was
+    left — a monthly allowance, not a carried-over balance. Independent of every
+    other card's normal carry-forward behavior."""
+    with app.app_context():
+        today_str = datetime.now(_KST).strftime('%Y-%m-%d')
+        today = datetime.now(_KST).date()
+        cards = Card.query.filter(Card.point_reset_day.isnot(None)).all()
+        changed = False
+        for card in cards:
+            effective = _effective_point_reset_date(today.year, today.month, card.point_reset_day)
+            eff_str = effective.strftime('%Y-%m-%d')
+            if today == effective and card.point_reset_last_date != eff_str:
+                card.account_balance = (card.point_reset_amount or 0) + (card.point_carryover or 0)
+                card.point_carryover = 0
+                card.balance_since = eff_str
+                card.point_reset_last_date = eff_str
+                changed = True
+        if changed:
+            db.session.commit()
+
 def _running_balances_for_user(uid):
     """{transaction_id: balance_after_tx} for every transaction tied to a non-loan
     card, walking that card's (or its linked account's) ledger in chronological order
@@ -537,7 +627,7 @@ def _running_balances_for_user(uid):
         group_txs = [tx for tx in all_txs if tx.card in names and _since_balance(tx.date, card.balance_since)]
         running = card.account_balance or 0
         for tx in group_txs:
-            running += tx.amount if tx.type == 'income' else -tx.amount
+            running += _net_amount(tx) if tx.type == 'income' else -_net_amount(tx)
             result[tx.id] = running
     return result
 
@@ -844,7 +934,7 @@ def api_home():
     excl_stat_cats = {c.name for c in (expense_cats + income_cats) if c.exclude_stats}
     card_stats = []
     for card in cards:
-        spent = sum(tx.amount for tx in month_txs
+        spent = sum(_net_amount(tx) for tx in month_txs
                     if tx.type == 'expense' and tx.card == card.name
                     and _is_perf_tx(tx, excl_cats))
         card_stats.append({
@@ -854,6 +944,7 @@ def api_home():
             'percent': min(int(spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0,
             'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
             'is_loan': (card.account_balance or 0) < 0,
+            'id': card.id, 'has_custom_icon': bool(card.has_custom_icon),
         })
     emoji_map = {c.name: c.icon for c in expense_cats + income_cats}
 
@@ -870,7 +961,7 @@ def api_home():
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                           'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
-                          'has_receipt': bool(getattr(tx, 'has_receipt', False)),
+                          'has_receipt': bool(getattr(tx, 'has_receipt', False)), 'cashback': tx.cashback or 0,
                           'balance_after': running_balances.get(tx.id)} for tx in month_txs],
         'income_total': income_total,
         'expense_total': expense_total,
@@ -878,7 +969,8 @@ def api_home():
         'budget_amount': budget_amount,
         'remaining': budget_amount - expense_total,
         'card_stats': card_stats,
-        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in cards],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
+                       'has_custom_icon': bool(c.has_custom_icon)} for c in cards],
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'emoji_map': emoji_map,
@@ -909,13 +1001,15 @@ def api_add_transaction():
     if is_transfer and ' → ' in desc and not card:
         card = desc.split(' → ')[0].strip() or None
     now_time = datetime.now(_KST).strftime('%H:%M')
+    amount = int(data['amount'])
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
-        description=desc, amount=int(data['amount']),
+        description=desc, amount=amount,
         card=card,
         exclude_perf=bool(data.get('exclude_perf', False)),
         exclude_stats=bool(data.get('exclude_stats', False)),
         time=now_time,
+        cashback=_compute_cashback(uid, card, data['type'], amount),
         user_id=uid,
     )
     db.session.add(tx)
@@ -923,9 +1017,10 @@ def api_add_transaction():
         to_card = desc.split(' → ')[1].strip() or None
         paired = Transaction(
             date=data['date'], type='income', category='계좌 이체',
-            description=desc, amount=int(data['amount']),
+            description=desc, amount=amount,
             card=to_card, exclude_perf=True, exclude_stats=True,
             time=now_time,
+            cashback=_compute_cashback(uid, to_card, 'income', amount),
             user_id=uid,
         )
         db.session.add(paired)
@@ -944,16 +1039,31 @@ def api_transaction(tx_id):
         return jsonify({'ok': True})
     if request.method == 'PUT':
         data = request.json or {}
+        old_date, old_desc, old_amount, old_type, old_category = tx.date, tx.description, tx.amount, tx.type, tx.category
         tx.date = data.get('date', tx.date)
         tx.type = data.get('type', tx.type)
         tx.category = data.get('category', tx.category)
         tx.description = data.get('description', tx.description)
         tx.amount = int(data.get('amount', tx.amount))
         tx.card = data.get('card') or None
+        tx.cashback = _compute_cashback(uid, tx.card, tx.type, tx.amount)
         if 'exclude_perf' in data:
             tx.exclude_perf = bool(data['exclude_perf'])
         if 'exclude_stats' in data:
             tx.exclude_stats = bool(data['exclude_stats'])
+
+        # 계좌 이체는 지출/수입 두 건이 한 쌍으로 생성되는데, 한쪽 날짜만 바꾸면
+        # 두 건의 날짜가 어긋나 버리므로 짝이 되는 거래도 같이 옮겨준다.
+        if old_category == '계좌 이체' and tx.date != old_date:
+            sibling = Transaction.query.filter(
+                Transaction.user_id == uid, Transaction.id != tx.id,
+                Transaction.category == '계좌 이체', Transaction.description == old_desc,
+                Transaction.amount == old_amount, Transaction.date == old_date,
+                Transaction.type != old_type,
+            ).first()
+            if sibling:
+                sibling.date = tx.date
+
         db.session.commit()
         _sync_salary_if_needed(uid, tx.category, tx.type, tx.amount)
         return jsonify({'ok': True})
@@ -963,13 +1073,67 @@ def api_transaction(tx_id):
         'transaction': {'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                         'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
-                        'has_receipt': bool(getattr(tx, 'has_receipt', False))},
+                        'has_receipt': bool(getattr(tx, 'has_receipt', False)), 'cashback': tx.cashback or 0},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
-        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0} for c in Card.query.filter_by(user_id=uid).all()],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
+                       'has_custom_icon': bool(c.has_custom_icon)} for c in Card.query.filter_by(user_id=uid).all()],
         'excl_cat_names': [c.name for c in expense_cats if c.exclude_perf],
         'excl_stat_cat_names': [c.name for c in (expense_cats + income_cats) if c.exclude_stats],
     })
+
+@app.route('/api/debug/balance-check')
+@login_required
+def api_debug_balance_check():
+    uid = session['user_id']
+    cards = Card.query.filter_by(user_id=uid).all()
+    all_txs = Transaction.query.filter_by(user_id=uid).all()
+    out = []
+    for card in cards:
+        if (card.account_balance or 0) < 0:
+            continue  # loans compute differently; not relevant to this check
+        card_txs = [tx for tx in all_txs if tx.card == card.name]
+        dates = sorted(tx.date for tx in card_txs)
+        excluded = [tx for tx in card_txs if not _since_balance(tx.date, card.balance_since)]
+        inc_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+        exp_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        inc_all = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income')
+        exp_all = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense')
+        initial = card.account_balance or 0
+        out.append({
+            'name': card.name,
+            'initial_balance': initial,
+            'balance_since': card.balance_since,
+            'earliest_tx_date': dates[0] if dates else None,
+            'latest_tx_date': dates[-1] if dates else None,
+            'tx_count': len(card_txs),
+            'tx_excluded_by_balance_since': len(excluded),
+            'current_balance_now': initial + inc_now - exp_now,
+            'current_balance_if_counting_everything': initial + inc_all - exp_all,
+        })
+    return jsonify(out)
+
+@app.route('/api/debug/fix-balance-since')
+@login_required
+def api_debug_fix_balance_since():
+    # One-time remediation for cards whose balance_since got bumped forward by the
+    # since-fixed bug (every card edit reset it, not just ones that changed the
+    # balance) — clears it back to None (count all history) for any card where that
+    # cutoff is currently hiding transactions. Cards with nothing excluded are untouched.
+    uid = session['user_id']
+    cards = Card.query.filter_by(user_id=uid).all()
+    all_txs = Transaction.query.filter_by(user_id=uid).all()
+    fixed = []
+    for card in cards:
+        if (card.account_balance or 0) < 0:
+            continue
+        card_txs = [tx for tx in all_txs if tx.card == card.name]
+        excluded = [tx for tx in card_txs if not _since_balance(tx.date, card.balance_since)]
+        if excluded:
+            fixed.append({'name': card.name, 'old_balance_since': card.balance_since, 'tx_restored': len(excluded)})
+            card.balance_since = None
+    db.session.commit()
+    return jsonify({'fixed': fixed})
 
 @app.route('/api/cards', methods=['GET', 'POST'])
 @login_required
@@ -977,7 +1141,8 @@ def api_cards():
     uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
-        db.session.add(Card(
+        max_pos = db.session.query(db.func.max(Card.position)).filter_by(user_id=uid).scalar() or 0
+        card = Card(
             name=data['name'], monthly_target=int(data.get('target', 0)),
             tier1=int(data.get('tier1', 20)), tier2=int(data.get('tier2', 50)), tier3=int(data.get('tier3', 80)),
             account_balance=int(data.get('account_balance', 0)),
@@ -985,9 +1150,15 @@ def api_cards():
             url=data.get('url') or None,
             user_id=uid,
             linked_account_id=data.get('linked_account_id') or None,
-        ))
+            cashback_type=data.get('cashback_type') or None,
+            cashback_rate=float(data['cashback_rate']) if data.get('cashback_rate') not in (None, '') else None,
+            position=max_pos + 1,
+            point_reset_day=int(data['point_reset_day']) if data.get('point_reset_day') not in (None, '') else None,
+            point_reset_amount=int(data['point_reset_amount']) if data.get('point_reset_amount') not in (None, '') else None,
+        )
+        db.session.add(card)
         db.session.commit()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'id': card.id})
     current_month = datetime.now(_KST).strftime('%Y-%m')
     month_txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
     cards = Card.query.filter_by(user_id=uid).all()
@@ -1005,9 +1176,24 @@ def api_cards():
         'cards': [{'id': c.id, 'name': c.name, 'target': c.monthly_target, 'url': c.url or '',
                    'tier1': c.tier1 or 20, 'tier2': c.tier2 or 50, 'tier3': c.tier3 or 80,
                    'account_balance': c.account_balance or 0, 'linked_account_id': c.linked_account_id,
-                   'interest_rate': c.interest_rate} for c in cards],
+                   'interest_rate': c.interest_rate,
+                   'cashback_type': c.cashback_type or '', 'cashback_rate': c.cashback_rate,
+                   'has_custom_icon': bool(c.has_custom_icon),
+                   'point_reset_day': c.point_reset_day, 'point_reset_amount': c.point_reset_amount} for c in cards],
         'stats': stats,
     })
+
+@app.route('/api/cards/reorder', methods=['POST'])
+@login_required
+def api_reorder_cards():
+    uid = session['user_id']
+    ids = (request.json or {}).get('ids', [])
+    for i, card_id in enumerate(ids):
+        card = Card.query.filter_by(id=card_id, user_id=uid).first()
+        if card:
+            card.position = i
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/cards/<int:card_id>', methods=['PUT', 'DELETE'])
 @login_required
@@ -1026,15 +1212,89 @@ def api_card(card_id):
     card.tier3 = int(data.get('tier3', card.tier3 or 80))
     if 'account_balance' in data:
         card.account_balance = int(data['account_balance'])
-        card.balance_since = datetime.now(_KST).strftime('%Y-%m-%d')
+    if 'balance_since' in data:
+        # balance_since is the date the account_balance figure is true as of — only
+        # transactions on/after it count toward the running balance. The edit form
+        # always resends whatever date is currently loaded (via card.balance_since),
+        # so this only actually changes anything when the user deliberately edits the
+        # amount and/or the date; a save that touches an unrelated field (target/url/
+        # tiers/...) resends the same value and is a no-op here.
+        new_since = data['balance_since'] or None
+        if new_since != card.balance_since:
+            card.balance_since = new_since
     if 'url' in data:
         card.url = data['url'] or None
     if 'linked_account_id' in data:
         card.linked_account_id = data['linked_account_id'] or None
     if 'interest_rate' in data:
         card.interest_rate = float(data['interest_rate']) if data['interest_rate'] not in (None, '') else None
+    if 'cashback_type' in data:
+        card.cashback_type = data['cashback_type'] or None
+    if 'cashback_rate' in data:
+        card.cashback_rate = float(data['cashback_rate']) if data['cashback_rate'] not in (None, '') else None
+    if 'point_reset_day' in data:
+        card.point_reset_day = int(data['point_reset_day']) if data['point_reset_day'] not in (None, '') else None
+    if 'point_reset_amount' in data:
+        card.point_reset_amount = int(data['point_reset_amount']) if data['point_reset_amount'] not in (None, '') else None
     db.session.commit()
     return jsonify({'ok': True})
+
+@app.route('/api/cards/<int:card_id>/point-convert', methods=['POST'])
+@login_required
+def api_point_convert(card_id):
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    if not card.point_reset_day:
+        return jsonify({'error': 'not a point card'}), 400
+    card.point_carryover = (card.point_carryover or 0) + (card.account_balance or 0)
+    card.account_balance = 0
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/cards/<int:card_id>/icon', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_card_icon(card_id):
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    path = os.path.join(CARD_ICONS_DIR, f'{uid}_{card_id}.png')
+
+    if request.method == 'GET':
+        if not os.path.exists(path):
+            abort(404)
+        return send_file(path, mimetype='image/png')
+
+    if request.method == 'POST':
+        file = request.files.get('icon')
+        if not file:
+            return jsonify({'error': 'no file'}), 400
+        file.seek(0, os.SEEK_END)
+        upload_size = file.tell()
+        file.seek(0)
+        if upload_size > _MAX_IMAGE_UPLOAD_BYTES:
+            return jsonify({'error': '이미지 용량이 너무 큽니다. 8MB 이하 파일로 올려주세요.'}), 400
+        try:
+            if _PIL_OK:
+                img = PILImage.open(file)
+                if img.width * img.height > _MAX_IMAGE_PIXELS:
+                    return jsonify({'error': '이미지 해상도가 너무 큽니다. 더 작은 이미지로 올려주세요.'}), 400
+                img.draft('RGBA', (256, 256))  # cheap downscale during decode where the format supports it (e.g. JPEG)
+                img = img.convert('RGBA')
+                img.thumbnail((256, 256), PILImage.LANCZOS)
+                img.save(path, 'PNG', optimize=True)
+            else:
+                file.save(path)
+            card.has_custom_icon = True
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    if request.method == 'DELETE':
+        if os.path.exists(path):
+            os.remove(path)
+        card.has_custom_icon = False
+        db.session.commit()
+        return jsonify({'ok': True})
 
 @app.route('/api/cards/<int:card_id>/repayments', methods=['GET', 'POST'])
 @login_required
@@ -1102,6 +1362,7 @@ def api_calendar():
             'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
             'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
             'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
+            'cashback': tx.cashback or 0,
             'balance_after': running_balances.get(tx.id),
         })
 
@@ -1187,7 +1448,7 @@ def api_stats():
         spent = sum(tx.amount for tx in expense_txs
                     if tx.card == card.name and _is_perf_tx(tx, excl_cats_stats))
         if spent > 0:
-            card_monthly.append({'name': card.name, 'spent': spent})
+            card_monthly.append({'name': card.name, 'spent': spent, 'id': card.id, 'has_custom_icon': bool(card.has_custom_icon)})
     card_monthly.sort(key=lambda x: x['spent'], reverse=True)
 
     # 총 자산 추이 (기간 선택 가능, 최대 6개월)
@@ -1386,8 +1647,8 @@ def api_portfolio_pdf():
     card_stats = []
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
-        c_inc = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-        c_exp = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        c_inc = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+        c_exp = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
         initial = card.account_balance or 0
         balance = initial + c_inc - c_exp
         spent = sum(tx.amount for tx in card_txs
@@ -1882,7 +2143,7 @@ def api_budget():
                         if tx.type == 'expense' and tx.date.startswith(current_month)
                         and _is_stats_tx(tx, excl_stat_cats_budget))
 
-    cards = Card.query.filter_by(user_id=uid).all()
+    cards = Card.query.filter_by(user_id=uid).order_by(Card.position, Card.id).all()
     card_by_id = {c.id: c for c in cards}
     # linked_names[account_id] = [card_name, ...]
     linked_names = {}
@@ -1908,23 +2169,23 @@ def api_budget():
                 'spent': 0, 'target': card.monthly_target or 0, 'percent': 0,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': True, 'linked_account_id': linked_account_id,
-                'total_repaid': all_repaid,
+                'total_repaid': all_repaid, 'has_custom_icon': bool(card.has_custom_icon),
             })
         else:
             card_txs = [tx for tx in all_txs if tx.card == card.name]
-            all_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-            all_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+            all_income = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+            all_expense = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
             display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
-            perf_spent = sum(tx.amount for tx in card_txs
+            perf_spent = sum(_net_amount(tx) for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
                              and _is_perf_tx(tx, excl_cats_budget))
             # account card: balance includes all linked cards' transactions (전체 누적, 월별로 초기화되지 않음)
             if card.id in linked_names:
                 for lname in linked_names[card.id]:
                     ltxs = [tx for tx in all_txs if tx.card == lname]
-                    all_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-                    all_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+                    all_income += sum(_net_amount(tx) for tx in ltxs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+                    all_expense += sum(_net_amount(tx) for tx in ltxs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
                     display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             # linked card: show account card's balance
@@ -1932,8 +2193,8 @@ def api_budget():
                 acc = card_by_id[linked_account_id]
                 acc_initial = acc.account_balance or 0
                 acc_txs_names = [acc.name] + linked_names.get(linked_account_id, [])
-                acc_inc = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and _since_balance(tx.date, acc.balance_since))
-                acc_exp = sum(tx.amount for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and _since_balance(tx.date, acc.balance_since))
+                acc_inc = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and _since_balance(tx.date, acc.balance_since))
+                acc_exp = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and _since_balance(tx.date, acc.balance_since))
                 balance = acc_initial + acc_inc - acc_exp
             else:
                 balance = initial_balance + all_income - all_expense
@@ -1945,10 +2206,13 @@ def api_budget():
                 'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': False, 'linked_account_id': linked_account_id,
+                'cashback_type': card.cashback_type or '', 'cashback_rate': card.cashback_rate,
+                'has_custom_icon': bool(card.has_custom_icon), 'balance_since': card.balance_since,
+                'point_reset_day': card.point_reset_day, 'point_reset_amount': card.point_reset_amount,
             })
 
-    savings = Savings.query.filter_by(user_id=uid).all()
-    investments = Investment.query.filter_by(user_id=uid).all()
+    savings = Savings.query.filter_by(user_id=uid).order_by(Savings.position, Savings.id).all()
+    investments = Investment.query.filter_by(user_id=uid).order_by(Investment.position, Investment.id).all()
     _auto_fetch_investment_prices(investments)
     extra_deposits = {}
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
@@ -1970,6 +2234,7 @@ def api_savings():
         data = request.json or {}
         nd = data.get('notify_day')
         atd = data.get('auto_tx_day')
+        max_pos = db.session.query(db.func.max(Savings.position)).filter_by(user_id=uid).scalar() or 0
         db.session.add(Savings(
             user_id=uid,
             stype=data.get('stype', '예금'),
@@ -1986,14 +2251,27 @@ def api_savings():
             auto_tx_day=int(atd) if atd else None,
             auto_tx_card=data.get('auto_tx_card', '') or '',
             bonus_amount=int(data['bonus_amount']) if data.get('bonus_amount') else None,
+            position=max_pos + 1,
         ))
         db.session.commit()
         return jsonify({'ok': True})
-    items = Savings.query.filter_by(user_id=uid).all()
+    items = Savings.query.filter_by(user_id=uid).order_by(Savings.position, Savings.id).all()
     extra_deposits_sav = {}
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
         extra_deposits_sav[dep.savings_id] = extra_deposits_sav.get(dep.savings_id, 0) + dep.amount
     return jsonify({'savings': [_savings_stats(s, extra_deposits_sav.get(s.id, 0)) for s in items]})
+
+@app.route('/api/savings/reorder', methods=['POST'])
+@login_required
+def api_reorder_savings():
+    uid = session['user_id']
+    ids = (request.json or {}).get('ids', [])
+    for i, sid in enumerate(ids):
+        s = Savings.query.filter_by(id=sid, user_id=uid).first()
+        if s:
+            s.position = i
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/savings/<int:sid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -2054,6 +2332,7 @@ def api_investments():
     uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
+        max_pos = db.session.query(db.func.max(Investment.position)).filter_by(user_id=uid).scalar() or 0
         inv = Investment(
             user_id=uid,
             itype=data.get('itype', '국내주식'),
@@ -2065,12 +2344,25 @@ def api_investments():
             exchange_rate=float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else None,
             memo=data.get('memo', ''),
             account_type=data.get('account_type', '일반'),
+            position=max_pos + 1,
         )
         db.session.add(inv)
         db.session.commit()
         return jsonify({'ok': True})
-    items = Investment.query.filter_by(user_id=uid).all()
+    items = Investment.query.filter_by(user_id=uid).order_by(Investment.position, Investment.id).all()
     return jsonify({'investments': [_investment_stats(i) for i in items]})
+
+@app.route('/api/investments/reorder', methods=['POST'])
+@login_required
+def api_reorder_investments():
+    uid = session['user_id']
+    ids = (request.json or {}).get('ids', [])
+    for i, iid in enumerate(ids):
+        inv = Investment.query.filter_by(id=iid, user_id=uid).first()
+        if inv:
+            inv.position = i
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/investments/<int:iid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -2340,7 +2632,10 @@ def api_pending_registers():
         if bool(getattr(s, 'is_paused', False)):
             continue
         atd = getattr(s, 'auto_tx_day', None)
-        if not atd or atd != today_day:
+        if not atd:
+            continue
+        effective = _effective_withdrawal_date(today.year, today.month, atd)
+        if today.date() != effective:
             continue
         desc = f'[자동이체] {s.name}'
         already = Transaction.query.filter_by(user_id=uid).filter(
@@ -2455,8 +2750,17 @@ def api_app_version_put():
 @app.route('/download/gaegyebu-latest.apk')
 def download_latest_apk():
     releases_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'releases')
+    fname = 'gaegyebu.apk'
+    cfg = AppConfig.query.get('apk_version')
+    if cfg:
+        info = json.loads(cfg.value)
+        vname = (info.get('version_name') or '').replace('ver', 'v').replace(' ', '')
+        bdate = (info.get('build_date') or '').replace('-', '')
+        parts = [p for p in (vname, bdate) if p]
+        if parts:
+            fname = 'gaegyebu_' + '_'.join(parts) + '.apk'
     return send_from_directory(releases_dir, 'gaegyebu-latest.apk', as_attachment=True,
-                                download_name='gaegyebu.apk', mimetype='application/vnd.android.package-archive')
+                                download_name=fname, mimetype='application/vnd.android.package-archive')
 
 @app.route('/api/budget/monthly-balances')
 @login_required
@@ -2492,7 +2796,7 @@ def api_budget_monthly_balances():
     checkpoints = []
     running = card.account_balance or 0
     for tx in group_txs:
-        running += tx.amount if tx.type == 'income' else -tx.amount
+        running += _net_amount(tx) if tx.type == 'income' else -_net_amount(tx)
         checkpoints.append((tx.date, running))
 
     months = []
@@ -2541,8 +2845,8 @@ def api_portfolio():
         card_txs = [tx for tx in transactions if tx.card == card.name]
         initial_balance = card.account_balance or 0
         is_loan = initial_balance < 0
-        all_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-        all_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        all_income = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+        all_expense = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
         display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         balance = initial_balance + all_income - all_expense
@@ -3525,6 +3829,7 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         _scheduler = BackgroundScheduler()
         _scheduler.add_job(_send_push_notifications, 'cron', minute='*')
         _scheduler.add_job(_send_savings_notifications, 'cron', hour=0, minute=0)
+        _scheduler.add_job(_apply_point_resets, 'cron', hour=0, minute=5)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='mon-fri', hour=6, minute=35)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='tue-sat', hour=2, minute=15)
         _scheduler.start()
@@ -3588,9 +3893,18 @@ def api_receipt(tid):
         file = request.files.get('receipt')
         if not file:
             return jsonify({'error': 'no file'}), 400
+        file.seek(0, os.SEEK_END)
+        upload_size = file.tell()
+        file.seek(0)
+        if upload_size > _MAX_IMAGE_UPLOAD_BYTES:
+            return jsonify({'error': '이미지 용량이 너무 큽니다. 8MB 이하 파일로 올려주세요.'}), 400
         try:
             if _PIL_OK:
-                img = PILImage.open(file).convert('RGB')
+                img = PILImage.open(file)
+                if img.width * img.height > _MAX_IMAGE_PIXELS:
+                    return jsonify({'error': '이미지 해상도가 너무 큽니다. 더 작은 이미지로 올려주세요.'}), 400
+                img.draft('RGB', (1200, 1600))
+                img = img.convert('RGB')
                 img.thumbnail((1200, 1600), PILImage.LANCZOS)
                 img.save(path, 'JPEG', quality=80, optimize=True)
             else:
@@ -3631,11 +3945,12 @@ def api_backup():
         'transactions': [{'date': t.date, 'type': t.type, 'category': t.category,
                           'description': t.description, 'amount': t.amount, 'card': t.card or '',
                           'exclude_perf': bool(t.exclude_perf), 'exclude_stats': bool(t.exclude_stats),
-                          'time': t.time or ''} for t in txs],
+                          'time': t.time or '', 'cashback': t.cashback or 0} for t in txs],
         'categories': [{'name': c.name, 'icon': c.icon, 'cat_type': c.cat_type, 'position': c.position,
                         'exclude_perf': bool(c.exclude_perf), 'exclude_stats': bool(c.exclude_stats)} for c in cats],
         'cards': [{'name': c.name, 'monthly_target': c.monthly_target, 'account_balance': c.account_balance or 0,
                    'balance_since': c.balance_since,
+                   'cashback_type': c.cashback_type, 'cashback_rate': c.cashback_rate,
                    'tier1': c.tier1, 'tier2': c.tier2, 'tier3': c.tier3} for c in cards],
         'savings': [{'stype': s.stype, 'bank': s.bank, 'name': s.name, 'amount': s.amount,
                      'interest_rate': s.interest_rate, 'interest_type': s.interest_type,
@@ -3684,7 +3999,8 @@ def api_restore():
         db.session.add(Transaction(user_id=uid, date=t['date'], type=t['type'], category=t['category'],
                                    description=t.get('description', ''), amount=t['amount'],
                                    card=t.get('card', ''), exclude_perf=t.get('exclude_perf', False),
-                                   exclude_stats=t.get('exclude_stats', False), time=t.get('time', '')))
+                                   exclude_stats=t.get('exclude_stats', False), time=t.get('time', ''),
+                                   cashback=t.get('cashback', 0)))
     for c in data.get('categories', []):
         db.session.add(Category(user_id=uid, name=c['name'], icon=c.get('icon', ''),
                                 cat_type=c.get('cat_type', 'expense'), position=c.get('position', 0),
@@ -3693,6 +4009,7 @@ def api_restore():
         db.session.add(Card(user_id=uid, name=c['name'], monthly_target=c.get('monthly_target', 0),
                             account_balance=c.get('account_balance', 0),
                             balance_since=c.get('balance_since'),
+                            cashback_type=c.get('cashback_type'), cashback_rate=c.get('cashback_rate'),
                             tier1=c.get('tier1', 20), tier2=c.get('tier2', 50), tier3=c.get('tier3', 80)))
     for s in data.get('savings', []):
         db.session.add(Savings(user_id=uid, stype=s.get('stype', '예금'), bank=s.get('bank', ''),

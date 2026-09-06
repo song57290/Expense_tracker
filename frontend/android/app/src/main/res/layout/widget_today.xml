@@ -21,7 +21,7 @@
             android:layout_weight="1"
             android:text="--월 --일"
             android:textColor="@color/w_primary"
-            android:textSize="14sp"
+            android:textSize="14dp"
             android:textStyle="bold" />
 
         <TextView
@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:text="---원"
             android:textColor="@color/w_expense"
-            android:textSize="20sp"
+            android:textSize="20dp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -51,7 +51,7 @@
         android:layout_height="wrap_content"
         android:text="오늘 지출 없음"
         android:textColor="@color/w_hint"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:layout_marginTop="10dp"
         android:visibility="gone" />
 
@@ -70,7 +70,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/w_text"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -79,7 +79,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/w_expense"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -98,7 +98,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/w_text"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -107,7 +107,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/w_expense"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -126,7 +126,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/w_text"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -135,7 +135,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/w_expense"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -154,7 +154,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/w_text"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -163,7 +163,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/w_expense"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -182,7 +182,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:textColor="@color/w_text"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -191,7 +191,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/w_expense"
-            android:textSize="13sp"
+            android:textSize="13dp"
             android:textStyle="bold" />
 
     </LinearLayout>

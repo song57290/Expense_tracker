@@ -1,9 +1,130 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
-import { fmt, bankLogo, fmtMonth, today } from '../utils.js'
+import { fmt, bankLogo, cardLogo, fmtMonth, today } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import ImageCropper from '../components/ImageCropper.jsx'
+import FilterPopup from '../components/FilterPopup.jsx'
+
+// Manually drives scrollLeft from raw touch deltas instead of relying on the browser's
+// native touch-scroll gesture recognition, the same way this app's own swipe-to-edit/
+// delete gesture already manually tracks touch deltas instead of depending on native
+// behavior. A *callback* ref, not useRef+useEffect(,[]) — these rows live inside sheets
+// (AddSheet/SavingsSheet/InvestmentSheet) that are mounted once, unconditionally, and
+// only stop returning null once `open` flips true, so an empty-deps effect fires at that
+// very first null render, before the row exists, and never runs again. A callback ref
+// fires exactly when the node actually mounts (and again on remount), no matter when
+// that happens.
+function useDragScrollX() {
+  return useCallback(el => {
+    if (!el) return
+    let startX = 0, startScroll = 0, dragging = false, moved = false
+    function onStart(e) {
+      dragging = true
+      startX = e.touches[0].clientX
+      startScroll = el.scrollLeft
+    }
+    function onMove(e) {
+      if (!dragging) return
+      el.scrollLeft = startScroll - (e.touches[0].clientX - startX)
+    }
+    function onEnd() { dragging = false }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: true })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    el.addEventListener('touchcancel', onEnd, { passive: true })
+
+    // Mouse (PC) support — pointer capture keeps move/up events targeted at `el`
+    // even once the cursor leaves its bounds mid-drag, so no window-level
+    // listeners (and their leak-on-remount risk) are needed.
+    el.style.cursor = 'grab'
+    function onPointerDown(e) {
+      if (e.pointerType !== 'mouse') return
+      dragging = true; moved = false
+      startX = e.clientX
+      startScroll = el.scrollLeft
+      el.setPointerCapture(e.pointerId)
+      el.style.cursor = 'grabbing'
+    }
+    function onPointerMove(e) {
+      if (!dragging || e.pointerType !== 'mouse') return
+      const delta = e.clientX - startX
+      if (Math.abs(delta) > 5) moved = true
+      el.scrollLeft = startScroll - delta
+    }
+    function onPointerUp(e) {
+      if (e.pointerType !== 'mouse') return
+      dragging = false
+      el.style.cursor = 'grab'
+      try { el.releasePointerCapture(e.pointerId) } catch {}
+    }
+    function onClickCapture(e) {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false }
+    }
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerup', onPointerUp)
+    el.addEventListener('pointercancel', onPointerUp)
+    el.addEventListener('click', onClickCapture, true)
+  }, [])
+}
+
+// No visible handle — long-press (300ms, dnd-kit's activationConstraint below) anywhere
+// on the item starts a reorder-drag; a quick swipe within that window is released to the
+// item's own edit/delete swipe gesture instead. Passes {listeners, isDragging} down so the
+// item can attach the activator to its own swipeable content and suppress swipe while dragging.
+function SortableWrap({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform), transition,
+    opacity: isDragging ? 0.5 : 1, position: 'relative', zIndex: isDragging ? 999 : 'auto',
+  }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {children({ listeners, isDragging })}
+    </div>
+  )
+}
+
+// 정렬(수동순) 프리셋일 때만 드래그로 순서 변경 가능 — 다른 프리셋은 계산된 정렬 순서라 드래그를 비활성화
+function SortableSection({ items, sortable, onReorder, renderItem }) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
+  )
+  async function handleDragEnd(e) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const oldIdx = items.findIndex(x => x.id === active.id)
+    const newIdx = items.findIndex(x => x.id === over.id)
+    await onReorder(arrayMove(items, oldIdx, newIdx))
+  }
+  if (!sortable) return <>{items.map(item => <div key={item.id}>{renderItem(item, null)}</div>)}</>
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={items.map(x => x.id)} strategy={verticalListSortingStrategy}>
+        {items.map(item => (
+          <SortableWrap key={item.id} id={item.id}>{dnd => renderItem(item, dnd)}</SortableWrap>
+        ))}
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+// 만기일처럼 null일 수 있는 값을 항상 맨 뒤로 보내면서 오름/내림차순을 뒤집는 비교 헬퍼
+function sortByNullable(getVal, dir) {
+  return (a, b) => {
+    const va = getVal(a), vb = getVal(b)
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    return dir === 'asc' ? va - vb : vb - va
+  }
+}
 
 const BANKS = [
   ['신한은행', '/static/cards/sinhanbank.png', '신한은행'],
@@ -38,13 +159,15 @@ function BankBtn({ bankName, logo, label, selected, onPick }) {
     <button type="button" onClick={() => onPick(bankName)}
       className="d-flex flex-column align-items-center rounded-3 p-2 flex-shrink-0"
       style={{ border: `1.5px solid ${isSel ? '#b088f9' : '#e8d5ff'}`, background: isSel ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)', width: 72, cursor: 'pointer' }}>
-      <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+      <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8 }} />
       <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3, textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
     </button>
   )
 }
 
 function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
+  const bankScrollRef = useDragScrollX()
+  const cardCoScrollRef = useDragScrollX()
   const [assetType, setAssetType] = useState('card')
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
@@ -57,6 +180,14 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   const [tierOpen, setTierOpen] = useState(false)
   const [linkedAccountId, setLinkedAccountId] = useState('')
   const [addInterestRate, setAddInterestRate] = useState('')
+  const [cashbackType, setCashbackType] = useState('')
+  const [cashbackRate, setCashbackRate] = useState('')
+  const [pointResetOn, setPointResetOn] = useState(false)
+  const [pointResetDay, setPointResetDay] = useState('')
+  const [pointResetAmount, setPointResetAmount] = useState('')
+  const [customIconFile, setCustomIconFile] = useState(null)
+  const [customIconPreview, setCustomIconPreview] = useState(null)
+  const [cropFile, setCropFile] = useState(null)
 
   function pick(cardName) { setSelected(cardName); setName(cardName) }
 
@@ -65,20 +196,53 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
     setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
     setInitialBalance(t === 'loan' ? '-' : '')
     setLinkedAccountId(''); setAddInterestRate('')
+    setCashbackType(''); setCashbackRate('')
+    setPointResetOn(t === 'point'); setPointResetDay(''); setPointResetAmount('')
+    if (customIconPreview) URL.revokeObjectURL(customIconPreview)
+    setCustomIconFile(null); setCustomIconPreview(null)
+  }
+
+  function pickCustomIcon(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCropFile(file)
+  }
+  function onCropConfirm(croppedFile) {
+    if (customIconPreview) URL.revokeObjectURL(customIconPreview)
+    setCustomIconFile(croppedFile)
+    setCustomIconPreview(URL.createObjectURL(croppedFile))
+    setCropFile(null)
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     const t = parseInt(target.replace(/,/g, '')) || 0
     const ib = parseInt(initialBalance.replace(/,/g, '')) || 0
-    await api.post('/api/cards', {
+    const res = await api.post('/api/cards', {
       name, target: t, url, tier1, tier2, tier3, account_balance: ib,
       linked_account_id: linkedAccountId ? Number(linkedAccountId) : null,
       interest_rate: addInterestRate ? parseFloat(addInterestRate) : null,
+      cashback_type: cashbackType || null,
+      cashback_rate: cashbackType && cashbackRate ? parseFloat(cashbackRate) : null,
+      point_reset_day: pointResetOn && pointResetDay ? parseInt(pointResetDay) : null,
+      point_reset_amount: pointResetOn && pointResetAmount ? parseInt(pointResetAmount.replace(/,/g, '')) : null,
     })
+    if (customIconFile && res?.id) {
+      const fd = new FormData()
+      fd.append('icon', customIconFile)
+      const iconRes = await fetch(`/api/cards/${res.id}/icon`, { method: 'POST', credentials: 'include', body: fd })
+      if (!iconRes.ok) {
+        const body = await iconRes.json().catch(() => ({}))
+        alert('로고 업로드 실패: ' + (body.error || iconRes.status))
+      }
+    }
     setAssetType('card'); setSelected(''); setName(''); setInitialBalance(''); setTarget(''); setUrl('')
     setTier1(20); setTier2(50); setTier3(80); setTierOpen(false); setLinkedAccountId('')
-    setAddInterestRate('')
+    setAddInterestRate(''); setCashbackType(''); setCashbackRate('')
+    setPointResetOn(false); setPointResetDay(''); setPointResetAmount('')
+    if (customIconPreview) URL.revokeObjectURL(customIconPreview)
+    setCustomIconFile(null); setCustomIconPreview(null)
     onSaved(); onClose()
   }
 
@@ -86,7 +250,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   return (
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="mb-0 fw-bold">자산 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
@@ -95,7 +259,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
           <form id="add-card-form" onSubmit={handleSubmit}>
             {/* 자산 유형 선택 */}
             <div className="d-flex gap-2 mb-3">
-              {[['card', '💳 카드 / 은행'], ['cash', '💵 현금'], ['loan', '💸 대출']].map(([t, label]) => (
+              {[['card', '💳 카드 / 은행'], ['point', '🎁 포인트'], ['cash', '💵 현금'], ['loan', '💸 대출']].map(([t, label]) => (
                 <button key={t} type="button" onClick={() => switchType(t)}
                   style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--border-light)'}`, background: assetType === t ? (t === 'loan' ? 'rgba(220,53,69,0.08)' : 'rgba(176,136,249,0.1)') : 'var(--bg-card)', color: assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
                   {label}
@@ -103,19 +267,35 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               ))}
             </div>
 
-            {(assetType === 'card' || assetType === 'loan') && (<>
-              <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
-              <div className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
-                {BANKS.map(([bname, logo, label]) => (
-                  <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
-                ))}
+            {(assetType === 'card' || assetType === 'loan' || assetType === 'point') && (<>
+              {(assetType === 'card' || assetType === 'loan') && (<>
+                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
+                <div ref={bankScrollRef} data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
+                  {BANKS.map(([bname, logo, label]) => (
+                    <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+                  ))}
+                </div>
+                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>카드사</p>
+                <div ref={cardCoScrollRef} data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
+                  {CARD_COMPANIES.map(([bname, logo, label]) => (
+                    <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
+                  ))}
+                </div>
+              </>)}
+              <div className="d-flex align-items-center gap-2 mb-3">
+                <label htmlFor="add-custom-icon-input" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px dashed var(--border-light)', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {customIconPreview
+                    ? <img src={customIconPreview} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 4 }} />
+                    : <i className="bi bi-image" />}
+                  목록에 없는 은행/포인트사 로고 직접 추가
+                </label>
+                <input type="file" id="add-custom-icon-input" accept="image/*" onChange={pickCustomIcon} style={{ display: 'none' }} />
+                {customIconPreview && (
+                  <button type="button" onClick={() => { URL.revokeObjectURL(customIconPreview); setCustomIconFile(null); setCustomIconPreview(null) }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem' }}>취소</button>
+                )}
               </div>
-              <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>카드사</p>
-              <div className="d-flex gap-2 pb-2 mb-3">
-                {CARD_COMPANIES.map(([bname, logo, label]) => (
-                  <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pick} />
-                ))}
-              </div>
+              <ImageCropper file={cropFile} onCancel={() => setCropFile(null)} onConfirm={onCropConfirm} />
             </>)}
 
             {assetType === 'card' && cards.filter(c => !c.linked_account_id && !c.is_loan).length > 0 && (
@@ -123,7 +303,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                 <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>연결 계좌 (선택)</p>
                 <select value={linkedAccountId} onChange={e => setLinkedAccountId(e.target.value)}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${linkedAccountId ? '#b088f9' : 'var(--border-input)'}`, fontSize: '0.9rem', background: 'var(--input-bg)', color: linkedAccountId ? '#b088f9' : 'var(--text-primary)', fontWeight: linkedAccountId ? 600 : 400, outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b088f9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 36, boxSizing: 'border-box' }}>
-                  <option value="">독립 계좌 (연결 없음)</option>
+                  <option value="">(연결 없음)</option>
                   {cards.filter(c => !c.linked_account_id && !c.is_loan).map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -134,10 +314,10 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               </div>
             )}
             <input type="text" className="form-control mb-2"
-              placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
+              placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : assetType === 'point' ? '포인트명 (예: 복지 포인트)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode="text"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : assetType === 'point' ? '초기 포인트 잔액 (선택)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode="text"
                 value={initialBalance} onChange={e => {
                   const forceNeg = assetType === 'loan'
                   const neg = forceNeg || e.target.value.startsWith('-')
@@ -163,8 +343,55 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               </div>
             )}
             {assetType === 'card' && (
-              <input type="url" className="form-control mb-3" placeholder="혜택 사이트 URL (선택)"
+              <input type="url" className="form-control mb-2" placeholder="혜택 사이트 URL (선택)"
                 value={url} onChange={e => setUrl(e.target.value)} style={{ borderRadius: 10 }} />
+            )}
+            {assetType === 'card' && (
+              <div className="mb-3">
+                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>캐시백 / 충전 보너스 (선택)</p>
+                <div className="d-flex gap-2 mb-2">
+                  {[['', '없음'], ['payment', '결제 시 캐시백'], ['charge', '충전 시 보너스']].map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => setCashbackType(val)}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${cashbackType === val ? '#b088f9' : 'var(--border-light)'}`, background: cashbackType === val ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: cashbackType === val ? '#b088f9' : 'var(--text-muted)', fontWeight: cashbackType === val ? 600 : 400, fontSize: '0.78rem', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {cashbackType && (
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" className="form-control" placeholder={cashbackType === 'payment' ? '결제 금액 대비 캐시백율 (예: 15)' : '충전 금액 대비 보너스율 (예: 5)'} inputMode="decimal"
+                      value={cashbackRate} onChange={e => setCashbackRate(e.target.value)} style={{ borderRadius: 10, paddingRight: 36 }} step="0.1" min="0" max="100" />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>%</span>
+                  </div>
+                )}
+                <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>
+                  {cashbackType === 'payment' && '이 카드로 지출 입력 시 캐시백이 자동 계산되어, 카드 실적에서 차감됩니다.'}
+                  {cashbackType === 'charge' && '이 카드로 수입(충전) 입력 시 보너스가 자동 계산되어, 잔고에 바로 더해집니다.'}
+                </p>
+              </div>
+            )}
+            {assetType === 'point' && (
+              <div className="mb-3">
+                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>정기 충전 설정</p>
+                <div className="d-flex gap-2 mb-2"> 
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <input type="number" className="form-control" placeholder="초기화 일 (예: 5)" inputMode="numeric" required
+                      value={pointResetDay} onChange={e => setPointResetDay(e.target.value)} style={{ borderRadius: 10, paddingRight: 28 }} min="1" max="28" />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
+                  </div>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <input type="text" className="form-control" placeholder="충전 금액" inputMode="numeric"
+                      value={pointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setPointResetAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                      style={{ borderRadius: 10, paddingRight: 28 }} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  </div>
+                </div>
+                <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>
+                  매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다. (그 날짜가 주말이면 그 전 영업일에 초기화)
+                  <br />
+                  일반 은행/카드와 달리 잔고가 이월되지 않으며, "은행별 잔고" 목록에도 별도 섹션으로 표시됩니다.
+                </p>
+              </div>
             )}
             <button type="button" style={{ fontSize: '0.8rem', color: '#b088f9', background: 'none', border: 'none', padding: 0 }}
               onClick={() => setTierOpen(o => !o)}>
@@ -194,7 +421,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, accountCards = [] }) {
+function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAccountName, accountCards = [], dnd }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -233,6 +460,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
   }
 
   const onDragStart = e => {
+    if (dnd?.isDragging) return
     if (e.touches) {
       const cx = e.touches[0].clientX
       const wrap = e.currentTarget.closest('.page-wrap')
@@ -245,6 +473,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
     }
   }
   const onDragMove = e => {
+    if (dnd?.isDragging) { startX.current = null; return }
     if (startX.current === null) return
     const cx = e.touches ? e.touches[0].clientX : e.clientX
     const cy = e.touches ? e.touches[0].clientY : e.clientY
@@ -260,6 +489,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
   }
   const onDragEnd = () => {
     mouseDown.current = false
+    if (dnd?.isDragging) { startX.current = null; setOffsetX(0); return }
     if (startX.current === null) return
     const cur = offsetX
     startX.current = null
@@ -268,7 +498,8 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
     else if (cur > trigger) { setOffsetX(0); onEdit() }
     else setOffsetX(0)
   }
-  const onTouchStart = onDragStart; const onTouchMove = onDragMove; const onTouchEnd = onDragEnd
+  const onSwipeTouchStart = e => { dnd?.listeners?.onTouchStart?.(e); onDragStart(e) }
+  const onSwipeMouseDown = e => { dnd?.listeners?.onMouseDown?.(e); onDragStart(e) }
 
   const tierClass = (pct, t1, t2, t3) => {
     if (pct > t3) return 'bg-success'
@@ -278,7 +509,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
   }
 
   const isLoan = !!card.is_loan
-  const logo = !isLoan && bankLogo(card.name)
+  const logo = !isLoan && cardLogo(card)
   const isCash = !isLoan && !logo && (card.name.includes('현금') || card.name.includes('지갑'))
   const deleteWidth = Math.max(0, -offsetX)
   const editWidth = Math.max(0, offsetX)
@@ -292,20 +523,20 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <div className="d-flex align-items-center gap-2">
+        onTouchStart={onSwipeTouchStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+        <div className="d-flex justify-content-between align-items-center mb-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+          <div className="d-flex align-items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
-            {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💵</span>}
-            {isLoan && <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>💸</span>}
-            <span className="fw-semibold">{card.name}</span>
+            {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>💵</span>}
+            {isLoan && <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>💸</span>}
+            <span className="fw-semibold" style={{ wordBreak: 'keep-all' }}>{card.name}</span>
             {linkedAccountName && (
-              <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f0e8ff', color: '#b088f9' }}>🔗 {linkedAccountName}</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f0e8ff', color: '#b088f9', flexShrink: 0, whiteSpace: 'nowrap' }}>🔗 {linkedAccountName}</span>
             )}
             {card.url && (
               <a href={card.url} target="_blank" rel="noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', color: '#b088f9', fontSize: '0.75rem', textDecoration: 'underline', lineHeight: 1, fontWeight: 600 }}>
+                style={{ display: 'inline-flex', alignItems: 'center', color: '#b088f9', fontSize: '0.75rem', textDecoration: 'underline', lineHeight: 1, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>
                 🔗 혜택 사이트
               </a>
             )}
@@ -317,6 +548,12 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
             </div>
           </div>
         </div>
+        {card.point_reset_day && card.balance > 0 && card.balance <= 30000 && onConvert && (
+          <button type="button" onClick={e => { e.stopPropagation(); onConvert() }}
+            style={{ width: '100%', marginBottom: 10, padding: '6px 0', borderRadius: 8, border: '1.5px dashed #d4a300', background: 'rgba(255,193,7,0.1)', color: '#b08900', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+            ⚠️ 남은 포인트 {fmt(card.balance)}원 · 초기화 전 전환하기
+          </button>
+        )}
         <div className="d-flex mb-3" style={{ gap: 1 }}>
           {isLoan ? (<>
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
@@ -439,7 +676,7 @@ function SwipeCard({ card, onEdit, onDelete, onRepayChange, linkedAccountName, a
   )
 }
 
-function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
+function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -506,7 +743,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   }
 
   const onDragStart = e => {
-    if (countEditOpen) return
+    if (countEditOpen || dnd?.isDragging) return
     if (e.touches) {
       const cx = e.touches[0].clientX
       const wrap = e.currentTarget.closest('.page-wrap')
@@ -519,6 +756,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
     }
   }
   const onDragMove = e => {
+    if (dnd?.isDragging) { startX.current = null; return }
     if (startX.current === null) return
     const cx = e.touches ? e.touches[0].clientX : e.clientX
     const cy = e.touches ? e.touches[0].clientY : e.clientY
@@ -533,6 +771,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
   }
   const onDragEnd = () => {
     mouseDown.current = false
+    if (dnd?.isDragging) { startX.current = null; setOffsetX(0); return }
     if (startX.current === null) return
     const cur = offsetX; startX.current = null
     const trigger = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 8) : 40
@@ -540,6 +779,8 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
     else if (cur > trigger) { setOffsetX(0); onEdit() }
     else setOffsetX(0)
   }
+  const onSwipeTouchStart = e => { dnd?.listeners?.onTouchStart?.(e); onDragStart(e) }
+  const onSwipeMouseDown = e => { dnd?.listeners?.onMouseDown?.(e); onDragStart(e) }
 
   const logo = bankLogo(item.bank || item.name)
   const deleteWidth = Math.max(0, -offsetX)
@@ -557,18 +798,18 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem', flexShrink: 0 }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <div className="d-flex align-items-center gap-2">
+        onTouchStart={onSwipeTouchStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+        <div className="d-flex justify-content-between align-items-center mb-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+          <div className="d-flex align-items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
-            <span className="fw-semibold">{item.name}</span>
-            <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9' }}>{item.stype}</span>
-            {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: 'var(--bg-section)', color: 'var(--text-muted)' }}>{item.interest_type || '단리'}</span>}
-            {(isCheongYak || item.stype === '적금') && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404' }}>🔔 {item.notify_day}일</span>}
-            {item.stype !== '예금' && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a' }}>⏸ 일시정지</span>}
+            <span className="fw-semibold" style={{ wordBreak: 'keep-all' }}>{item.name}</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: item.stype === '예금' ? '#e8f4fd' : item.stype === '청약' ? '#e8fdf0' : '#f0e8fd', color: item.stype === '예금' ? '#0d6efd' : item.stype === '청약' ? '#198754' : '#b088f9', flexShrink: 0, whiteSpace: 'nowrap' }}>{item.stype}</span>
+            {!isCheongYak && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: 'var(--bg-section)', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{item.interest_type || '단리'}</span>}
+            {(isCheongYak || item.stype === '적금') && item.notify_day && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff3cd', color: '#856404', flexShrink: 0, whiteSpace: 'nowrap' }}>🔔 {item.notify_day}일</span>}
+            {item.stype !== '예금' && item.is_paused && <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#fff0e0', color: '#c8630a', flexShrink: 0, whiteSpace: 'nowrap' }}>⏸ 일시정지</span>}
           </div>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor }}>{dDayText}</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{dDayText}</span>
         </div>
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
@@ -705,6 +946,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange }) {
 }
 
 function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
+  const bankScrollRef = useDragScrollX()
   const [stype, setStype] = useState('예금')
   const [itype, setItype] = useState('단리')
   const [taxType, setTaxType] = useState('일반과세')
@@ -782,7 +1024,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   return (
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="mb-0 fw-bold">{editItem ? '예·적금 수정' : '예·적금 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
@@ -798,7 +1040,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               ))}
             </div>
             <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>은행</p>
-            <div data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-3" style={{ scrollbarWidth: 'none' }}>
+            <div ref={bankScrollRef} data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-3" style={{ scrollbarWidth: 'none' }}>
               {BANKS.map(([bname, logo, label]) => (
                 <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pickBank} />
               ))}
@@ -943,8 +1185,13 @@ const ITYPE_COLORS = {
 }
 const ITYPE_ICONS = { '국내주식': '🇰🇷', '해외주식': '🌎', '펀드': '💼', '코인': '₿', 'ETF': '📊', '기타': '📦' }
 const ITYPE_UNITS = { '국내주식': '주', '해외주식': '주', '펀드': '좌', '코인': '개', 'ETF': '주', '기타': '' }
+const INV_ACCOUNT_COLORS = { ISA: '#5a9fd4', '연금저축': '#8b5cf6', IRP: '#e87000' }
+const INV_FILTERS = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타', 'ISA', '연금저축', 'IRP']
+function matchesInvFilter(item, filter) {
+  return filter === 'all' || filter.includes(item.itype) || filter.includes(item.account_type)
+}
 
-function InvestmentItem({ item, onEdit, onDelete }) {
+function InvestmentItem({ item, onEdit, onDelete, dnd }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -953,6 +1200,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
   const mouseDown = useRef(false)
 
   const onDragStart = e => {
+    if (dnd?.isDragging) return
     if (e.touches) {
       const cx = e.touches[0].clientX
       const wrap = e.currentTarget.closest('.page-wrap')
@@ -965,6 +1213,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
     }
   }
   const onDragMove = e => {
+    if (dnd?.isDragging) { startX.current = null; return }
     if (startX.current === null) return
     const cx = e.touches ? e.touches[0].clientX : e.clientX
     const cy = e.touches ? e.touches[0].clientY : e.clientY
@@ -979,6 +1228,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
   }
   const onDragEnd = () => {
     mouseDown.current = false
+    if (dnd?.isDragging) { startX.current = null; setOffsetX(0); return }
     if (startX.current === null) return
     const cur = offsetX; startX.current = null
     const trigger = cardRef.current ? Math.floor(cardRef.current.offsetWidth / 8) : 40
@@ -986,6 +1236,8 @@ function InvestmentItem({ item, onEdit, onDelete }) {
     else if (cur > trigger) { setOffsetX(0); onEdit() }
     else setOffsetX(0)
   }
+  const onSwipeTouchStart = e => { dnd?.listeners?.onTouchStart?.(e); onDragStart(e) }
+  const onSwipeMouseDown = e => { dnd?.listeners?.onMouseDown?.(e); onDragStart(e) }
 
   const tc = ITYPE_COLORS[item.itype] || ITYPE_COLORS['기타']
   const icon = ITYPE_ICONS[item.itype] || '📦'
@@ -1002,20 +1254,20 @@ function InvestmentItem({ item, onEdit, onDelete }) {
         <i className="bi bi-pencil" style={{ fontSize: '1.15rem' }} /><span>수정</span>
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
-        onTouchStart={onDragStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onDragStart} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <div className="d-flex align-items-center gap-2">
-            <span style={{ fontSize: '1.1rem' }}>{icon}</span>
-            <span className="fw-semibold" style={{ fontSize: '0.95rem' }}>{item.name}</span>
-            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: tc.bg, color: tc.color }}>{item.itype}</span>
+        onTouchStart={onSwipeTouchStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+        <div className="d-flex justify-content-between align-items-center mb-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+          <div className="d-flex align-items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+            <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{icon}</span>
+            <span className="fw-semibold" style={{ fontSize: '0.95rem', wordBreak: 'keep-all' }}>{item.name}</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: tc.bg, color: tc.color, flexShrink: 0, whiteSpace: 'nowrap' }}>{item.itype}</span>
             {item.account_type && item.account_type !== '일반' && (() => {
-              const atColor = { ISA: '#5a9fd4', '연금저축': '#8b5cf6', IRP: '#e87000' }[item.account_type] || '#888'
-              return <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: `${atColor}18`, color: atColor }}>{item.account_type}</span>
+              const atColor = INV_ACCOUNT_COLORS[item.account_type] || '#888'
+              return <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: `${atColor}18`, color: atColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{item.account_type}</span>
             })()}
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>(수량 {item.quantity})</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>(수량 {item.quantity})</span>
           </div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.ticker || ''}</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{item.ticker || ''}</span>
         </div>
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
@@ -1069,6 +1321,7 @@ function InvestmentItem({ item, onEdit, onDelete }) {
 }
 
 function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
+  const itypeScrollRef = useDragScrollX()
   const [itype, setItype] = useState('국내주식')
   const [accountType, setAccountType] = useState('일반')
   const [name, setName] = useState('')
@@ -1175,7 +1428,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   return (
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="mb-0 fw-bold">{editItem ? '투자 수정' : '투자 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1 }}>&times;</button>
@@ -1183,7 +1436,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
         <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
           <form id="investment-form" onSubmit={handleSubmit}>
             {/* 유형 선택 */}
-            <div data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
+            <div ref={itypeScrollRef} data-scroll-x className="d-flex gap-2 overflow-auto pb-2 mb-2" style={{ scrollbarWidth: 'none' }}>
               {ITYPES.map(t => {
                 const tc = ITYPE_COLORS[t] || ITYPE_COLORS['기타']
                 return (
@@ -1209,7 +1462,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
             {/* 티커 + 현재가 불러오기 */}
             <div className="d-flex gap-2 mb-1">
               <input type="text" placeholder={tickerHints[itype] || '티커/심볼'} value={ticker} onChange={e => setTicker(e.target.value)}
-                style={{ ...inp, flex: 1 }} />
+                style={{ ...inp, flex: 1, minWidth: 0, width: 'auto' }} />
               <button type="button" onClick={fetchPrice} disabled={!ticker.trim() || fetching}
                 style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 10, border: 'none', background: ticker.trim() ? 'linear-gradient(135deg,#b088f9,#7baff0)' : '#eee', color: ticker.trim() ? 'white' : '#aaa', fontWeight: 600, fontSize: '0.82rem', cursor: ticker.trim() ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
                 {fetching ? '조회중...' : '현재가 불러오기'}
@@ -1290,14 +1543,26 @@ export default function Budget() {
   const [searchParams] = useSearchParams()
   const [data, setData] = useState(null)
   const [confirmCard, setConfirmCard] = useState(null)
+  const [convertCard, setConvertCard] = useState(null)
+  const [convertLoading, setConvertLoading] = useState(false)
   const [editCard, setEditCard] = useState(null)
   const [editInitial, setEditInitial] = useState('')
+  const [editBalanceDate, setEditBalanceDate] = useState('')
   const [editTarget, setEditTarget] = useState('')
   const [editUrl, setEditUrl] = useState('')
   const [editTier1, setEditTier1] = useState(20)
   const [editTier2, setEditTier2] = useState(50)
   const [editTier3, setEditTier3] = useState(80)
   const [editInterestRate, setEditInterestRate] = useState('')
+  const [editCashbackType, setEditCashbackType] = useState('')
+  const [editCashbackRate, setEditCashbackRate] = useState('')
+  const [editPointResetOn, setEditPointResetOn] = useState(false)
+  const [editPointResetDay, setEditPointResetDay] = useState('')
+  const [editPointResetAmount, setEditPointResetAmount] = useState('')
+  const [editCustomIconFile, setEditCustomIconFile] = useState(null)
+  const [editCustomIconPreview, setEditCustomIconPreview] = useState(null)
+  const [editCropFile, setEditCropFile] = useState(null)
+  const [editRemoveIcon, setEditRemoveIcon] = useState(false)
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [editSheetVisible, setEditSheetVisible] = useState(false)
   const [addSheetOpen, setAddSheetOpen] = useState(false)
@@ -1310,6 +1575,13 @@ export default function Budget() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
+  const [invFilter, setInvFilter] = useState('all')
+  const [cardSort, setCardSort] = useState('기본')
+  const [cardSortDir, setCardSortDir] = useState('desc')
+  const [savingsSort, setSavingsSort] = useState('기본')
+  const [savingsSortDir, setSavingsSortDir] = useState('asc')
+  const [invSort, setInvSort] = useState('기본')
+  const [invSortDir, setInvSortDir] = useState('desc')
   const [balHistOpen, setBalHistOpen] = useState(false)
   const [balHistCardId, setBalHistCardId] = useState('')
   const [balHistStart, setBalHistStart] = useState('')
@@ -1343,14 +1615,14 @@ export default function Budget() {
   }, [data, searchParams])
 
   useEffect(() => {
-    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv
+    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!convertCard
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv, convertCard])
 
   // 안드로이드 뒤로가기로 열린 시트 닫기
   useEffect(() => {
-    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !confirmCard && !confirmSavings && !confirmInv) return
+    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !confirmCard && !confirmSavings && !confirmInv && !convertCard) return
     const handler = (e) => {
       e.preventDefault()
       if (addSheetOpen) { closeAdd(); return }
@@ -1360,10 +1632,23 @@ export default function Budget() {
       if (confirmCard) { setConfirmCard(null); return }
       if (confirmSavings) { setConfirmSavings(null); return }
       if (confirmInv) { setConfirmInv(null); return }
+      if (convertCard) { setConvertCard(null); return }
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv, convertCard])
+
+  async function handleConvert() {
+    if (!convertCard) return
+    setConvertLoading(true)
+    try {
+      await api.post(`/api/cards/${convertCard.id}/point-convert`, {})
+      setConvertCard(null)
+      await load()
+    } finally {
+      setConvertLoading(false)
+    }
+  }
 
   function openAdd() {
     setAddSheetOpen(true)
@@ -1377,14 +1662,34 @@ export default function Budget() {
   function openEdit(card) {
     setEditCard(card)
     setEditInitial((card.initial_balance || 0).toLocaleString('ko-KR'))
+    setEditBalanceDate(card.balance_since || today())
     setEditTarget((card.target || 0).toLocaleString('ko-KR'))
     setEditUrl(card.url || '')
     setEditTier1(card.tier1 || 20)
     setEditTier2(card.tier2 || 50)
     setEditTier3(card.tier3 || 80)
     setEditInterestRate(card.interest_rate != null ? String(card.interest_rate) : '')
+    setEditCashbackType(card.cashback_type || '')
+    setEditCashbackRate(card.cashback_rate != null ? String(card.cashback_rate) : '')
+    setEditPointResetOn(!!card.point_reset_day)
+    setEditPointResetDay(card.point_reset_day != null ? String(card.point_reset_day) : '')
+    setEditPointResetAmount(card.point_reset_amount != null ? card.point_reset_amount.toLocaleString('ko-KR') : '')
+    setEditCustomIconFile(null); setEditCustomIconPreview(null); setEditRemoveIcon(false)
     setEditSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setEditSheetVisible(true)))
+  }
+  function pickEditCustomIcon(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setEditCropFile(file)
+  }
+  function onEditCropConfirm(croppedFile) {
+    if (editCustomIconPreview) URL.revokeObjectURL(editCustomIconPreview)
+    setEditCustomIconFile(croppedFile)
+    setEditCustomIconPreview(URL.createObjectURL(croppedFile))
+    setEditRemoveIcon(false)
+    setEditCropFile(null)
   }
   function closeEdit() {
     setEditSheetVisible(false)
@@ -1398,9 +1703,24 @@ export default function Budget() {
     await api.put(`/api/cards/${editCard.id}`, {
       name: editCard.name, target,
       tier1: editTier1, tier2: editTier2, tier3: editTier3,
-      account_balance: initial, url: editUrl,
+      account_balance: initial, balance_since: editBalanceDate, url: editUrl,
       interest_rate: editInterestRate ? parseFloat(editInterestRate) : null,
+      cashback_type: editCashbackType || null,
+      cashback_rate: editCashbackType && editCashbackRate ? parseFloat(editCashbackRate) : null,
+      point_reset_day: editPointResetOn && editPointResetDay ? parseInt(editPointResetDay) : null,
+      point_reset_amount: editPointResetOn && editPointResetAmount ? parseInt(editPointResetAmount.replace(/,/g, '')) : null,
     })
+    if (editCustomIconFile) {
+      const fd = new FormData()
+      fd.append('icon', editCustomIconFile)
+      const iconRes = await fetch(`/api/cards/${editCard.id}/icon`, { method: 'POST', credentials: 'include', body: fd })
+      if (!iconRes.ok) {
+        const body = await iconRes.json().catch(() => ({}))
+        alert('로고 업로드 실패: ' + (body.error || iconRes.status))
+      }
+    } else if (editRemoveIcon) {
+      await fetch(`/api/cards/${editCard.id}/icon`, { method: 'DELETE', credentials: 'include' })
+    }
     closeEdit(); load()
   }
 
@@ -1448,8 +1768,8 @@ export default function Budget() {
     setConfirmInv(null); load()
   }
 
-  function fmtInput(val, setter, allowNeg = false) {
-    const neg = allowNeg && val.startsWith('-')
+  function fmtInput(val, setter, allowNeg = false, forceNeg = false) {
+    const neg = forceNeg || (allowNeg && val.startsWith('-'))
     const raw = val.replace(/[^0-9]/g, '')
     if (!raw) { setter(neg ? '-' : ''); return }
     setter((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
@@ -1461,9 +1781,15 @@ export default function Budget() {
     <div>
       <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
-        <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-          <i className="bi bi-plus-lg me-1" />자산 추가
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          <FilterPopup sections={[{
+            label: '정렬', options: [['기본', '기본순'], ['잔액순', '잔액순']],
+            value: cardSort, onChange: setCardSort, dir: cardSortDir, onDirChange: setCardSortDir,
+          }]} />
+          <button onClick={openAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="bi bi-plus-lg me-1" />자산 추가
+          </button>
+        </div>
       </div>
 
       {data.card_stats.length === 0 ? (
@@ -1476,35 +1802,66 @@ export default function Budget() {
         </div>
       ) : (() => {
         const allNormalCards = data.card_stats.filter(c => !c.is_loan)
-        const loanCards = data.card_stats.filter(c => c.is_loan)
-        const accountCards = allNormalCards.filter(c => !c.linked_account_id)
+        let loanCards = data.card_stats.filter(c => c.is_loan)
+        let pointCards = allNormalCards.filter(c => !c.linked_account_id && c.point_reset_day)
+        let accountCards = allNormalCards.filter(c => !c.linked_account_id && !c.point_reset_day)
         const linkedByAccount = {}
         allNormalCards.filter(c => c.linked_account_id).forEach(c => {
           if (!linkedByAccount[c.linked_account_id]) linkedByAccount[c.linked_account_id] = []
           linkedByAccount[c.linked_account_id].push(c)
         })
+        if (cardSort === '잔액순') {
+          accountCards = [...accountCards].sort(sortByNullable(c => c.balance, cardSortDir))
+          pointCards = [...pointCards].sort(sortByNullable(c => c.balance, cardSortDir))
+          loanCards = [...loanCards].sort(sortByNullable(c => Math.abs(c.balance), cardSortDir))
+        }
+        async function reorderCards(group, newOrder) {
+          setData(d => ({
+            ...d, card_stats: [
+              ...(group === 'account' ? newOrder : accountCards),
+              ...(group === 'point' ? newOrder : pointCards),
+              ...(group === 'loan' ? newOrder : loanCards),
+              ...allNormalCards.filter(c => c.linked_account_id),
+            ]
+          }))
+          await api.post('/api/cards/reorder', { ids: newOrder.map(c => c.id) })
+        }
         return (
           <>
-            {accountCards.map(card => (
-              <div key={card.id}>
-                <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} />
-                {(linkedByAccount[card.id] || []).map(lc => (
-                  <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
-                    <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
-                    <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} />
-                  </div>
-                ))}
-              </div>
-            ))}
+            <SortableSection items={accountCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('account', o)}
+              renderItem={(card, dnd) => (
+                <div key={card.id}>
+                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} />
+                  {(linkedByAccount[card.id] || []).map(lc => (
+                    <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
+                      <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
+                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} />
+                    </div>
+                  ))}
+                </div>
+              )} />
+            {pointCards.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 12px' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b08900' }}>🎁 포인트 </span>
+                  <div style={{ flex: 1, height: 1, background: '#fdf3d5' }} />
+                </div>
+                <SortableSection items={pointCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('point', o)}
+                  renderItem={(card, dnd) => (
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} />
+                  )} />
+              </>
+            )}
             {loanCards.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 12px' }}>
                   <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dc3545' }}>💸 대출 </span>
                   <div style={{ flex: 1, height: 1, background: '#fde8e8' }} />
                 </div>
-                {loanCards.map(card => (
-                  <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} />
-                ))}
+                <SortableSection items={loanCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('loan', o)}
+                  renderItem={(card, dnd) => (
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} dnd={dnd} />
+                  )} />
               </>
             )}
           </>
@@ -1523,7 +1880,7 @@ export default function Budget() {
         const totalLoan = loanCards.reduce((s, c) => s + Math.abs(c.balance), 0)
         const totalRepaid = loanCards.reduce((s, c) => s + (c.total_repaid || 0), 0)
         return (
-          <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
+          <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid rgba(176,136,249,0.3)' }}>
             <div className="card-body py-3">
               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>자산별 잔고 종합</div>
               <div className="d-flex gap-2">
@@ -1559,29 +1916,31 @@ export default function Budget() {
 
       {/* 월별 잔고 추이 */}
       {data.card_stats.filter(c => !c.is_loan && !c.linked_account_id).length > 0 && (
-        <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
+        <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid rgba(176,136,249,0.3)' }}>
           <div className="card-body py-3">
             <div className="d-flex align-items-center justify-content-between" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setBalHistOpen(o => !o)}>
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9' }}>월별 잔고 추이</span>
               <span style={{ fontSize: '1.2rem', color: '#b088f9', lineHeight: 1 }}>{balHistOpen ? '▴' : '▾'}</span>
             </div>
-            {balHistOpen && (
+            {balHistOpen && (() => {
+              const balHistAccounts = data.card_stats.filter(c => !c.is_loan && !c.linked_account_id)
+              const balHistSelected = balHistAccounts.find(c => String(c.id) === String(balHistCardId))
+              return (
               <div className="mt-3">
-                <div className="d-flex gap-2 mb-2" style={{ flexWrap: 'wrap' }}>
-                  <select className="form-select form-select-sm" style={{ flex: '1 1 140px', borderRadius: 8 }}
-                    value={balHistCardId} onChange={e => setBalHistCardId(e.target.value)}>
-                    <option value="">계좌 선택</option>
-                    {data.card_stats.filter(c => !c.is_loan && !c.linked_account_id).map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <input type="month" className="form-control form-control-sm" style={{ flex: '1 1 120px', borderRadius: 8 }}
-                    value={balHistStart} onChange={e => setBalHistStart(e.target.value)} />
-                  <span className="align-self-center text-muted">~</span>
-                  <input type="month" className="form-control form-control-sm" style={{ flex: '1 1 120px', borderRadius: 8 }}
-                    value={balHistEnd} onChange={e => setBalHistEnd(e.target.value)} />
+                <div className="mb-2">
+                  <CardPicker cards={balHistAccounts} value={balHistSelected?.name || ''} placeholder="계좌 선택"
+                    onChange={name => { const c = balHistAccounts.find(c => c.name === name); setBalHistCardId(c ? String(c.id) : '') }} />
+                </div>
+                <div className="d-flex gap-2 mb-2" style={{ flexWrap: 'nowrap' }}>
+                  <div className="d-flex align-items-center gap-1" style={{ flex: 1, minWidth: 0 }}>
+                    <input type="month" className="form-control form-control-sm" style={{ flex: 1, minWidth: 0, borderRadius: 8, padding: '4px 6px' }}
+                      value={balHistStart} onChange={e => setBalHistStart(e.target.value)} />
+                    <span className="text-muted" style={{ flexShrink: 0 }}>~</span>
+                    <input type="month" className="form-control form-control-sm" style={{ flex: 1, minWidth: 0, borderRadius: 8, padding: '4px 6px' }}
+                      value={balHistEnd} onChange={e => setBalHistEnd(e.target.value)} />
+                  </div>
                   <button onClick={loadBalHist} disabled={!balHistCardId || !balHistStart || !balHistEnd || balHistLoading}
-                    style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 8, padding: '4px 14px', fontSize: '0.82rem', fontWeight: 600, opacity: (!balHistCardId || !balHistStart || !balHistEnd || balHistLoading) ? 0.5 : 1 }}>
+                    style={{ flexShrink: 0, background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 8, padding: '4px 14px', fontSize: '0.82rem', fontWeight: 600, opacity: (!balHistCardId || !balHistStart || !balHistEnd || balHistLoading) ? 0.5 : 1 }}>
                     {balHistLoading ? '조회 중…' : '조회'}
                   </button>
                 </div>
@@ -1613,7 +1972,8 @@ export default function Budget() {
                   )
                 )}
               </div>
-            )}
+              )
+            })()}
           </div>
         </div>
       )}
@@ -1621,9 +1981,15 @@ export default function Budget() {
       {/* 예·적금 섹션 */}
       <div id="budget-section-savings" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>예·적금</span>
-        <button onClick={openSavingsAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-          <i className="bi bi-plus-lg me-1" />예·적금 추가
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          <FilterPopup sections={[{
+            label: '정렬', options: [['기본', '기본순'], ['만기일순', '만기일순']],
+            value: savingsSort, onChange: setSavingsSort, dir: savingsSortDir, onDirChange: setSavingsSortDir,
+          }]} />
+          <button onClick={openSavingsAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="bi bi-plus-lg me-1" />예·적금 추가
+          </button>
+        </div>
       </div>
       {(data.savings || []).length === 0 ? (
         <div className="card mb-4 text-center">
@@ -1633,14 +1999,27 @@ export default function Budget() {
             <button onClick={openSavingsAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>예·적금 추가 →</button>
           </div>
         </div>
-      ) : (
-        (data.savings || []).map(item => (
-          <SavingsItem key={item.id} item={item}
-            onEdit={() => openSavingsEdit(item)}
-            onDelete={() => setConfirmSavings(item)}
-            onDepositChange={load} />
-        ))
-      )}
+      ) : (() => {
+        let savingsItems = data.savings || []
+        if (savingsSort === '만기일순') {
+          savingsItems = [...savingsItems].sort(sortByNullable(s => s.d_day, savingsSortDir))
+        }
+        return (
+          <>
+            <SortableSection items={savingsItems} sortable={savingsSort === '기본'}
+              onReorder={async newOrder => {
+                setData(d => ({ ...d, savings: newOrder }))
+                await api.post('/api/savings/reorder', { ids: newOrder.map(s => s.id) })
+              }}
+              renderItem={(item, dnd) => (
+                <SavingsItem key={item.id} item={item}
+                  onEdit={() => openSavingsEdit(item)}
+                  onDelete={() => setConfirmSavings(item)}
+                  onDepositChange={load} dnd={dnd} />
+              )} />
+          </>
+        )
+      })()}
 
       {/* 예·적금 종합 */}
       {(data.savings || []).length > 0 && (() => {
@@ -1681,9 +2060,28 @@ export default function Budget() {
       {/* 투자 섹션 */}
       <div id="budget-section-investment" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>투자</span>
-        <button onClick={openInvAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-          <i className="bi bi-plus-lg me-1" />투자 추가
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          <FilterPopup sections={[
+            {
+              label: '정렬', options: [['기본', '기본순'], ['평가금액순', '평가금액순'], ['수익률순', '수익률순']],
+              value: invSort, onChange: setInvSort, dir: invSortDir, onDirChange: setInvSortDir,
+            },
+            {
+              label: '유형/계좌', type: 'grid',
+              options: INV_FILTERS.map(f => {
+                const tc = ITYPE_COLORS[f]
+                const ac = INV_ACCOUNT_COLORS[f]
+                const color = tc ? tc.color : (ac || undefined)
+                const bg = tc ? tc.bg : (ac ? `${ac}18` : undefined)
+                return [f, ITYPE_ICONS[f] ? `${ITYPE_ICONS[f]} ${f}` : f, color, bg]
+              }),
+              value: invFilter, onChange: setInvFilter,
+            },
+          ]} />
+          <button onClick={openInvAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="bi bi-plus-lg me-1" />투자 추가
+          </button>
+        </div>
       </div>
       {(data.investments || []).length === 0 ? (
         <div className="card mb-4 text-center">
@@ -1693,27 +2091,45 @@ export default function Budget() {
             <button onClick={openInvAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>투자 추가 →</button>
           </div>
         </div>
-      ) : (
+      ) : (() => {
+        let filteredInv = (data.investments || []).filter(i => matchesInvFilter(i, invFilter))
+        if (invSort === '평가금액순') filteredInv = [...filteredInv].sort(sortByNullable(i => i.current_value, invSortDir))
+        else if (invSort === '수익률순') filteredInv = [...filteredInv].sort(sortByNullable(i => i.profit_pct, invSortDir))
+        return (
         <>
-          {(data.investments || []).map(item => (
-            <InvestmentItem key={item.id} item={item}
-              onEdit={() => openInvEdit(item)}
-              onDelete={() => setConfirmInv(item)} />
-          ))}
+          {filteredInv.length === 0 ? (
+            <div className="card mb-4 text-center">
+              <div className="card-body py-4 text-muted">
+                <p className="mb-0">필터에 해당하는 투자가 없습니다</p>
+              </div>
+            </div>
+          ) : (
+            <SortableSection items={filteredInv} sortable={invSort === '기본'}
+              onReorder={async newOrder => {
+                const otherIds = new Set(newOrder.map(i => i.id))
+                setData(d => ({ ...d, investments: [...newOrder, ...(d.investments || []).filter(i => !otherIds.has(i.id))] }))
+                await api.post('/api/investments/reorder', { ids: newOrder.map(i => i.id) })
+              }}
+              renderItem={(item, dnd) => (
+                <InvestmentItem key={item.id} item={item}
+                  onEdit={() => openInvEdit(item)}
+                  onDelete={() => setConfirmInv(item)} dnd={dnd} />
+              )} />
+          )}
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
             <div className="card-body py-3">
               <div className="d-flex justify-content-between align-items-center">
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>총 평가금액</span>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt((data.investments || []).reduce((s, i) => s + i.current_value, 0))}원</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{invFilter === 'all' ? '총 평가금액' : '선택 평가금액'}</span>
+                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(filteredInv.reduce((s, i) => s + i.current_value, 0))}원</span>
               </div>
               {(() => {
-                const totalPurch = (data.investments || []).reduce((s, i) => s + i.purchase_value, 0)
-                const totalCur = (data.investments || []).reduce((s, i) => s + i.current_value, 0)
+                const totalPurch = filteredInv.reduce((s, i) => s + i.purchase_value, 0)
+                const totalCur = filteredInv.reduce((s, i) => s + i.current_value, 0)
                 const profit = totalCur - totalPurch
                 const pct = totalPurch ? (profit / totalPurch * 100).toFixed(2) : 0
                 return (
                   <div className="d-flex justify-content-between align-items-center mt-1">
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>총 수익</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{invFilter === 'all' ? '총 수익' : '선택 수익'}</span>
                     <span style={{ fontWeight: 700, fontSize: '0.95rem', color: profit >= 0 ? '#198754' : '#dc3545' }}>
                       {profit >= 0 ? '+' : ''}{fmt(profit)}원 ({profit >= 0 ? '+' : ''}{pct}%)
                     </span>
@@ -1723,7 +2139,8 @@ export default function Budget() {
             </div>
           </div>
         </>
-      )}
+        )
+      })()}
 
       <div className="d-lg-none" style={{ height: 90 }} />
 
@@ -1738,8 +2155,26 @@ export default function Budget() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>카드를 삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
-              <button className="btn flex-fill" onClick={handleDelete} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button autoFocus className="btn flex-fill" onClick={handleDelete} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmCard(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {convertCard && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트 전환</p>
+            <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
+              {convertCard.name}에 남은 {fmt(convertCard.balance)}원을 전환하면, 다음 초기화 때 사라지지 않고 초기화 금액에 그대로 더해져 쌓여요.
+            </p>
+            <div className="d-flex gap-2">
+              <button autoFocus className="btn flex-fill" disabled={convertLoading} onClick={handleConvert}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: convertLoading ? 0.5 : 1 }}>
+                {convertLoading ? '전환 중…' : '전환하기'}
+              </button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setConvertCard(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
         </div>
@@ -1750,7 +2185,7 @@ export default function Budget() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>예·적금을 삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
-              <button className="btn flex-fill" onClick={handleDeleteSavings} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button autoFocus className="btn flex-fill" onClick={handleDeleteSavings} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSavings(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
@@ -1762,7 +2197,7 @@ export default function Budget() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>투자 항목을 삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
-              <button className="btn flex-fill" onClick={handleDeleteInv} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button autoFocus className="btn flex-fill" onClick={handleDeleteInv} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmInv(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
@@ -1772,7 +2207,7 @@ export default function Budget() {
       {editSheetOpen && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: editSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeEdit()}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: editSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: editSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h6 className="mb-0 fw-bold">{editCard?.name} 수정</h6>
               <button onClick={closeEdit} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
@@ -1780,11 +2215,15 @@ export default function Budget() {
             <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
               <form id="edit-card-form" onSubmit={handleEditSave}>
                 <div className="mb-3">
-                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고 (계좌를 처음 등록했을 때의 잔고)</label>
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고</label>
                   <div style={{ position: 'relative' }}>
                     <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
-                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true)} />
+                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true, editCard?.is_loan)} />
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  </div>
+                  <div className="mt-2">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>작성한 반영할 날짜</label>
+                    <DatePickerSheet value={editBalanceDate} onChange={setEditBalanceDate} />
                   </div>
                 </div>
                 <div className="mb-3">
@@ -1809,6 +2248,29 @@ export default function Budget() {
                 </div>
                 {!editCard?.is_loan && (
                   <div className="mb-2">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>로고 (선택)</label>
+                    <div className="d-flex align-items-center gap-2">
+                      <label htmlFor="edit-custom-icon-input" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10, border: '1.5px dashed var(--border-light)', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                        {editCustomIconPreview
+                          ? <img src={editCustomIconPreview} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 4 }} />
+                          : (editCard?.has_custom_icon && !editRemoveIcon)
+                            ? <img src={`/api/cards/${editCard.id}/icon`} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 4 }} />
+                            : <i className="bi bi-image" />}
+                        {editCard?.has_custom_icon || editCustomIconPreview ? '로고 변경' : '목록에 없는 은행/포인트사 로고 직접 추가'}
+                      </label>
+                      <input type="file" id="edit-custom-icon-input" accept="image/*" onChange={pickEditCustomIcon} style={{ display: 'none' }} />
+                      {((editCard?.has_custom_icon && !editRemoveIcon) || editCustomIconPreview) && (
+                        <button type="button" onClick={() => {
+                          if (editCustomIconPreview) URL.revokeObjectURL(editCustomIconPreview)
+                          setEditCustomIconFile(null); setEditCustomIconPreview(null); setEditRemoveIcon(true)
+                        }} style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.8rem' }}>로고 삭제</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <ImageCropper file={editCropFile} onCancel={() => setEditCropFile(null)} onConfirm={onEditCropConfirm} />
+                {!editCard?.is_loan && (
+                  <div className="mb-2">
                     <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>
                     <input type="url" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }} placeholder="https://..."
                       value={editUrl} onChange={e => setEditUrl(e.target.value)} />
@@ -1819,6 +2281,60 @@ export default function Budget() {
                     style={{ display: 'inline-block', fontSize: '0.82rem', color: '#b088f9', textDecoration: 'none', marginBottom: 8 }}>
                     🔗 혜택 사이트 바로가기
                   </a>
+                )}
+                {!editCard?.is_loan && (
+                  <div className="mb-3">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>캐시백 / 충전 보너스 (선택)</label>
+                    <div className="d-flex gap-2 mb-2">
+                      {[['', '없음'], ['payment', '결제 시 캐시백'], ['charge', '충전 시 보너스']].map(([val, label]) => (
+                        <button key={val} type="button" onClick={() => setEditCashbackType(val)}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${editCashbackType === val ? '#b088f9' : 'var(--border-light)'}`, background: editCashbackType === val ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: editCashbackType === val ? '#b088f9' : 'var(--text-muted)', fontWeight: editCashbackType === val ? 600 : 400, fontSize: '0.78rem', cursor: 'pointer' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {editCashbackType && (
+                      <div style={{ position: 'relative' }}>
+                        <input type="number" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
+                          placeholder={editCashbackType === 'payment' ? '결제 금액 대비 캐시백율 (예: 15)' : '충전 금액 대비 보너스율 (예: 5)'}
+                          value={editCashbackRate} onChange={e => setEditCashbackRate(e.target.value)} step="0.1" min="0" max="100" inputMode="decimal" />
+                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>%</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!editCard?.is_loan && (
+                  <div className="mb-3">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>포인트 정기 충전 (선택)</label>
+                    <div className="d-flex gap-2 mb-2">
+                      {[[false, '일반 (이월)'], [true, '정기 충전 (복지 포인트 등)']].map(([val, label]) => (
+                        <button key={String(val)} type="button" onClick={() => setEditPointResetOn(val)}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${editPointResetOn === val ? '#b088f9' : 'var(--border-light)'}`, background: editPointResetOn === val ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: editPointResetOn === val ? '#b088f9' : 'var(--text-muted)', fontWeight: editPointResetOn === val ? 600 : 400, fontSize: '0.78rem', cursor: 'pointer' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {editPointResetOn && (
+                      <>
+                        <div className="d-flex gap-2 mb-2">
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <input type="number" className="form-control" placeholder="매월 며칠 (예: 5)" inputMode="numeric"
+                              value={editPointResetDay} onChange={e => setEditPointResetDay(e.target.value)} style={{ borderRadius: 10, paddingRight: 28 }} min="1" max="28" />
+                            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
+                          </div>
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <input type="text" className="form-control" placeholder="충전 금액" inputMode="numeric"
+                              value={editPointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEditPointResetAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                              style={{ borderRadius: 10, paddingRight: 28 }} />
+                            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                          </div>
+                        </div>
+                        <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>
+                          매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다 (그 날짜가 주말이면 그 전 영업일에 초기화). 일반 은행/카드와 달리 잔고가 이월되지 않아요.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 )}
                 {editCard?.is_loan && (
                   <div className="mb-2">

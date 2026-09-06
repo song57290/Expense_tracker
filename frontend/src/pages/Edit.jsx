@@ -13,6 +13,7 @@ export default function Edit() {
   const [data, setData] = useState(null)
   const [form, setForm] = useState(null)
   const [amountDisplay, setAmountDisplay] = useState('')
+  const [amountError, setAmountError] = useState(false)
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -75,16 +76,18 @@ export default function Edit() {
   async function handleSave(e) {
     e.preventDefault()
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
-    if (!amt || !form.category) return
+    if (!amt) { setAmountError(true); return }
+    setAmountError(false)
+    if (!form.category) return
     await api.put(`/api/transactions/${id}`, { ...form, amount: amt })
     syncWidget()
-    navigate('/')
+    navigate(-1)
   }
 
   async function handleDelete() {
     await api.delete(`/api/transactions/${id}`)
     syncWidget()
-    navigate('/')
+    navigate(-1)
   }
 
   async function handleReceiptUpload(e) {
@@ -153,10 +156,11 @@ export default function Edit() {
             <div className="mb-3">
               <label className="form-label fw-semibold">금액</label>
               <div className="input-group">
-                <input className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
-                  onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required />
+                <input className={`form-control${amountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={amountDisplay}
+                  onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAmountError(false) }} />
                 <span className="input-group-text">원</span>
               </div>
+              {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}
             </div>
             <div className="mb-3">
               <label className="form-label fw-semibold">{isAccountTransfer ? '계좌 선택' : '항목 설명'}</label>
@@ -290,7 +294,7 @@ export default function Edit() {
               <div style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>이 내역을 삭제할까요?</div>
             </div>
             <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
-              <button onClick={handleDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
+              <button autoFocus onClick={handleDelete} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ff3b30,#ff6b6b)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>삭제</button>
               <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>취소</button>
             </div>
           </div>

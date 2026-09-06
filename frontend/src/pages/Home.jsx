@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import api from '../api.js'
-import { fmt, today, bankColor, bankLogo, fmtDate } from '../utils.js'
+import { fmt, today, bankColor, bankLogo, cardLogo, fmtDate, useCardColorMap } from '../utils.js'
 
 const WidgetData = registerPlugin('WidgetData')
 import TxItem from '../components/TxItem.jsx'
@@ -86,6 +86,7 @@ export default function Home() {
   const [routineSheetError, setRoutineSheetError] = useState(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [amountDisplay, setAmountDisplay] = useState('')
+  const [amountError, setAmountError] = useState(false)
   const [cardError, setCardError] = useState(false)
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
@@ -151,13 +152,15 @@ export default function Home() {
     }
   }, [form.type, data])
 
+  const getCardColor = useCardColorMap(data?.card_list)
+
   if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
 
   const cats = form.type === 'expense' ? data.expense_cats : data.income_cats
 
   let filtered = data.transactions.filter(tx =>
     (filter === 'all' || tx.type === filter) &&
-    (cardFilter === 'all' || tx.card === cardFilter)
+    (cardFilter === 'all' || cardFilter.includes(tx.card))
   )
   filtered = [...filtered].sort((a, b) => {
     const d = sortAsc ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)
@@ -166,7 +169,11 @@ export default function Home() {
       ? ((a.time || '').localeCompare(b.time || '') || a.id - b.id)
       : ((b.time || '').localeCompare(a.time || '') || b.id - a.id)
   })
-  const allCards = [...new Set(data.transactions.map(tx => tx.card).filter(Boolean))].sort()
+  const allCardNames = [...new Set(data.transactions.map(tx => tx.card).filter(Boolean))].sort()
+  const allCards = allCardNames.map(name => {
+    const c = data.card_list.find(cc => cc.name === name)
+    return { name, id: c?.id, has_custom_icon: c?.has_custom_icon || false }
+  })
 
   const catSum = Object.values(data.category_totals).reduce((s, v) => s + v, 0)
   const budgetPct = data.budget_amount > 0 ? Math.min(Math.round(data.expense_total / data.budget_amount * 100), 100) : 0
@@ -176,7 +183,9 @@ export default function Home() {
   async function handleAdd(e) {
     e.preventDefault()
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
-    if (!amt || !form.category) return
+    if (!amt) { setAmountError(true); return }
+    setAmountError(false)
+    if (!form.category) return
     if (data.card_list.length === 0) { navigate('/budget'); return }
     const isTransfer = form.category === '계좌 이체'
     if (!isTransfer && !form.card) { setCardError(true); return }
@@ -376,7 +385,7 @@ export default function Home() {
               return (
                 <>
                   {visibleStats.map(cs => {
-                    const logo = bankLogo(cs.name)
+                    const logo = cardLogo(cs)
                     return (
                       <div key={cs.name} className="mb-3 mt-2"
                         style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
@@ -492,10 +501,11 @@ export default function Home() {
               </div>
               <div className="col-6 col-lg-2">
                 <div style={{ position: 'relative' }}>
-                  <input ref={amountRef} className="form-control" inputMode="numeric" placeholder="금액" value={amountDisplay}
-                    onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} required style={{ paddingRight: 36 }} />
+                  <input ref={amountRef} className={`form-control${amountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={amountDisplay}
+                    onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAmountError(false) }} style={{ paddingRight: 36 }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
+                {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}
                 {(() => {
                   if (form.type !== 'expense' || !form.category || !data.budget_limits) return null
                   const limit = data.budget_limits[form.category]
@@ -624,7 +634,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                         </div>
                       </SwipeItem>
                     ))}
@@ -725,7 +735,7 @@ export default function Home() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>삭제하시겠습니까?</p>
             <div className="d-flex gap-2">
-              <button className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button autoFocus className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSheet(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>

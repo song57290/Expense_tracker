@@ -149,7 +149,7 @@ export default function DatePickerSheet({ value, onChange }) {
 
       {open && createPortal(
         <div onClick={e => e.target === e.currentTarget && close()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: visible ? 1 : 0, transition: 'opacity 0.22s' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '15vh 20px 0', opacity: visible ? 1 : 0, transition: 'opacity 0.22s' }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 340,
             boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
@@ -158,14 +158,16 @@ export default function DatePickerSheet({ value, onChange }) {
             padding: '20px 16px 20px',
           }}>
             {/* 헤더 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
               {mode === 'day' ? (
                 <>
-                  <button type="button" onClick={() => setMode('year')}
-                    style={{ border: 'none', background: 'rgba(176,136,249,0.12)', borderRadius: 10, padding: '5px 12px', cursor: 'pointer', fontWeight: 700, fontSize: '1.05rem', color: '#b088f9' }}>
-                    {viewY}년 ▾
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+                    <button type="button" onClick={() => setMode('year')}
+                      style={{ border: 'none', background: 'rgba(176,136,249,0.12)', borderRadius: 10, padding: '4px 8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: '#b088f9', whiteSpace: 'nowrap' }}>
+                      {viewY}년 ▾
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <button type="button" onClick={prevMonth}
                       style={{ border: 'none', background: 'var(--bg-accent)', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="bi bi-chevron-left" />
@@ -176,10 +178,17 @@ export default function DatePickerSheet({ value, onChange }) {
                       <i className="bi bi-chevron-right" />
                     </button>
                   </div>
+                  <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', minWidth: 0 }}>
+                    <button type="button" onClick={() => { const t = new Date(); setViewY(t.getFullYear()); setViewM(t.getMonth() + 1) }}
+                      style={{ border: 'none', background: 'rgba(176,136,249,0.12)', height: 20, borderRadius: 6, padding: '0 6px', cursor: 'pointer', color: '#b088f9', fontSize: '0.62rem', fontWeight: 600 }}>
+                      오늘
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
                   <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-secondary)' }}>연도 선택</span>
+                  <div style={{ flex: 1 }} />
                   <button type="button" onClick={() => setMode('day')}
                     style={{ border: 'none', background: 'var(--bg-accent)', borderRadius: 8, padding: '4px 12px', cursor: 'pointer', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem' }}>
                     완료
@@ -218,7 +227,7 @@ export default function DatePickerSheet({ value, onChange }) {
                         <div style={{
                           width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : isToday ? 'rgba(176,136,249,0.12)' : 'transparent',
-                          fontSize: '0.9rem', fontWeight: isSel || isToday ? 700 : 400,
+                          fontSize: '0.9rem', fontWeight: isSel || isToday ? 700 : 400, lineHeight: 1,
                           color: isSel ? 'white' : isToday ? '#b088f9' : dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : 'var(--text-primary)',
                         }}>
                           {d}

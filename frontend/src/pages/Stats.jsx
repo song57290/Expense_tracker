@@ -9,7 +9,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
-import { fmt, bankLogo, fmtMonth } from '../utils.js'
+import { fmt, cardLogo, fmtMonth } from '../utils.js'
 import YearDrum from '../components/YearDrum.jsx'
 
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler, ChartDataLabels)
@@ -332,7 +332,7 @@ export default function Stats() {
           <div className="card-body">
             <h5 className="card-title">카드별 지출</h5>
             {data.card_monthly.map(c => {
-              const logo = bankLogo(c.name)
+              const logo = cardLogo(c)
               return (
                 <div key={c.name} className="d-flex justify-content-between align-items-center py-2 border-bottom">
                   <span className="d-flex align-items-center gap-2">
