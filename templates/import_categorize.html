@@ -136,7 +136,7 @@
   .picker-btn .pb-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .picker-btn .pb-text.muted { color: var(--text-muted); }
   .picker-btn i { color: var(--text-muted); font-size: 0.7rem; flex-shrink: 0; }
-  .picker-btn .pb-icon { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
+  .picker-btn .pb-icon { width: 18px; height: 18px; object-fit: contain; border-radius: 4px; flex-shrink: 0; }
   .picker-btn .pb-init {
     width: 18px; height: 18px; border-radius: 5px;
     display: flex; align-items: center; justify-content: center;
@@ -215,7 +215,7 @@
   }
   .sheet-item.selected { background: rgba(176,136,249,0.07); }
   .sheet-item-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .sheet-item-icon img { width: 36px; height: 36px; object-fit: contain; }
+  .sheet-item-icon img { width: 36px; height: 36px; object-fit: contain; border-radius: 9px; }
   .sheet-item-icon .init { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: white; }
   .sheet-item-icon .emoji { font-size: 1.5rem; line-height: 1; }
   .sheet-item-name { flex: 1; font-size: 0.95rem; color: var(--text-primary); }
@@ -391,7 +391,7 @@
 <script>
 var expCats = [{% for c in cats_expense %}[{{ c.name | tojson }},{{ c.icon | tojson }}]{% if not loop.last %},{% endif %}{% endfor %}];
 var incCats = [{% for c in cats_income %}[{{ c.name | tojson }},{{ c.icon | tojson }}]{% if not loop.last %},{% endif %}{% endfor %}];
-var cardList = [{% for card in cards %}{"name":{{ card.name | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
+var cardList = [{% for card in cards %}{"name":{{ card.name | tojson }},"id":{{ card.id | tojson }},"has_custom_icon":{{ (card.has_custom_icon or false) | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
 
 var BANK_LOGOS = [
   ['신한','/static/cards/sinhanbank.png'],['KB','/static/cards/kbbank.png'],
@@ -424,6 +424,17 @@ var BANK_COLORS = [
 function getBankLogo(n) {
   for (var i=0;i<BANK_LOGOS.length;i++) if (n.indexOf(BANK_LOGOS[i][0])>=0) return BANK_LOGOS[i][1];
   return null;
+}
+// 목록에 없는 은행/포인트사 로고를 직접 올린 카드는 그 업로드된 이미지를 우선 사용 —
+// 없으면 이름 기반 내장 로고로 폴백.
+function getCardLogo(name) {
+  for (var i=0;i<cardList.length;i++) {
+    if (cardList[i].name === name) {
+      if (cardList[i].has_custom_icon) return '/api/cards/' + cardList[i].id + '/icon';
+      break;
+    }
+  }
+  return getBankLogo(name);
 }
 function getBankColor(n) {
   for (var i=0;i<BANK_COLORS.length;i++) if (n.indexOf(BANK_COLORS[i][0])>=0) return BANK_COLORS[i][1];
@@ -460,7 +471,7 @@ function openCardPicker(rowIdx) {
   var current = document.getElementById('card-val-' + rowIdx) ? document.getElementById('card-val-' + rowIdx).value : '';
   document.getElementById('sheet-title').textContent = '카드/계좌 선택';
   var items = buildCardItem('', '카드 없음', null, null, !current);
-  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getBankLogo(c.name), getBankColor(c.name), c.name === current); });
+  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getCardLogo(c.name), getBankColor(c.name), c.name === current); });
   document.getElementById('sheet-items').innerHTML = items;
   openSheet();
 }
@@ -486,7 +497,7 @@ function openBulkCardPicker() {
   var current = document.getElementById('bulk-card-val').value;
   document.getElementById('sheet-title').textContent = '카드/계좌 일괄 적용';
   var items = buildCardItem('', '카드 없음', null, null, !current);
-  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getBankLogo(c.name), getBankColor(c.name), c.name === current); });
+  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getCardLogo(c.name), getBankColor(c.name), c.name === current); });
   document.getElementById('sheet-items').innerHTML = items;
   openSheet();
 }
@@ -550,7 +561,7 @@ function updateCardBtn(idx, value, label) {
   }
   if (lblEl) { lblEl.textContent = label || value; lblEl.classList.remove('muted'); }
   if (!iconEl) return;
-  var logo = getBankLogo(value);
+  var logo = getCardLogo(value);
   if (logo) {
     iconEl.innerHTML = '<img src="' + logo + '" class="pb-icon">';
   } else {

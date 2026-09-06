@@ -223,7 +223,16 @@ html, body {
   clip-path: inset(-40px -40px 0px -40px round 20px);
   z-index: 1000;
 }
-body.sheet-open { overflow: hidden; touch-action: none; }
+/* touch-action is computed as the INTERSECTION of an element's value and all its
+   ancestors' — an ancestor's "none" can't be overridden by a descendant setting a more
+   permissive value (e.g. pan-x), it always wins. So body.sheet-open must NOT set
+   touch-action:none, or every horizontal-scroll strip inside any open sheet (bank/card
+   logos, type chips) goes dead no matter what touch-action those rows declare themselves.
+   overflow:hidden here plus the touchmove guard in App.jsx and overscroll-behavior:contain
+   on each sheet's own scroll container are enough to stop the background page from
+   scrolling behind an open sheet. */
+body.sheet-open { overflow: hidden; }
+[data-scroll-x] { touch-action: pan-x; }
 body.sheet-open .bottom-nav { display: none !important; }
 body.sheet-open .bot-fade,
 body.sheet-open .top-fade { display: none !important; }
@@ -348,8 +357,8 @@ body.sheet-open .top-fade { display: none !important; }
 
 /* Top / bottom fades */
 .top-fade {
-  position: fixed; top: 0; left: 0; right: 0; height: 80px;
-  background: linear-gradient(to bottom, var(--bg-page) 0%, transparent 100%);
+  position: fixed; top: 0; left: 0; right: 0; height: 99px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.32) 0%, transparent 100%), linear-gradient(to bottom, var(--bg-page) 0%, transparent 100%);
   z-index: 998; pointer-events: none;
   transition: opacity 0.3s;
 }
@@ -429,9 +438,37 @@ body.sheet-open .top-fade { display: none !important; }
   color: var(--text-primary) !important;
 }
 .form-control::placeholder, .form-select::placeholder { color: var(--text-muted) !important; }
+/* 브라우저 기본 required 검증 풍선 대신 쓰는 공통 오류 표시 — 위 .form-control 규칙이
+   border-color를 !important로 고정해버리므로, 이 클래스도 !important + 더 높은
+   명시도로 얹어야 실제로 빨간 테두리가 보인다. */
+.form-control.field-invalid, .form-select.field-invalid {
+  border-color: #dc3545 !important;
+}
 .form-control:focus, .form-select:focus {
   background-color: var(--input-bg) !important;
   color: var(--text-primary) !important;
+}
+/* 자산 추가/수정, 예·적금, 투자 시트는 화면 폭 그대로(edge-to-edge) 붙어있어
+   포커스 시 나오는 box-shadow 링이 화면 밖으로 밀려 잘린다. 시트 여백은 그대로 두고
+   입력칸(과, "원"/"%" 단위 표시를 위해 감싸는 wrapper가 있으면 그 wrapper)만 살짝
+   줄여 양옆에 여유를 만든다 — wrapper를 줄이면 그 안의 input은 그대로 100%를 채우므로
+   단위 표시(절대 위치)와의 정렬은 깨지지 않는다.
+   :has()로 "폼 바로 아래" 또는 "wrapper 바로 아래"에 있는 것만 짚어 CardPicker 등
+   다른 곳의 .form-control은 건드리지 않는다. */
+#add-card-form div:has(> .form-control), #add-card-form div:has(> .form-select),
+#edit-card-form div:has(> .form-control), #edit-card-form div:has(> .form-select),
+#savings-form div:has(> .form-control), #savings-form div:has(> .form-select),
+#investment-form div:has(> .form-control), #investment-form div:has(> .form-select) {
+  margin-left: 4px;
+  margin-right: 4px;
+}
+#add-card-form > .form-control, #add-card-form > .form-select,
+#edit-card-form > .form-control, #edit-card-form > .form-select,
+#savings-form > .form-control, #savings-form > .form-select,
+#investment-form > .form-control, #investment-form > .form-select {
+  width: calc(100% - 8px);
+  margin-left: 4px;
+  margin-right: 4px;
 }
 .text-muted { color: var(--text-muted) !important; }
 .modal-content {

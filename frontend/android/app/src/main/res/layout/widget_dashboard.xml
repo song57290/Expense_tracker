@@ -21,7 +21,7 @@
             android:layout_weight="1"
             android:text="--월"
             android:textColor="@color/w_primary"
-            android:textSize="16sp"
+            android:textSize="16dp"
             android:textStyle="bold" />
 
         <TextView
@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:text=""
             android:textColor="@color/w_hint"
-            android:textSize="10sp" />
+            android:textSize="10dp" />
 
     </LinearLayout>
 
@@ -41,7 +41,7 @@
         android:layout_height="wrap_content"
         android:text="이번 달 요약"
         android:textColor="@color/w_dim"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:layout_marginTop="5dp" />
 
     <TextView
@@ -50,12 +50,13 @@
         android:layout_height="wrap_content"
         android:text="---원"
         android:textColor="@color/w_primary"
-        android:textSize="30sp"
+        android:textSize="30dp"
         android:textStyle="bold"
         android:layout_marginTop="1dp" />
 
     <!-- 수입 | 지출 | 예산 KPI -->
     <LinearLayout
+        android:id="@+id/dash_kpi_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -74,7 +75,7 @@
                 android:layout_height="wrap_content"
                 android:text="↑ 수입"
                 android:textColor="@color/w_income_label"
-                android:textSize="10sp"
+                android:textSize="10dp"
                 android:textStyle="bold" />
 
             <TextView
@@ -83,7 +84,7 @@
                 android:layout_height="wrap_content"
                 android:text="---원"
                 android:textColor="@color/w_income"
-                android:textSize="13sp"
+                android:textSize="13dp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp"
                 android:maxLines="1"
@@ -104,7 +105,7 @@
                 android:layout_height="wrap_content"
                 android:text="↓ 지출"
                 android:textColor="@color/w_expense_label"
-                android:textSize="10sp"
+                android:textSize="10dp"
                 android:textStyle="bold" />
 
             <TextView
@@ -113,7 +114,7 @@
                 android:layout_height="wrap_content"
                 android:text="---원"
                 android:textColor="@color/w_expense"
-                android:textSize="13sp"
+                android:textSize="13dp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp"
                 android:maxLines="1"
@@ -134,7 +135,7 @@
                 android:layout_height="wrap_content"
                 android:text="예산"
                 android:textColor="@color/w_dim"
-                android:textSize="10sp"
+                android:textSize="10dp"
                 android:textStyle="bold" />
 
             <TextView
@@ -143,7 +144,7 @@
                 android:layout_height="wrap_content"
                 android:text="0%"
                 android:textColor="@color/w_primary"
-                android:textSize="13sp"
+                android:textSize="13dp"
                 android:textStyle="bold"
                 android:layout_marginTop="2dp" />
 
@@ -161,6 +162,7 @@
 
     <!-- 하단 구분선 -->
     <ImageView
+        android:id="@+id/dash_separator"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="8dp"
@@ -169,6 +171,7 @@
 
     <!-- 오늘 지출 요약 -->
     <LinearLayout
+        android:id="@+id/dash_today_section"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -182,7 +185,7 @@
             android:layout_height="wrap_content"
             android:text="오늘"
             android:textColor="@color/w_hint"
-            android:textSize="10sp"
+            android:textSize="10dp"
             android:textStyle="bold" />
 
         <LinearLayout
@@ -199,7 +202,7 @@
                 android:layout_weight="1"
                 android:text=""
                 android:textColor="@color/w_text"
-                android:textSize="12sp"
+                android:textSize="12dp"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
@@ -209,7 +212,7 @@
                 android:layout_height="wrap_content"
                 android:text="---원"
                 android:textColor="@color/w_expense"
-                android:textSize="12sp"
+                android:textSize="12dp"
                 android:textStyle="bold" />
 
         </LinearLayout>

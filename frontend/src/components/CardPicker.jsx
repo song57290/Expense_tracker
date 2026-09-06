@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { bankLogo } from '../utils.js'
+import { cardLogo } from '../utils.js'
 
 export default function CardPicker({ cards, value, onChange, error, placeholder = '카드/계좌 선택' }) {
   const [open, setOpen] = useState(false)
@@ -39,7 +39,7 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
   }
 
   const selected = cards.find(c => c.name === value)
-  const selectedLogo = selected ? bankLogo(selected.name) : null
+  const selectedLogo = selected ? cardLogo(selected) : null
 
   return (
     <>
@@ -50,7 +50,7 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
         color: selected ? 'var(--text-primary)' : 'var(--text-muted)', minHeight: 38,
       }}>
         {selected && selectedLogo && (
-          <img src={selectedLogo} style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }} />
+          <img src={selectedLogo} style={{ width: 24, height: 24, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />
         )}
         <span style={{ flex: 1, fontSize: '0.9rem', textAlign: 'left' }}>
           {selected ? selected.name : placeholder}
@@ -82,7 +82,7 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
             </div>
             {cards.map(card => {
               const isSelected = value === card.name
-              const logo = bankLogo(card.name)
+              const logo = cardLogo(card)
               return (
                 <div key={card.id ?? card.name} onClick={() => select(card.name)} style={{
                   display: 'flex', alignItems: 'center', gap: 14,
@@ -93,7 +93,7 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
                 }}>
                   <div style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {logo
-                      ? <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+                      ? <img src={logo} style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 8 }} />
                       : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700 }}>{card.name.slice(0, 2)}</span>
                     }
                   </div>

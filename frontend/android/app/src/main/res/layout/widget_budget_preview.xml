@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:text="2026년 7월"
         android:textColor="#FFB088F9"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />
 
@@ -47,7 +47,7 @@
                 android:layout_height="wrap_content"
                 android:text="72%"
                 android:textColor="#FFB088F9"
-                android:textSize="18sp"
+                android:textSize="18dp"
                 android:textStyle="bold" />
 
             <TextView
@@ -55,7 +55,7 @@
                 android:layout_height="wrap_content"
                 android:text="사용"
                 android:textColor="#99FFFFFF"
-                android:textSize="9sp" />
+                android:textSize="9dp" />
         </LinearLayout>
 
     </FrameLayout>
@@ -66,7 +66,7 @@
         android:layout_height="wrap_content"
         android:text="411,420원 남음"
         android:textColor="#FFB088F9"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />
 

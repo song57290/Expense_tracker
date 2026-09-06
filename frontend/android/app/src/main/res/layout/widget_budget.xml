@@ -15,11 +15,12 @@
         android:layout_height="wrap_content"
         android:text="--월"
         android:textColor="@color/w_primary"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />
 
     <FrameLayout
+        android:id="@+id/budget_ring_frame"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -40,7 +41,7 @@
             android:translationY="34dp"
             android:text="사용"
             android:textColor="@color/budget_usage"
-            android:textSize="24sp" />
+            android:textSize="24dp" />
 
     </FrameLayout>
 
@@ -50,7 +51,7 @@
         android:layout_height="wrap_content"
         android:text="---원 남음"
         android:textColor="@color/w_primary"
-        android:textSize="11sp"
+        android:textSize="11dp"
         android:textStyle="bold"
         android:gravity="center_horizontal" />
 

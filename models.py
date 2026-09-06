@@ -30,6 +30,7 @@ class Transaction(db.Model):
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     time = db.Column(db.String(5), nullable=True)
     has_receipt = db.Column(db.Boolean, nullable=False, default=False)
+    cashback = db.Column(db.Integer, nullable=False, default=0)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -60,6 +61,18 @@ class Card(db.Model):
     user_id = db.Column(db.Integer, nullable=True)
     linked_account_id = db.Column(db.Integer, nullable=True)
     interest_rate = db.Column(db.Float, nullable=True)
+    cashback_type = db.Column(db.String(10), nullable=True)  # None/'' = off, 'payment', 'charge'
+    cashback_rate = db.Column(db.Float, nullable=True)  # percent
+    has_custom_icon = db.Column(db.Boolean, nullable=False, default=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    # 복지 포인트처럼 잔고를 이월하지 않고 매달 정해진 날짜에 고정 금액으로 리셋하는 카드용.
+    # point_reset_day가 null이면 평소처럼(이월) 동작 — 완전히 별개의 선택적 기능.
+    point_reset_day = db.Column(db.Integer, nullable=True)
+    point_reset_amount = db.Column(db.Integer, nullable=True)
+    point_reset_last_date = db.Column(db.String(10), nullable=True)
+    # 초기화 직전 남은 소액 잔액을 사용자가 "전환"해 다음 초기화 금액에 더해 받도록
+    # 보관해두는 값 — 다른 계좌로 옮기는 게 아니라 같은 카드에 누적됨.
+    point_carryover = db.Column(db.Integer, nullable=False, default=0)
 
 class Savings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -80,6 +93,7 @@ class Savings(db.Model):
     manual_count = db.Column(db.Integer, nullable=True)
     is_paused = db.Column(db.Boolean, nullable=False, default=False)
     bonus_amount = db.Column(db.Integer, nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -154,6 +168,7 @@ class Investment(db.Model):
     memo = db.Column(db.String(200), nullable=True, default='')
     price_updated_at = db.Column(db.DateTime, nullable=True)
     account_type = db.Column(db.String(20), nullable=False, default='일반')
+    position = db.Column(db.Integer, nullable=False, default=0)
 
 class Routine(db.Model):
     id = db.Column(db.Integer, primary_key=True)

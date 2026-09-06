@@ -65,6 +65,8 @@ Expense_tracker/
 │   │   │   ├─ CardPicker.jsx        ← 카드/계좌 선택 커스텀 바텀시트
 │   │   │   ├─ DatePickerSheet.jsx   ← 커스텀 날짜 피커 팝업 (달력 그리드 + 연도 드럼)
 │   │   │   ├─ TransferPicker.jsx    ← 계좌 이체 보내는·받는 계좌 선택 바텀시트
+│   │   │   ├─ FilterPopup.jsx       ← 공통 필터 팝업 (단일선택 row / 전체+개별 다중선택 grid, 정렬 토글)
+│   │   │   ├─ ImageCropper.jsx      ← 커스텀 카드/포인트사 로고 업로드 시 자르기 UI
 │   │   │   └─ YearDrum.jsx          ← 연도 드럼 스크롤 피커 (캘린더·통계·DatePickerSheet 공유)
 │   │   └─ pages/
 │   │       ├─ Home.jsx              ← 홈 (이번달 내역 목록, 스와이프 삭제·수정, 루틴 칩, 내역 검색)
@@ -917,6 +919,45 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 | 276 | 오늘 지출 UTC→KST 날짜 버그 수정 — `Home.jsx` `todayStr` 계산을 `toISOString()` (UTC) → 로컬 날짜 조합으로 교체 |
 | 277 | 백엔드 KST 타임존 일관성 수정 — `app.py` 8곳 `datetime.now()` → `datetime.now(_KST)` (`api_home`, `api_card_stats`, `api_budget`, `api_salary`, `api_portfolio`, 고정 지출·자동 등록·청약 등) |
 | 278 | `index.html` no-cache 헤더 추가 — `serve_spa` 엔드포인트에 `Cache-Control: no-cache, no-store` 헤더 추가 (fly deploy 후 구버전 JS 로드 방지) |
+
+## 2026-09-02 — ver 2.50
+
+| # | 내용 |
+|---|------|
+| 279 | 통장 잔고 매달 초기화 버그 수정 — `Card.balance_since` 기준일 도입, `현재잔고 = account_balance + since 이후 수입 − since 이후 지출`로 계산 (`_running_balances_for_user`) |
+| 280 | 거래 내역에 거래 후 잔고 표시 — 홈·캘린더 내역 목록, 필터에서 표시 여부 토글 |
+| 281 | 예산 탭 월별 잔고 추이 — `GET /api/budget/monthly-balances?card_id=&start=&end=` 신설, 계좌·기간 선택 표 |
+| 282 | 홈·캘린더 내역 목록 필터 팝업 신설 — 정렬·잔고표시·시간표시·은행/카드 선택 통합, 화면 중앙 팝업 |
+| 283 | 위젯 즉시 동기화 — 캘린더·수정 화면에서 거래 추가·수정·삭제 시에도 `syncWidget()` 호출 |
+| 284 | 위젯 자동 월·날짜 리셋 — 기기 실제 날짜 기준 최대 30분 주기로 위젯 갱신 |
+| 285 | 인앱 업데이트 알림 신설 — `GET /api/app-version` + `AppUpdateModal`, 새 버전 감지 시 다운로드 팝업 |
+| 286 | 홈 탭 실적바 0% 글씨 다크모드 수정 |
+| 287 | 통계 월별 추이 기본값을 지출 → 전체로 변경, 버튼 순서 전체·수입·지출 재배치 |
+
+## 2026-09-06 — ver 2.51
+
+| # | 내용 |
+|---|------|
+| 288 | 초기 잔고 기준일 분리 편집 — `PUT /api/cards/<id>`에서 `balance_since`를 `account_balance`와 독립적으로 갱신, `DatePickerSheet`로 "이 금액이 정확했던 날짜" 입력 |
+| 289 | 커스텀 업로드 로고 색상 추출 안정화 — `getCustomIconColor` 8×8 리전 평균 + 휘도 가드(0.15~0.85) 도입, 단일 픽셀 샘플링 시 흰색 근접 색 추출로 필터 칩 글씨가 안 보이던 문제 수정 |
+| 290 | `cardLogo()`/`bankLogo()`/`bankColor()` 일관 적용 — Excel 가져오기, 홈 카드 실적, Stats 카드별 지출, `TransferPicker`, `TxItem` 배지 등 커스텀 로고 미표시·모서리 불일치 수정 |
+| 291 | `useCardColorMap(cards)` 훅 신설 (`utils.js`) — 거래 리스트에서 카드별 커스텀 색상을 한 번만 계산해 재사용 |
+| 292 | `FilterPopup.jsx` 공통 필터 컴포넌트 신설 — `row`(단일선택)/`grid`(전체+개별 다중선택 체크박스) + 오름/내림차순 토글, 카드·예적금·투자 필터를 이 컴포넌트로 통일 |
+| 293 | `useDragScrollX` 콜백 ref 훅 신설 — 시트 안 은행/카드사 가로 스크롤 목록에 터치 + 포인터(마우스) 드래그 지원, PC에서 마우스로 안 끌리던 문제 수정 |
+| 294 | `MouseSensor`/`TouchSensor` `activationConstraint` 통일 (`{delay:300, tolerance:8}`) — PC 마우스로 카드 수정 슬라이드 시 순서 변경 모드로 오작동하던 문제 수정 |
+| 295 | 🎁 포인트 자산 신설 — `Card.point_reset_day`/`point_reset_amount`/`point_reset_last_date`/`point_carryover` 컬럼 추가, `_apply_point_resets` 크론(`hour=0,minute=5`)이 `_effective_point_reset_date`(주말이면 전 영업일)로 매월 초기화 |
+| 296 | 포인트 전환 — `POST /api/cards/<id>/point-convert`: 초기화 전 잔액을 `point_carryover`에 누적, 다음 초기화 시 `account_balance = point_reset_amount + point_carryover`로 합산 후 리셋 |
+| 297 | 예·적금 자동이체 주말 보정 — `_effective_withdrawal_date`(포인트와 반대로 다음 영업일)로 `pending-registers` 판정 변경 |
+| 298 | 자산 추가 폼에 💳 카드/은행 · 🎁 포인트 · 💵 현금 · 💸 대출 4탭 구성, 은행별 잔고 목록을 카드/은행·포인트·대출 3개 섹션으로 분리 표시 (`Budget.jsx`) |
+| 299 | 계좌 이체 거래쌍 날짜 동기화 — `PUT /api/transactions/<id>`에서 한쪽 날짜 변경 시 짝이 되는 거래(같은 description·amount·반대 type)도 함께 이동 |
+| 300 | 캘린더 월 유지 — `useSearchParams`로 `yearMonth`를 URL(`?month=`)에 저장, 다른 달 거래 수정 후 `navigate(-1)`로 원래 보던 달 복귀 (`Edit.jsx`) |
+| 301 | 삭제 확인 팝업 8곳 모두 확인(삭제) 버튼에 `autoFocus` — 엔터 키로 바로 삭제되도록 변경 |
+| 302 | 브라우저 기본 `required` 검증 팝업 제거 → 커스텀 검증으로 통일 — `.form-control.field-invalid`(`index.css`, `!important` 우선순위 확보) + 필드 아래 빨간 안내문구, `Home.jsx`/`Calendar.jsx`/`Edit.jsx` 금액 필드에 적용 |
+| 303 | `DatePickerSheet` 개선 — "오늘" 이동 버튼 추가, 연도·월·오늘 버튼을 좌우 동일 `flex:1`로 감싸 월이 항상 중앙에 오도록 수정 (겹침 없이), 오늘 날짜 원 안 숫자 `lineHeight:1`로 수직 중앙 정렬 |
+| 304 | 자산 추가/수정·예·적금·투자 시트 입력칸 좌우 각 4px 마진 추가 — 포커스 시 파란 테두리가 시트 가장자리에서 잘리던 문제 수정 |
+| 305 | 안드로이드 위젯 텍스트 단위 `sp` → `dp` 전체 교체 (4개 위젯 레이아웃 + 미리보기 + Java `COMPLEX_UNIT_SP`→`COMPLEX_UNIT_DIP`) — 기기 접근성 글자 크기 설정이 큰 폰에서 위젯 글씨가 커져 잘리던 문제 개선 (다양한 기기에서 계속 확인 중) |
+| 306 | `UpdateNoticeModal.jsx`에 `wip`("진행중") 태그 추가 — 검증 전 항목을 new/imp/fix와 구분해 표시 |
+| 307 | 앱 버전 `_apk_version_code` 4→5, `_apk_build_date` → 2026-09-06 (`app.py`) |
 
 ---
 
