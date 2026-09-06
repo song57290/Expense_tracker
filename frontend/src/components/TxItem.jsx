@@ -1,7 +1,7 @@
 import { fmt, bankColor } from '../utils.js'
 
-export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBalance = true, showTime = true }) {
-  const hasBadges = tx.exclude_perf || tx.exclude_stats || tx.has_receipt
+export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBalance = true, showTime = true, getCardColor = bankColor }) {
+  const hasBadges = tx.exclude_perf || tx.exclude_stats || tx.has_receipt || tx.cashback > 0
   const sz = large
     ? { badge: '0.82rem', cat: '1rem', desc: '0.92rem', sep: '0.8rem', amt: '1.08rem' }
     : { badge: '0.72rem', cat: '0.85rem', desc: '0.82rem', sep: '0.7rem', amt: '0.95rem' }
@@ -9,7 +9,7 @@ export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBal
     <div className="d-flex justify-content-between align-items-start">
       <div className="me-2" style={{ minWidth: 0 }}>
         <div>
-          {tx.card && (() => { const bc = bankColor(tx.card); return <span className="badge me-1" style={{ fontSize: sz.badge, background: bc.background, color: bc.color }}>{tx.card}</span> })()}
+          {tx.card && (() => { const bc = getCardColor(tx.card); return <span className="badge me-1" style={{ fontSize: sz.badge, background: bc.background, color: bc.color }}>{tx.card}</span> })()}
           <span className={`badge me-1 ${tx.type === 'income' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: sz.badge }}>{tx.type === 'income' ? '수입' : '지출'}</span>
           <span className="text-muted me-1" style={{ fontSize: sz.sep, opacity: 0.35, verticalAlign: 'middle' }}>|</span>
           <span style={{ fontSize: sz.cat }}>{emojiMap[tx.category] ? `${emojiMap[tx.category]} ` : ''}{tx.category}</span>
@@ -23,6 +23,7 @@ export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBal
             {tx.exclude_perf && <span className="badge me-1" style={{ fontSize: sz.badge, background: '#fff0f0', color: '#dc3545', border: '1px solid #fcc' }}>실적제외</span>}
             {tx.exclude_stats && <span className="badge me-1" style={{ fontSize: sz.badge, background: '#f0f4ff', color: '#5a7fd4', border: '1px solid #c5d5f5' }}>통계제외</span>}
             {tx.has_receipt && <span className="badge" onClick={e => { e.stopPropagation(); onPhotoClick?.() }} style={{ fontSize: sz.badge, background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.3)', cursor: 'pointer' }}>📷 사진</span>}
+            {tx.cashback > 0 && <span className="badge" style={{ fontSize: sz.badge, background: '#f0fff4', color: '#198754', border: '1px solid #b7e4c7' }}>캐시백 +{fmt(tx.cashback)}원</span>}
           </div>
         )}
       </div>

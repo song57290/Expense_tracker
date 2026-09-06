@@ -1,8 +1,10 @@
 package com.gaegyebu.app;
 
+import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.Intent;
 import android.appwidget.AppWidgetProvider;
+import android.os.Bundle;
 import android.util.Log;
 
 import java.util.Calendar;
@@ -24,7 +26,38 @@ public abstract class BaseWidget extends AppWidgetProvider {
         }
     }
 
+    // The launcher's actual grid can hand this widget a very different pixel size
+    // than another device's grid does for the "same" declared cell count (screen
+    // size, grid density setting, or a manual resize all matter) — a layout tuned
+    // for one device's grant can visibly overflow/clip on another's. Re-render
+    // whenever the granted size changes so each widget's size-aware scaling
+    // (see grantedWidthDp/grantedHeightDp below) can react to the real value.
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager, int appWidgetId, Bundle newOptions) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions);
+        onUpdate(context, appWidgetManager, new int[]{appWidgetId});
+    }
+
     protected abstract void refreshAll(Context context);
+
+    // dp actually granted to this widget instance right now — NOT the minWidth/
+    // minHeight declared in the widget's appwidget-provider XML, which is only a
+    // hint the launcher is free to undercut (or exceed).
+    protected static int grantedWidthDp(AppWidgetManager manager, int widgetId, int fallbackDp) {
+        Bundle options = manager.getAppWidgetOptions(widgetId);
+        int w = options != null ? options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) : 0;
+        return w > 0 ? w : fallbackDp;
+    }
+
+    protected static int grantedHeightDp(AppWidgetManager manager, int widgetId, int fallbackDp) {
+        Bundle options = manager.getAppWidgetOptions(widgetId);
+        int h = options != null ? options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) : 0;
+        return h > 0 ? h : fallbackDp;
+    }
+
+    protected static int dpToPx(Context context, float dp) {
+        return Math.round(dp * context.getResources().getDisplayMetrics().density);
+    }
 
     // Cached widget data is only ever pushed while the app runs (Home/Calendar/Edit
     // screens call the WidgetData Capacitor plugin). Since the OS still wakes this

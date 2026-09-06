@@ -6,6 +6,7 @@ const TAG_STYLE = {
   new: { bg: '#ede8fb', color: '#8b5cf6', label: '신기능' },
   fix: { bg: '#fce7f3', color: '#be185d', label: '버그수정' },
   imp: { bg: '#e0f2fe', color: '#0369a1', label: '개선' },
+  wip: { bg: '#f1f0f4', color: '#6b7280', label: '진행중' },
 }
 
 const ADMIN_EMAIL = 'song57290@gmail.com'

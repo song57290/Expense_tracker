@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Log;
+import android.util.TypedValue;
 import android.widget.RemoteViews;
 
 public class CompactWidget extends BaseWidget {
@@ -91,6 +92,25 @@ public class CompactWidget extends BaseWidget {
                     R.id.compact_expense,
                     formatUnsigned(expense) + "원"
             );
+
+            // 이 위젯은 4칸(minWidth 250dp)을 선언하지만 그건 힌트일 뿐, 실제로
+            // 받는 픽셀 너비는 기기 화면·홈 화면 그리드 밀도에 따라 그보다 좁을
+            // 수 있다 (예: 폴드처럼 화면이 넓은 기기 대비 일반 플래그십). 좁게
+            // 받은 경우 글씨·여백을 줄여서 겹치거나 잘리지 않도록 한다.
+            int widthDp = grantedWidthDp(manager, widgetId, 250);
+            boolean tight = widthDp < 230;
+
+            views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, tight ? 16f : 20f);
+            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, tight ? 12f : 14f);
+            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, tight ? 12f : 14f);
+            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, tight ? 13f : 16f);
+            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, tight ? 13f : 16f);
+
+            int padH = dpToPx(context, tight ? 6 : 10);
+            int padEnd = dpToPx(context, tight ? 5 : 8);
+            int padV = dpToPx(context, tight ? 5 : 7);
+            views.setViewPadding(R.id.compact_income_card, padH, padV, padEnd, padV);
+            views.setViewPadding(R.id.compact_expense_card, padH, padV, padEnd, padV);
 
             // 위젯 클릭 → 앱 실행
             Intent intent = new Intent(context, MainActivity.class);

@@ -99,6 +99,29 @@ public class DashboardWidget extends BaseWidget {
             }
             views.setTextViewText(R.id.dash_today_cats, catsLabel);
 
+            // 이 위젯은 minWidth 250dp / minHeight 110dp를 선언하지만 실제로
+            // 받는 픽셀 크기는 기기 화면·홈 화면 그리드 밀도에 따라 그보다
+            // 작을 수 있다. 특히 세로 여유가 없으면 맨 아래 "오늘" 영역이
+            // 잘려 보이므로, 좁게/낮게 받은 경우 글씨 크기와 여백을 줄인다.
+            int widthDp = grantedWidthDp(manager, widgetId, 250);
+            int heightDp = grantedHeightDp(manager, widgetId, 110);
+            boolean tight = widthDp < 230 || heightDp < 100;
+
+            views.setTextViewTextSize(R.id.dash_balance, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 22f : 30f);
+            views.setTextViewTextSize(R.id.dash_income, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 11f : 13f);
+            views.setTextViewTextSize(R.id.dash_expense, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 11f : 13f);
+            views.setTextViewTextSize(R.id.dash_percent, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 11f : 13f);
+            views.setTextViewTextSize(R.id.dash_today_cats, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 10f : 12f);
+            views.setTextViewTextSize(R.id.dash_today_amount, android.util.TypedValue.COMPLEX_UNIT_DIP, tight ? 10f : 12f);
+            views.setViewPadding(R.id.widget_dashboard_root,
+                    dpToPx(context, tight ? 8 : 14), dpToPx(context, tight ? 8 : 14),
+                    dpToPx(context, tight ? 8 : 14), dpToPx(context, tight ? 8 : 14));
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                views.setViewLayoutMargin(R.id.dash_kpi_row, RemoteViews.MARGIN_TOP, tight ? 4 : 8, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.dash_separator, RemoteViews.MARGIN_TOP, tight ? 4 : 8, android.util.TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.dash_today_section, RemoteViews.MARGIN_TOP, tight ? 3 : 7, android.util.TypedValue.COMPLEX_UNIT_DIP);
+            }
+
             // 예산 미설정 탭 → 예산 설정 화면으로
             if (budget == 0) {
                 Intent budgetIntent = new Intent(context, MainActivity.class);
