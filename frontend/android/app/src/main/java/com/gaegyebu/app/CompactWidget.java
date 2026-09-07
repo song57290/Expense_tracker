@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
@@ -93,27 +94,36 @@ public class CompactWidget extends BaseWidget {
                     formatUnsigned(expense) + "원"
             );
 
-            // 너비·높이 중 더 좁게 받은 쪽 비율(scale)로 같이 줄인다.
-            int widthDp = grantedWidthDp(manager, widgetId, 250);
-            int heightDp = grantedHeightDp(manager, widgetId, 60);
-            // 런처가 실제로 보고하는 위젯 크기를 화면에서 바로 확인하기 위한 임시 진단 표시
-            views.setTextViewText(R.id.compact_updated, updated + " [" + widthDp + "x" + heightDp + "]");
-            float scale = Math.min(1f, Math.min(widthDp / 250f, heightDp / 60f));
-            
-            // 카드 높이를 넘겨 잘리는 사례가 있어 하한 낮춤
-            scale = Math.max(scale, 0.4f);
+            // 글씨 크기는 위젯에 배정된 dp가 아니라 기기 화면 너비 기준
+            DisplayMetrics dm = context.getResources().getDisplayMetrics();
+            int screenWidthDp = Math.round(dm.widthPixels / dm.density);
+            float scale = screenWidthDp / 360f; // 360dp = 흔한 기준 폰 너비
+            scale = Math.max(0.85f, Math.min(1.15f, scale));
 
-            views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, 20f * scale);
-            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
-            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
-            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
-            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
+            // 세로로 위젯을 작게 리사이즈했을 때만 한 번 더 줄여 잘림 방지
+            // (예: w480 h124 → 1.15가 나와야 하는데 1.0으로 고정됨).
+            // 위쪽은 열어두고 아래쪽(잘림 방지 최소치)만 막음
+            int heightDp = grantedHeightDp(manager, widgetId, 85);
+            float heightGuard = Math.max(0.4f, heightDp / 85f);
+            scale = Math.min(scale, heightGuard);
+
+            views.setTextViewTextSize(R.id.compact_month,         TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
+            views.setTextViewTextSize(R.id.compact_balance_label, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
+            views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
+            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
+            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
+            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
+            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
 
             int padH = dpToPx(context, 10 * scale);
             int padEnd = dpToPx(context, 8 * scale);
-            int padV = dpToPx(context, 7 * scale);
-            views.setViewPadding(R.id.compact_income_card, padH, padV, padEnd, padV);
-            views.setViewPadding(R.id.compact_expense_card, padH, padV, padEnd, padV);
+            // 계산으로 맞춘 값들이 실제 기기에서 계속 안 맞아서, 라벨 글씨를 줄이고
+            // 위아래 패딩 합(6dp)을 여유 있게 잡아뒀다. 합은 그대로 두고 위:아래
+            // 비율만 바꿔(2:4) 안쪽 글씨를 살짝 위로 올린다.
+            int padTop = dpToPx(context, 2 * scale);
+            int padBottom = dpToPx(context, 4 * scale);
+            views.setViewPadding(R.id.compact_income_card, padH, padTop, padEnd, padBottom);
+            views.setViewPadding(R.id.compact_expense_card, padH, padTop, padEnd, padBottom);
 
             // 위젯 클릭 → 앱 실행
             Intent intent = new Intent(context, MainActivity.class);

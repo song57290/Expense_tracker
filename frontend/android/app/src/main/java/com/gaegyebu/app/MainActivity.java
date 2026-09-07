@@ -27,6 +27,9 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_PENDING_APK_FILE = "pending_apk_file_name";
     private static final String PREF_PENDING_APK_URL = "pending_apk_url";
     private static final String PREF_INSTALL_ATTEMPT_VERSION = "install_attempt_version";
+    private static final String PREF_PENDING_APK_STARTED_AT = "pending_apk_started_at";
+    private static final String PREF_PENDING_APK_VERSION = "pending_apk_version";
+    private static final long PENDING_DOWNLOAD_STALE_MS = 10 * 60 * 1000;
     private BroadcastReceiver apkDownloadReceiver;
 
     @Override
@@ -77,18 +80,37 @@ public class MainActivity extends BridgeActivity {
     // 다운로드 전 설치 권한 선확인 — 권한 없으면 완료 브로드캐스트를 기다리지 않고
     // 버튼 클릭 즉시 허용 화면으로 이동, URL은 저장해뒀다가 복귀 후 다운로드 개시
     private void startApkDownload(String url) {
-        Toast.makeText(this, "다운로드 요청 감지됨", Toast.LENGTH_SHORT).show();
+        SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
+        String pendingFile = prefs.getString(PREF_PENDING_APK_FILE, null);
+        String pendingVersion = prefs.getString(PREF_PENDING_APK_VERSION, null);
+        String requestedVersion = versionParam(url);
+        long startedAt = prefs.getLong(PREF_PENDING_APK_STARTED_AT, 0);
+        boolean stale = pendingFile != null && System.currentTimeMillis() - startedAt > PENDING_DOWNLOAD_STALE_MS;
+        // 버전까지 같아야 재사용 — 아니면 예전 버전을 테스트하려고 받아둔(혹은 실패한)
+        // pending 기록이 새 버전 다운로드까지 막아버린다(최대 3분간 아무 반응 없이 멈춤)
+        boolean sameVersion = requestedVersion != null && requestedVersion.equals(pendingVersion);
+        if (pendingFile != null && !stale && sameVersion) {
+            // 이미 받아뒀거나 받는 중인 파일이 있으면 새로 받지 않고 그걸로 이어간다 —
+            // 설정 화면 왕복 후 업데이트를 다시 눌러도 같은 파일을 두 번 받지 않도록
+            Log.d("MainActivity", "startApkDownload: reusing pending download " + pendingFile);
+            installDownloadedApk();
+            return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
             Log.d("MainActivity", "startApkDownload: install-unknown-apps not granted, opening settings first");
-            Toast.makeText(this, "설치 권한 없음, 설정으로 이동", Toast.LENGTH_SHORT).show();
-            getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE).edit()
-                    .putString(PREF_PENDING_APK_URL, url)
-                    .apply();
+            prefs.edit().putString(PREF_PENDING_APK_URL, url).apply();
             openInstallPermissionSettings();
             return;
         }
-        Toast.makeText(this, "설치 권한 있음, 바로 다운로드", Toast.LENGTH_SHORT).show();
         enqueueApkDownload(url);
+    }
+
+    private static String versionParam(String url) {
+        try {
+            return Uri.parse(url).getQueryParameter("v");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // 타임스탬프 붙인 고유 파일명, 공개 Downloads 폴더 저장 — 파일 관리자·다운로드
@@ -105,17 +127,22 @@ public class MainActivity extends BridgeActivity {
             getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE).edit()
                     .putLong(PREF_PENDING_APK_ID, downloadId)
                     .putString(PREF_PENDING_APK_FILE, fileName)
+                    .putString(PREF_PENDING_APK_VERSION, versionParam(url))
+                    .putLong(PREF_PENDING_APK_STARTED_AT, System.currentTimeMillis())
                     .apply();
         } catch (Exception e) {
             Log.e("MainActivity", "Failed to start APK download", e);
         }
     }
 
+    // FLAG_ACTIVITY_NEW_TASK를 주면 안 됨 — MainActivity 자체가 이미 살아있는
+    // Activity라 그 task에 그대로 붙여야 뒤로가기로 자연스럽게 앱으로 복귀하며
+    // onResume()이 정상 호출된다. NEW_TASK를 주면 설정 화면이 별도 task로 떠서
+    // 뒤로가기가 앱이 아니라 홈 화면으로 빠지는 경우가 있었다.
     private void openInstallPermissionSettings() {
         try {
             Intent permIntent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     Uri.parse("package:" + getPackageName()));
-            permIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(permIntent);
         } catch (Exception settingsEx) {
             // 일부 기기는 앱별 설치 권한 화면 미지원, 폴백은 앱 정보 화면
@@ -123,7 +150,6 @@ public class MainActivity extends BridgeActivity {
             Toast.makeText(this, "설정 화면 열기 실패, 앱 정보로 대신 이동: " + settingsEx.getMessage(), Toast.LENGTH_LONG).show();
             Intent fallback = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + getPackageName()));
-            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(fallback);
         }
     }
@@ -154,10 +180,27 @@ public class MainActivity extends BridgeActivity {
             installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             prefs.edit().putInt(PREF_INSTALL_ATTEMPT_VERSION, currentVersionCode()).apply();
             startActivity(installIntent);
-            prefs.edit().remove(PREF_PENDING_APK_ID).remove(PREF_PENDING_APK_FILE).apply();
+            // 여기서 PREF_PENDING_APK_FILE 등을 바로 지우지 않는다 — 설치 인텐트를
+            // 띄웠다고 실제로 설치된 건 아니다(자동 차단 등으로 조용히 막힐 수 있음).
+            // 실제 성공 여부는 checkInstallOutcome()이 다음 onResume에서 버전 코드
+            // 변화로 확인한 뒤에만 지운다. 여기서 무조건 지워버리면, 설치가 막혀서
+            // 사용자가 보안 설정을 켜고 돌아왔을 때 파일은 이미 받아져 있는데도
+            // 기록만 사라져서 업데이트를 다시 누르면 처음부터 다시 받게 된다.
         } catch (Exception e) {
             Log.e("MainActivity", "Failed to launch APK installer", e);
         }
+    }
+
+    private void clearPendingDownload(SharedPreferences prefs) {
+        String fileName = prefs.getString(PREF_PENDING_APK_FILE, null);
+        if (fileName != null) {
+            try {
+                File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName);
+                if (file.exists()) file.delete();
+            } catch (Exception ignored) {}
+        }
+        prefs.edit().remove(PREF_PENDING_APK_ID).remove(PREF_PENDING_APK_FILE)
+                .remove(PREF_PENDING_APK_STARTED_AT).remove(PREF_PENDING_APK_VERSION).apply();
     }
 
     private int currentVersionCode() {
@@ -169,18 +212,24 @@ public class MainActivity extends BridgeActivity {
     }
 
     // 설치 인텐트를 띄운 뒤 앱으로 돌아왔는데 버전이 그대로면 삼성 자동 차단 등
-    // OS 차원의 설치 차단 가능성이 큼 — 보안 설정 화면으로 안내한다
-    private void checkInstallOutcome() {
+    // OS 차원의 설치 차단 가능성이 큼 — 보안 설정 화면으로 안내한다.
+    // true를 반환하면 이번 onResume에서는 추가로 재시도하지 않고, 사용자가 보안
+    // 설정을 만지고 돌아올 때까지 기다린다(바로 재시도하면 같은 이유로 또 막힌다).
+    private boolean checkInstallOutcome() {
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
-        if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return;
+        if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return false;
         int versionBefore = prefs.getInt(PREF_INSTALL_ATTEMPT_VERSION, -1);
         prefs.edit().remove(PREF_INSTALL_ATTEMPT_VERSION).apply();
-        if (currentVersionCode() != versionBefore) return;
-        Toast.makeText(this, "설치가 진행되지 않았어요. 보안 설정에서 '자동 차단'을 확인해주세요", Toast.LENGTH_LONG).show();
+        if (currentVersionCode() != versionBefore) {
+            // 설치 성공 — 더 이상 필요 없는 다운로드 기록·파일 정리
+            clearPendingDownload(prefs);
+            return false;
+        }
+        Toast.makeText(this, "설치가 진행되지 않았어요.\n보안 설정에서 '자동 차단'을 확인해주세요", Toast.LENGTH_LONG).show();
         try {
-            startActivity(new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            startActivity(new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS));
         } catch (Exception ignored) {}
+        return true;
     }
 
     @Override
@@ -204,7 +253,7 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         refreshWidgets();
-        checkInstallOutcome();
+        if (checkInstallOutcome()) return;
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
         String pendingUrl = prefs.getString(PREF_PENDING_APK_URL, null);
         boolean canInstall = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || getPackageManager().canRequestPackageInstalls();

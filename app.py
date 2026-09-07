@@ -285,6 +285,10 @@ with app.app_context():
         'ALTER TABLE card ADD COLUMN point_reset_last_date VARCHAR(10)',
         'ALTER TABLE card ADD COLUMN point_carryover INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE savings ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE savings ADD COLUMN withdraw_transaction_id INTEGER',
+        "ALTER TABLE savings ADD COLUMN weekend_adjust VARCHAR(10) NOT NULL DEFAULT 'next'",
+        'ALTER TABLE savings ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
+        'ALTER TABLE investment ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE investment ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
     ]:
         try:
@@ -324,9 +328,9 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 28
-    _apk_version_name = 'ver 2.52'
-    _apk_build_date = '2026-09-06'
+    _apk_version_code = 53
+    _apk_version_name = 'ver 2.65'
+    _apk_build_date = '2026-09-07'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
                               'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
@@ -569,17 +573,18 @@ def _effective_point_reset_date(year, month, day):
         d -= timedelta(days=1)
     return d
 
-def _effective_withdrawal_date(year, month, day):
-    """The nominal auto-transfer day, pushed forward to the next weekday if it lands
-    on a weekend — the opposite convention from point resets: money being withdrawn
-    (savings auto-transfer, bills, ...) typically goes out on the next business day,
-    not early."""
+def _effective_withdrawal_date(year, month, day, direction='next'):
+    """The nominal auto-transfer day, adjusted off a weekend per the caller's
+    preference — 'next'(default) pushes forward to the next weekday (money being
+    withdrawn typically goes out on the next business day, not early), 'prev' pulls
+    back to the preceding weekday instead, matching the point-reset convention."""
     import calendar as _calendar
     from datetime import date as _date
     day = min(day, _calendar.monthrange(year, month)[1])
     d = _date(year, month, day)
+    step = -1 if direction == 'prev' else 1
     while d.weekday() >= 5:
-        d += timedelta(days=1)
+        d += timedelta(days=step)
     return d
 
 def _apply_point_resets():
@@ -687,6 +692,8 @@ def _savings_stats(s, extra_deposit=0):
             'auto_tx': bool(getattr(s, 'auto_tx', False)),
             'auto_tx_day': getattr(s, 'auto_tx_day', None),
             'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
+            'weekend_adjust': getattr(s, 'weekend_adjust', 'next') or 'next',
+            'exclude_stats': bool(getattr(s, 'exclude_stats', False)),
             'manual_count': manual_count,
             'is_paused': bool(getattr(s, 'is_paused', False)),
         }
@@ -760,6 +767,8 @@ def _savings_stats(s, extra_deposit=0):
         'auto_tx': bool(getattr(s, 'auto_tx', False)),
         'auto_tx_day': getattr(s, 'auto_tx_day', None),
         'auto_tx_card': getattr(s, 'auto_tx_card', '') or '',
+        'weekend_adjust': getattr(s, 'weekend_adjust', 'next') or 'next',
+        'exclude_stats': bool(getattr(s, 'exclude_stats', False)),
         'manual_count': _manual_count,
         'is_paused': bool(getattr(s, 'is_paused', False)),
         'bonus_amount': getattr(s, 'bonus_amount', None) or 0,
@@ -909,6 +918,7 @@ def _investment_stats(inv):
         'memo': inv.memo or '',
         'account_type': getattr(inv, 'account_type', '일반') or '일반',
         'price_updated_at': updated_at,
+        'exclude_stats': bool(getattr(inv, 'exclude_stats', False)),
     }
 
 # ── JSON API routes ───────────────────────────────────────────────────────────
@@ -1034,6 +1044,18 @@ def api_transaction(tx_id):
     uid = session['user_id']
     tx = Transaction.query.filter_by(id=tx_id, user_id=uid).first_or_404()
     if request.method == 'DELETE':
+        if tx.category == '계좌 이체':
+            sibling = Transaction.query.filter(
+                Transaction.user_id == uid, Transaction.id != tx.id,
+                Transaction.category == '계좌 이체', Transaction.description == tx.description,
+                Transaction.amount == tx.amount, Transaction.date == tx.date,
+                Transaction.type != tx.type,
+            ).first()
+            if sibling:
+                db.session.delete(sibling)
+        linked_saving = Savings.query.filter_by(user_id=uid, withdraw_transaction_id=tx.id).first()
+        if linked_saving:
+            db.session.delete(linked_saving)
         db.session.delete(tx)
         db.session.commit()
         return jsonify({'ok': True})
@@ -1455,7 +1477,7 @@ def api_stats():
     import calendar as _cal
     from datetime import date as _date
     all_txs_ever = Transaction.query.filter_by(user_id=uid).all()
-    savings_list = Savings.query.filter_by(user_id=uid).all()
+    savings_list = [s for s in Savings.query.filter_by(user_id=uid).all() if not getattr(s, 'exclude_stats', False)]
 
     tf_raw = request.args.get('trend_from')
     tt_raw = request.args.get('trend_to')
@@ -1482,7 +1504,7 @@ def api_stats():
     for dep in all_savings_deposits:
         extra_deposits_stats[dep.savings_id] = extra_deposits_stats.get(dep.savings_id, 0) + dep.amount
 
-    inv_list = Investment.query.filter_by(user_id=uid).all()
+    inv_list = [i for i in Investment.query.filter_by(user_id=uid).all() if not getattr(i, 'exclude_stats', False)]
     inv_by_type = {}
     for inv in inv_list:
         price = (inv.current_price if inv.current_price is not None else inv.avg_price) or 0
@@ -1665,22 +1687,25 @@ def api_portfolio_pdf():
         extra_deposits_pdf[dep.savings_id] = extra_deposits_pdf.get(dep.savings_id, 0) + dep.amount
     sav_stats = [_savings_stats(s, extra_deposits_pdf.get(s.id, 0)) for s in savings_list]
     investments = [_investment_stats(i) for i in inv_list]
-    inv_total = sum(i['current_value'] for i in investments)
-    inv_gain_total = sum(i['profit'] for i in investments)
-    inv_cost_total = sum(i['purchase_value'] for i in investments)
+    # 통계 제외 항목은 목록에는 그대로 남기고, 합계·순자산 계산에서만 뺀다
+    sav_stats_ct = [s for s in sav_stats if not s.get('exclude_stats')]
+    investments_ct = [i for i in investments if not i.get('exclude_stats')]
+    inv_total = sum(i['current_value'] for i in investments_ct)
+    inv_gain_total = sum(i['profit'] for i in investments_ct)
+    inv_cost_total = sum(i['purchase_value'] for i in investments_ct)
     inv_return_rate = round(inv_gain_total / inv_cost_total * 100, 2) if inv_cost_total else 0
     loan_bal_pdf = sum((c.account_balance or 0) for c in cards if (c.account_balance or 0) < 0)
-    net_worth = loan_bal_pdf + sum(s['current_paid'] for s in sav_stats) + inv_total
+    net_worth = loan_bal_pdf + sum(s['current_paid'] for s in sav_stats_ct) + inv_total
 
-    deposit_total = sum(s['amount'] for s in sav_stats if s['stype'] == '예금')
-    install_total = sum(s['current_paid'] for s in sav_stats if s['stype'] == '적금')
-    sub_total_pdf = sum(s['current_paid'] for s in sav_stats if s['stype'] == '청약')
+    deposit_total = sum(s['amount'] for s in sav_stats_ct if s['stype'] == '예금')
+    install_total = sum(s['current_paid'] for s in sav_stats_ct if s['stype'] == '적금')
+    sub_total_pdf = sum(s['current_paid'] for s in sav_stats_ct if s['stype'] == '청약')
     portfolio = []
     if deposit_total > 0: portfolio.append(('예금', deposit_total))
     if install_total > 0: portfolio.append(('적금', install_total))
     if sub_total_pdf > 0: portfolio.append(('청약', sub_total_pdf))
     inv_by_type = {}
-    for inv in investments:
+    for inv in investments_ct:
         inv_by_type[inv['itype']] = inv_by_type.get(inv['itype'], 0) + inv['current_value']
     for k, v in inv_by_type.items():
         if v > 0: portfolio.append((k, v))
@@ -1702,6 +1727,7 @@ def api_portfolio_pdf():
         sav_bal = 0
         mo_end_date = _date(cy, cm_i, last_day)
         for s in savings_list:
+            if getattr(s, 'exclude_stats', False): continue
             if s.start_date > mo_end: continue
             start_d = datetime.strptime(s.start_date, '%Y-%m-%d').date()
             if s.stype == '청약':
@@ -2235,12 +2261,27 @@ def api_savings():
         nd = data.get('notify_day')
         atd = data.get('auto_tx_day')
         max_pos = db.session.query(db.func.max(Savings.position)).filter_by(user_id=uid).scalar() or 0
+        amount = int(data.get('amount', 0))
+        withdraw_card = data.get('withdraw_card', '') or ''
+        withdraw_tx_id = None
+        if withdraw_card and amount > 0:
+            now_time = datetime.now(_KST).strftime('%H:%M')
+            tx = Transaction(
+                user_id=uid, date=data['start_date'], time=now_time,
+                type='expense', category=data.get('stype', '예금'),
+                description=f"{data['name']} {data.get('stype', '예금')} 가입",
+                amount=amount, card=withdraw_card,
+                exclude_perf=True, exclude_stats=True,
+            )
+            db.session.add(tx)
+            db.session.flush()
+            withdraw_tx_id = tx.id
         db.session.add(Savings(
             user_id=uid,
             stype=data.get('stype', '예금'),
             bank=data.get('bank', ''),
             name=data['name'],
-            amount=int(data.get('amount', 0)),
+            amount=amount,
             interest_rate=float(data.get('interest_rate', 0)),
             interest_type=data.get('interest_type', '단리'),
             tax_type=data.get('tax_type', '일반과세'),
@@ -2250,8 +2291,11 @@ def api_savings():
             auto_tx=bool(data.get('auto_tx', False)),
             auto_tx_day=int(atd) if atd else None,
             auto_tx_card=data.get('auto_tx_card', '') or '',
+            weekend_adjust=data.get('weekend_adjust', 'next') or 'next',
+            exclude_stats=bool(data.get('exclude_stats', False)),
             bonus_amount=int(data['bonus_amount']) if data.get('bonus_amount') else None,
             position=max_pos + 1,
+            withdraw_transaction_id=withdraw_tx_id,
         ))
         db.session.commit()
         return jsonify({'ok': True})
@@ -2279,6 +2323,10 @@ def api_saving(sid):
     uid = session['user_id']
     s = Savings.query.filter_by(id=sid, user_id=uid).first_or_404()
     if request.method == 'DELETE':
+        if s.withdraw_transaction_id:
+            tx = Transaction.query.filter_by(id=s.withdraw_transaction_id, user_id=uid).first()
+            if tx:
+                db.session.delete(tx)
         db.session.delete(s)
         db.session.commit()
         return jsonify({'ok': True})
@@ -2302,6 +2350,10 @@ def api_saving(sid):
         s.auto_tx_day = int(atd) if atd else None
     if 'auto_tx_card' in data:
         s.auto_tx_card = data['auto_tx_card'] or ''
+    if 'weekend_adjust' in data:
+        s.weekend_adjust = data['weekend_adjust'] or 'next'
+    if 'exclude_stats' in data:
+        s.exclude_stats = bool(data['exclude_stats'])
     if 'manual_count' in data:
         mc = data['manual_count']
         s.manual_count = int(mc) if mc is not None else None
@@ -2345,6 +2397,7 @@ def api_investments():
             memo=data.get('memo', ''),
             account_type=data.get('account_type', '일반'),
             position=max_pos + 1,
+            exclude_stats=bool(data.get('exclude_stats', False)),
         )
         db.session.add(inv)
         db.session.commit()
@@ -2384,6 +2437,8 @@ def api_investment(iid):
     inv.memo = data.get('memo', inv.memo)
     if 'account_type' in data:
         inv.account_type = data['account_type']
+    if 'exclude_stats' in data:
+        inv.exclude_stats = bool(data['exclude_stats'])
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -2634,7 +2689,7 @@ def api_pending_registers():
         atd = getattr(s, 'auto_tx_day', None)
         if not atd:
             continue
-        effective = _effective_withdrawal_date(today.year, today.month, atd)
+        effective = _effective_withdrawal_date(today.year, today.month, atd, getattr(s, 'weekend_adjust', 'next') or 'next')
         if today.date() != effective:
             continue
         desc = f'[자동이체] {s.name}'
@@ -2879,11 +2934,14 @@ def api_portfolio():
     _auto_fetch_investment_prices(inv_list)
     budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
     investments = [_investment_stats(i) for i in inv_list]
+    # 통계 제외 항목은 목록에는 그대로 남기고, 합계·순자산 계산에서만 뺀다
+    savings_stats_ct = [s for s in savings_stats if not s.get('exclude_stats')]
+    investments_ct = [i for i in investments if not i.get('exclude_stats')]
     loan_bal_port = sum((c.account_balance or 0) for c in cards if (c.account_balance or 0) < 0)
-    net_worth = loan_bal_port + sum(s['current_paid'] for s in savings_stats) + sum(i['current_value'] for i in investments)
-    inv_total = sum(i['current_value'] for i in investments)
-    inv_gain_total = sum(i['profit'] for i in investments)
-    inv_cost_total = sum(i['purchase_value'] for i in investments)
+    net_worth = loan_bal_port + sum(s['current_paid'] for s in savings_stats_ct) + sum(i['current_value'] for i in investments_ct)
+    inv_total = sum(i['current_value'] for i in investments_ct)
+    inv_gain_total = sum(i['profit'] for i in investments_ct)
+    inv_cost_total = sum(i['purchase_value'] for i in investments_ct)
     inv_return_rate = round(inv_gain_total / inv_cost_total * 100, 2) if inv_cost_total else 0
     return jsonify({
         'user': {'email': user.email, 'nickname': user.nickname},
@@ -2894,12 +2952,12 @@ def api_portfolio():
         'cards': card_stats,
         'savings': savings_stats,
         'savings_summary': {
-            'total_principal': sum(s['amount'] for s in savings_stats),
-            'total_interest': sum(s['interest'] for s in savings_stats),
-            'total_maturity': sum(s['maturity_amount'] for s in savings_stats),
+            'total_principal': sum(s['amount'] for s in savings_stats_ct),
+            'total_interest': sum(s['interest'] for s in savings_stats_ct),
+            'total_maturity': sum(s['maturity_amount'] for s in savings_stats_ct),
         },
         'investments': investments,
-        'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments), 'return_rate': inv_return_rate, 'total_cost': inv_cost_total},
+        'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments_ct), 'return_rate': inv_return_rate, 'total_cost': inv_cost_total},
         'budget': budget.amount if budget else 0,
         'transactions': [{'date': tx.date, 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''}
@@ -3370,14 +3428,30 @@ def import_categorize_confirm():
 
     imported = 0
     salary_sync = None
+    now_time = datetime.now(_KST).strftime('%H:%M')
     for i, row in enumerate(data['rows']):
         cat = request.form.get(f'cat_{i}', '기타').strip() or '기타'
         card_val = request.form.get(f'card_{i}', '').strip() or None
+        transfer_to = request.form.get(f'transfer_to_{i}', '').strip() or None
+        is_transfer = cat == '계좌 이체' and transfer_to
+        desc = f'{card_val} → {transfer_to}' if is_transfer else row['description']
         db.session.add(Transaction(
             date=row['date'], type=row['type'], category=cat,
-            description=row['description'], amount=row['amount'],
+            description=desc, amount=row['amount'],
             card=card_val, user_id=uid,
+            exclude_perf=bool(is_transfer), exclude_stats=bool(is_transfer),
+            time=now_time,
+            cashback=_compute_cashback(uid, card_val, row['type'], row['amount']),
         ))
+        if is_transfer:
+            db.session.add(Transaction(
+                date=row['date'], type='income', category='계좌 이체',
+                description=desc, amount=row['amount'],
+                card=transfer_to, user_id=uid,
+                exclude_perf=True, exclude_stats=True,
+                time=now_time,
+                cashback=_compute_cashback(uid, transfer_to, 'income', row['amount']),
+            ))
         if cat == '월급' and row['type'] == 'income':
             salary_sync = row['amount']
         imported += 1
@@ -3518,13 +3592,15 @@ def import_text_confirm():
     if os.path.exists(path):
         os.remove(path)
 
-    dates  = request.form.getlist('date')
-    types  = request.form.getlist('type')
-    descs  = request.form.getlist('description')
-    amts   = request.form.getlist('amount')
-    cats   = request.form.getlist('category')
-    cardss = request.form.getlist('card')
-    checks = set(request.form.getlist('include'))
+    dates    = request.form.getlist('date')
+    types    = request.form.getlist('type')
+    descs    = request.form.getlist('description')
+    amts     = request.form.getlist('amount')
+    cats     = request.form.getlist('category')
+    cardss   = request.form.getlist('card')
+    transfer_tos = request.form.getlist('transfer_to')
+    checks   = set(request.form.getlist('include'))
+    now_time = datetime.now(_KST).strftime('%H:%M')
 
     imported = 0
     for i in range(len(dates)):
@@ -3532,15 +3608,29 @@ def import_text_confirm():
             continue
         try:
             amount = int(str(amts[i]).replace(',', ''))
+            card = cardss[i] if cardss[i] else None
+            is_transfer = bool(cats[i] == '계좌 이체' and transfer_tos[i])
             db.session.add(Transaction(
                 date=dates[i], type=types[i], category=cats[i],
                 description=descs[i], amount=amount,
-                card=cardss[i] if cardss[i] else None,
-                user_id=uid,
+                card=card, user_id=uid,
+                exclude_perf=is_transfer, exclude_stats=is_transfer,
+                time=now_time,
+                cashback=_compute_cashback(uid, card, types[i], amount),
             ))
+            if is_transfer:
+                to_card = transfer_tos[i]
+                db.session.add(Transaction(
+                    date=dates[i], type='income', category='계좌 이체',
+                    description=descs[i], amount=amount,
+                    card=to_card, user_id=uid,
+                    exclude_perf=True, exclude_stats=True,
+                    time=now_time,
+                    cashback=_compute_cashback(uid, to_card, 'income', amount),
+                ))
             imported += 1
         except Exception:
-            pass
+            db.session.rollback()
 
     db.session.commit()
     return redirect(f'/?imported={imported}')
