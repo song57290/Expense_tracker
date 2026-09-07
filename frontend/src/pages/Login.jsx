@@ -7,18 +7,30 @@ export default function Login({ onLogin }) {
   const [nickname, setNickname] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailError, setEmailError] = useState(false)
+  const [passwordError, setPasswordError] = useState(false)
 
   // 비밀번호 찾기
   const [resetStep, setResetStep] = useState(1)
   const [resetEmail, setResetEmail] = useState('')
   const [resetCodeInput, setResetCodeInput] = useState('')
   const [resetPassword, setResetPassword] = useState('')
+  const [resetEmailError, setResetEmailError] = useState(false)
+  const [resetCodeError, setResetCodeError] = useState(false)
+  const [resetPasswordError, setResetPasswordError] = useState(false)
 
-  function switchTab(t) { setTab(t); setError(''); setResetStep(1); setResetEmail(''); setResetCodeInput(''); setResetPassword('') }
+  function switchTab(t) {
+    setTab(t); setError(''); setResetStep(1); setResetEmail(''); setResetCodeInput(''); setResetPassword('')
+    setEmailError(false); setPasswordError(false); setResetEmailError(false); setResetCodeError(false); setResetPasswordError(false)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    const emailOk = email.trim() !== ''
+    const passwordOk = password !== ''
+    setEmailError(!emailOk); setPasswordError(!passwordOk)
+    if (!emailOk || !passwordOk) return
     setLoading(true)
     try {
       const url = tab === 'login' ? '/api/login' : '/api/register'
@@ -43,6 +55,9 @@ export default function Login({ onLogin }) {
   async function handleResetRequest(e) {
     e.preventDefault()
     setError('')
+    const emailOk = resetEmail.trim() !== ''
+    setResetEmailError(!emailOk)
+    if (!emailOk) return
     setLoading(true)
     try {
       const r = await fetch('/api/reset-request', {
@@ -63,6 +78,10 @@ export default function Login({ onLogin }) {
   async function handleResetConfirm(e) {
     e.preventDefault()
     setError('')
+    const codeOk = resetCodeInput.trim() !== ''
+    const passwordOk = resetPassword !== ''
+    setResetCodeError(!codeOk); setResetPasswordError(!passwordOk)
+    if (!codeOk || !passwordOk) return
     setLoading(true)
     try {
       const r = await fetch('/api/reset-confirm', {
@@ -128,13 +147,17 @@ export default function Login({ onLogin }) {
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="example@email.com"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+              <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(false) }} placeholder="example@email.com"
+                style={{ ...inputStyle, border: emailError ? '1.5px solid #dc3545' : inputStyle.border }}
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = emailError ? '#dc3545' : '#e8e8e8'} />
+              {emailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>이메일을 입력해 주세요</div>}
             </div>
             <div style={{ marginBottom: 8 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>비밀번호 {tab === 'register' && <span style={{ color: 'var(--text-muted)' }}>(6자 이상)</span>}</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+              <input type="password" value={password} onChange={e => { setPassword(e.target.value); setPasswordError(false) }} placeholder="••••••••"
+                style={{ ...inputStyle, border: passwordError ? '1.5px solid #dc3545' : inputStyle.border }}
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = passwordError ? '#dc3545' : '#e8e8e8'} />
+              {passwordError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>비밀번호를 입력해 주세요</div>}
             </div>
             {tab === 'register' && (
               <div style={{ marginBottom: 8 }}>
@@ -164,8 +187,10 @@ export default function Login({ onLogin }) {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>가입한 이메일로 인증번호를 발송합니다.</p>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
-              <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} required placeholder="example@email.com"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+              <input type="email" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetEmailError(false) }} placeholder="example@email.com"
+                style={{ ...inputStyle, border: resetEmailError ? '1.5px solid #dc3545' : inputStyle.border }}
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = resetEmailError ? '#dc3545' : '#e8e8e8'} />
+              {resetEmailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>이메일을 입력해 주세요</div>}
             </div>
             <button type="submit" disabled={loading}
               style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
@@ -183,14 +208,17 @@ export default function Login({ onLogin }) {
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>인증번호 6자리</label>
-              <input type="text" inputMode="numeric" value={resetCodeInput} onChange={e => setResetCodeInput(e.target.value)} required placeholder="000000" maxLength={6}
-                style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.1rem' }}
-                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} autoFocus />
+              <input type="text" inputMode="numeric" value={resetCodeInput} onChange={e => { setResetCodeInput(e.target.value); setResetCodeError(false) }} placeholder="000000" maxLength={6}
+                style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.1rem', border: resetCodeError ? '1.5px solid #dc3545' : inputStyle.border }}
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = resetCodeError ? '#dc3545' : '#e8e8e8'} autoFocus />
+              {resetCodeError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>인증번호를 입력해 주세요</div>}
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>새 비밀번호 (6자 이상)</label>
-              <input type="password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} required placeholder="••••••••"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = '#e8e8e8'} />
+              <input type="password" value={resetPassword} onChange={e => { setResetPassword(e.target.value); setResetPasswordError(false) }} placeholder="••••••••"
+                style={{ ...inputStyle, border: resetPasswordError ? '1.5px solid #dc3545' : inputStyle.border }}
+                onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = resetPasswordError ? '#dc3545' : '#e8e8e8'} />
+              {resetPasswordError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>새 비밀번호를 입력해 주세요</div>}
             </div>
             <button type="submit" disabled={loading}
               style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
