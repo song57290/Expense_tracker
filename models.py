@@ -90,10 +90,17 @@ class Savings(db.Model):
     auto_tx = db.Column(db.Boolean, nullable=False, default=False)
     auto_tx_day = db.Column(db.Integer, nullable=True)
     auto_tx_card = db.Column(db.String(50), nullable=True, default='')
+    # 자동이체일이 주말이면 다음/이전 영업일 중 어느 쪽으로 조정할지 — 'next'(기본) 또는 'prev'
+    weekend_adjust = db.Column(db.String(10), nullable=False, default='next')
+    # 통계 탭 자산 구성·자산 추이 등 집계에서 이 항목을 제외할지
+    exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     manual_count = db.Column(db.Integer, nullable=True)
     is_paused = db.Column(db.Boolean, nullable=False, default=False)
     bonus_amount = db.Column(db.Integer, nullable=True)
     position = db.Column(db.Integer, nullable=False, default=0)
+    # 가입 시 초기 금액을 특정 계좌에서 가져온 경우, 그 계좌에서 자동 생성된
+    # 출금 거래의 id — 이 예·적금이 삭제되면 그 거래도 함께 삭제하기 위함
+    withdraw_transaction_id = db.Column(db.Integer, nullable=True)
 
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -169,6 +176,8 @@ class Investment(db.Model):
     price_updated_at = db.Column(db.DateTime, nullable=True)
     account_type = db.Column(db.String(20), nullable=False, default='일반')
     position = db.Column(db.Integer, nullable=False, default=0)
+    # 통계 탭 자산 구성·자산 추이 등 집계에서 이 항목을 제외할지
+    exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
 
 class Routine(db.Model):
     id = db.Column(db.Integer, primary_key=True)

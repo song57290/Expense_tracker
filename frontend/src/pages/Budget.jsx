@@ -42,18 +42,26 @@ function useDragScrollX() {
     // even once the cursor leaves its bounds mid-drag, so no window-level
     // listeners (and their leak-on-remount risk) are needed.
     el.style.cursor = 'grab'
+    let pointerId = null
     function onPointerDown(e) {
       if (e.pointerType !== 'mouse') return
       dragging = true; moved = false
       startX = e.clientX
       startScroll = el.scrollLeft
-      el.setPointerCapture(e.pointerId)
-      el.style.cursor = 'grabbing'
+      pointerId = e.pointerId
     }
     function onPointerMove(e) {
       if (!dragging || e.pointerType !== 'mouse') return
       const delta = e.clientX - startX
-      if (Math.abs(delta) > 5) moved = true
+      if (!moved) {
+        if (Math.abs(delta) <= 5) return
+        // 실제로 드래그가 시작된 뒤에만 캡처한다 — pointerdown 즉시 캡처하면
+        // 드래그 없이 그냥 클릭만 해도(예: 은행 버튼) click의 target이 이
+        // 컨테이너로 강제로 바뀌어버려 안쪽 버튼의 onClick이 아예 안 잡혔다.
+        moved = true
+        el.style.cursor = 'grabbing'
+        try { el.setPointerCapture(pointerId) } catch {}
+      }
       el.scrollLeft = startScroll - delta
     }
     function onPointerUp(e) {
@@ -96,7 +104,53 @@ function SortableSection({ items, sortable, onReorder, renderItem }) {
     useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
   )
+  // dnd-kit 내장 autoScroll이 가속을 아무리 올려도 체감상 느려서, 화면 끝 근처에서
+  // 매 프레임 window를 큰 폭으로 스크롤하는 방식으로 교체 — 포인터 위치는 window
+  // touchmove/pointermove로 직접 추적하면 모바일에서 dnd-kit 센서가 이벤트를 먼저
+  // 채가 안 잡히는 경우가 있어, 대신 dnd-kit 자신이 매 프레임 갱신하는
+  // active.rect.current.translated(마우스·터치 공통)를 그대로 사용한다.
+  const pointerYRef = useRef(null)
+  const rafRef = useRef(null)
+  const lastTickRef = useRef(null)
+  // 부트스트랩 reboot.css가 :root에 scroll-behavior:smooth를 걸어놔서,
+  // behavior를 명시하지 않은 scrollBy는 매 프레임 요청과 무관하게 브라우저의
+  // 스무스 스크롤 easing에 의해 실제 이동량이 크게 줄어든다(직접 측정 결과
+  // 요청량의 20% 안팎만 반영됨). behavior:'instant'로 강제해 우회한다.
+  function autoScrollTick(now) {
+    const y = pointerYRef.current
+    const dt = lastTickRef.current ? Math.min((now - lastTickRef.current) / 1000, 0.1) : 0
+    if (y !== null && dt > 0) {
+      const vh = window.innerHeight
+      const edgeZone = 120
+      const maxSpeed = 900 // px/sec at full intensity
+      if (y > vh - edgeZone) {
+        const intensity = Math.min(1, (y - (vh - edgeZone)) / edgeZone)
+        window.scrollBy({ top: maxSpeed * intensity * dt, behavior: 'instant' })
+      } else if (y < edgeZone) {
+        const intensity = Math.min(1, (edgeZone - y) / edgeZone)
+        window.scrollBy({ top: -maxSpeed * intensity * dt, behavior: 'instant' })
+      }
+    }
+    lastTickRef.current = now
+    rafRef.current = requestAnimationFrame(autoScrollTick)
+  }
+  function handleDragMove(e) {
+    const rect = e.active?.rect?.current?.translated
+    if (rect) pointerYRef.current = (rect.top + rect.bottom) / 2
+  }
+  function startAutoScroll() {
+    pointerYRef.current = null
+    lastTickRef.current = null
+    rafRef.current = requestAnimationFrame(autoScrollTick)
+  }
+  function stopAutoScroll() {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    pointerYRef.current = null
+    lastTickRef.current = null
+  }
   async function handleDragEnd(e) {
+    stopAutoScroll()
     const { active, over } = e
     if (!over || active.id === over.id) return
     const oldIdx = items.findIndex(x => x.id === active.id)
@@ -105,7 +159,8 @@ function SortableSection({ items, sortable, onReorder, renderItem }) {
   }
   if (!sortable) return <>{items.map(item => <div key={item.id}>{renderItem(item, null)}</div>)}</>
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter}
+      autoScroll={false} onDragStart={startAutoScroll} onDragMove={handleDragMove} onDragEnd={handleDragEnd} onDragCancel={stopAutoScroll}>
       <SortableContext items={items.map(x => x.id)} strategy={verticalListSortingStrategy}>
         {items.map(item => (
           <SortableWrap key={item.id} id={item.id}>{dnd => renderItem(item, dnd)}</SortableWrap>
@@ -957,14 +1012,21 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   const [startDate, setStartDate] = useState(today())
   const [endDate, setEndDate] = useState('')
   const [notifyDay, setNotifyDay] = useState('')
+  const [nameError, setNameError] = useState(false)
+  const [amountError, setAmountError] = useState(false)
+  const [endDateError, setEndDateError] = useState(false)
   const [autoTx, setAutoTx] = useState(false)
   const [autoTxDay, setAutoTxDay] = useState('')
   const [autoTxCard, setAutoTxCard] = useState('')
+  const [weekendAdjust, setWeekendAdjust] = useState('next')
+  const [excludeStats, setExcludeStats] = useState(false)
   const [bonusAmount, setBonusAmount] = useState('')
+  const [withdrawCard, setWithdrawCard] = useState('')
   const [cards, setCards] = useState([])
 
   useEffect(() => {
     if (!open) return
+    setNameError(false); setAmountError(false); setEndDateError(false)
     api.get('/api/budget').then(d => setCards(d.card_stats || [])).catch(() => {})
     if (editItem) {
       setStype(editItem.stype || '예금')
@@ -981,9 +1043,11 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setAutoTx(!!editItem.auto_tx)
       setAutoTxDay(editItem.auto_tx_day ? String(editItem.auto_tx_day) : '')
       setAutoTxCard(editItem.auto_tx_card || '')
+      setWeekendAdjust(editItem.weekend_adjust || 'next')
+      setExcludeStats(!!editItem.exclude_stats)
       setBonusAmount(editItem.bonus_amount ? String(editItem.bonus_amount) : '')
     } else {
-      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard(''); setBonusAmount('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard(''); setWeekendAdjust('next'); setExcludeStats(false); setBonusAmount(''); setWithdrawCard('')
     }
   }, [open, editItem])
 
@@ -992,6 +1056,13 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   async function handleSubmit(e) {
     e.preventDefault()
     const isCheongYak = stype === '청약'
+    const nameOk = !!name.trim()
+    const amountOk = (parseInt(amount.replace(/,/g, '')) || 0) > 0
+    const endDateOk = isCheongYak || !!endDate
+    setNameError(!nameOk)
+    setAmountError(!amountOk)
+    setEndDateError(!endDateOk)
+    if (!nameOk || !amountOk || !endDateOk) return
     const payload = {
       stype,
       interest_type: itype,
@@ -1006,10 +1077,12 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       auto_tx: (isCheongYak || stype === '적금') ? autoTx : false,
       auto_tx_day: autoTx && autoTxDay ? parseInt(autoTxDay) : null,
       auto_tx_card: autoTx ? autoTxCard : '',
+      weekend_adjust: weekendAdjust,
+      exclude_stats: excludeStats,
       bonus_amount: stype === '적금' && bonusAmount ? parseInt(bonusAmount.replace(/,/g, '')) : null,
     }
     if (editItem) await api.put(`/api/savings/${editItem.id}`, payload)
-    else await api.post('/api/savings', payload)
+    else await api.post('/api/savings', { ...payload, withdraw_card: withdrawCard })
     onSaved(); onClose()
   }
 
@@ -1045,13 +1118,30 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 <BankBtn key={bname} bankName={bname} logo={logo} label={label} selected={selected} onPick={pickBank} />
               ))}
             </div>
-            <input type="text" className="form-control mb-2" placeholder="이름 (위 선택 시 자동 입력, 수정 가능)"
-              value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
-            <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={stype === '예금' ? '예치금액' : stype === '청약' ? '월 납입액 (2~50만원)' : '월 납입액'} inputMode="numeric"
-                value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '') }} required style={{ borderRadius: 10, paddingRight: 36 }} />
+            <input type="text" className={`form-control${nameError ? ' field-invalid' : ''} mb-1`} placeholder="이름 (위 선택 시 자동 입력, 수정 가능)"
+              value={name} onChange={e => { setName(e.target.value); setNameError(false) }} style={{ borderRadius: 10 }} />
+            {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>이름을 입력해 주세요</div>}
+            <div className="mb-1" style={{ position: 'relative' }}>
+              <input type="text" className={`form-control${amountError ? ' field-invalid' : ''}`} placeholder={stype === '예금' ? '예치금액' : stype === '청약' ? '월 납입액 (2~50만원)' : '월 납입액'} inputMode="numeric"
+                value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''); setAmountError(false) }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
+            {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>금액을 입력해 주세요</div>}
+            {!editItem && (
+              <div className="mb-2">
+                <CardPicker
+                  cards={cards}
+                  value={withdrawCard}
+                  onChange={setWithdrawCard}
+                  placeholder="출금 계좌 (선택사항)"
+                />
+                {withdrawCard && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, paddingLeft: 2 }}>
+                    저장 시 {withdrawCard}에서 {amount || '0'}원이 자동으로 차감됩니다
+                  </div>
+                )}
+              </div>
+            )}
             <div className="d-flex gap-2 mb-2">
               <div style={{ position: 'relative', flex: 1 }}>
                 <input type="text" inputMode="decimal" className="form-control" placeholder="연 이율 (없으면 0)"
@@ -1103,7 +1193,8 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               {stype !== '청약' && (
                 <div className="flex-fill">
                   <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>만기일</label>
-                  <DatePickerSheet value={endDate} onChange={setEndDate} />
+                  <DatePickerSheet value={endDate} onChange={d => { setEndDate(d); setEndDateError(false) }} error={endDateError} />
+                  {endDateError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>만기일을 선택해 주세요</div>}
                 </div>
               )}
             </div>
@@ -1153,6 +1244,17 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                         style={{ borderRadius: 10, paddingRight: 36, fontSize: '0.88rem' }} />
                       <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>일</span>
                     </div>
+                    <div>
+                      <label className="text-muted mb-1 d-block" style={{ fontSize: '0.72rem' }}>이체일이 주말이면</label>
+                      <div className="d-flex gap-2">
+                        {[['next', '다음 영업일'], ['prev', '이전 영업일']].map(([v, label]) => (
+                          <button key={v} type="button" onClick={() => setWeekendAdjust(v)}
+                            style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: `1.5px solid ${weekendAdjust === v ? '#b088f9' : 'var(--border-light)'}`, background: weekendAdjust === v ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: weekendAdjust === v ? '#b088f9' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <CardPicker
                       cards={cards}
                       value={autoTxCard}
@@ -1163,6 +1265,15 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 )}
               </div>
             )}
+            <div className="mb-3">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setExcludeStats(v => !v)}>
+                <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
+                <div className="ios-toggle">
+                  <div className={`ios-track${excludeStats ? ' on' : ''}`} />
+                  <div className={`ios-dot${excludeStats ? ' on' : ''}`} />
+                </div>
+              </div>
+            </div>
           </form>
         </div>
         <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
@@ -1335,9 +1446,14 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const [exchangeRate, setExchangeRate] = useState(null)
   const [usdAvgPrice, setUsdAvgPrice] = useState('')
   const [usdCurrentPrice, setUsdCurrentPrice] = useState('')
+  const [nameError, setNameError] = useState(false)
+  const [quantityError, setQuantityError] = useState(false)
+  const [avgPriceError, setAvgPriceError] = useState(false)
+  const [excludeStats, setExcludeStats] = useState(false)
 
   useEffect(() => {
     if (!open) return
+    setNameError(false); setQuantityError(false); setAvgPriceError(false)
     if (editItem) {
       setItype(editItem.itype || '국내주식')
       setAccountType(editItem.account_type || '일반')
@@ -1347,8 +1463,9 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
       setAvgPrice(editItem.avg_price ? Math.round(editItem.avg_price).toLocaleString('ko-KR') : '')
       setCurrentPrice(editItem.current_price != null ? Math.round(editItem.current_price).toLocaleString('ko-KR') : '')
       setMemo(editItem.memo || '')
+      setExcludeStats(!!editItem.exclude_stats)
     } else {
-      setItype('국내주식'); setAccountType('일반'); setName(''); setTicker(''); setQuantity(''); setAvgPrice(''); setCurrentPrice(''); setMemo('')
+      setItype('국내주식'); setAccountType('일반'); setName(''); setTicker(''); setQuantity(''); setAvgPrice(''); setCurrentPrice(''); setMemo(''); setExcludeStats(false)
     }
     setUsdAvgPrice(''); setUsdCurrentPrice(''); setExchangeRate(null)
     setFetchResult(null)
@@ -1407,6 +1524,14 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   async function handleSubmit(e) {
     e.preventDefault()
     const isUsd = itype === '해외주식'
+    const nameOk = !!name.trim()
+    const quantityOk = (parseFloat(quantity) || 0) > 0
+    const avgPriceRaw = isUsd ? usdAvgPrice : avgPrice.replace(/,/g, '')
+    const avgPriceOk = (parseFloat(avgPriceRaw) || 0) > 0
+    setNameError(!nameOk)
+    setQuantityError(!quantityOk)
+    setAvgPriceError(!avgPriceOk)
+    if (!nameOk || !quantityOk || !avgPriceOk) return
     const payload = {
       itype, account_type: accountType, name: name.trim(), ticker: ticker.trim(),
       quantity: parseFloat(quantity) || 0,
@@ -1416,6 +1541,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
         : (currentPrice ? parseFloat(currentPrice.replace(/,/g, '')) : null),
       exchange_rate: isUsd ? (exchangeRate || null) : null,
       memo: memo.trim(),
+      exclude_stats: excludeStats,
     }
     if (editItem) await api.put(`/api/investments/${editItem.id}`, payload)
     else await api.post('/api/investments', payload)
@@ -1457,7 +1583,9 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
               ))}
             </div>
 
-            <input type="text" placeholder="종목명" value={name} onChange={e => setName(e.target.value)} required style={{ ...inp, marginBottom: 10 }} />
+            <input type="text" placeholder="종목명" value={name} onChange={e => { setName(e.target.value); setNameError(false) }}
+              style={{ ...inp, marginBottom: nameError ? 4 : 10, border: nameError ? '1.5px solid #dc3545' : inp.border }} />
+            {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>종목명을 입력해 주세요</div>}
 
             {/* 티커 + 현재가 불러오기 */}
             <div className="d-flex gap-2 mb-1">
@@ -1474,11 +1602,12 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
               </div>
             )}
 
-            <div style={{ position: 'relative', marginBottom: 10 }}>
-              <input type="text" placeholder="수량 (소수 가능, 예: 0.5)" value={quantity} onChange={e => setQuantity(e.target.value)} required
-                inputMode="decimal" style={{ ...inp, paddingRight: ITYPE_UNITS[itype] ? 36 : undefined }} />
+            <div style={{ position: 'relative', marginBottom: quantityError ? 4 : 10 }}>
+              <input type="text" placeholder="수량 (소수 가능, 예: 0.5)" value={quantity} onChange={e => { setQuantity(e.target.value); setQuantityError(false) }}
+                inputMode="decimal" style={{ ...inp, paddingRight: ITYPE_UNITS[itype] ? 36 : undefined, border: quantityError ? '1.5px solid #dc3545' : inp.border }} />
               {ITYPE_UNITS[itype] && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>{ITYPE_UNITS[itype]}</span>}
             </div>
+            {quantityError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>수량을 입력해 주세요</div>}
             {itype === '해외주식' ? (<>
               <div style={{ fontSize: '0.72rem', color: '#b08040', background: '#fffbf0', border: '1px solid #ffe8a0', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>
                 ⚠️ 환율은 실시간이 아닐 수 있어 실제 금액과 차이가 있을 수 있습니다{exchangeRate ? ` (현재 적용 환율: $1 ≈ ${exchangeRate.toLocaleString()}원)` : ''}
@@ -1489,13 +1618,15 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                     onChange={e => {
                       const val = e.target.value.replace(/[^0-9.]/g, '')
                       setUsdAvgPrice(val)
+                      setAvgPriceError(false)
                       const krw = exchangeRate ? Math.round((parseFloat(val) || 0) * exchangeRate) : 0
                       setAvgPrice(krw ? krw.toLocaleString('ko-KR') : '')
                     }}
-                    required style={{ ...inp, paddingRight: 46 }} />
+                    style={{ ...inp, paddingRight: 46, border: avgPriceError ? '1.5px solid #dc3545' : inp.border }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>달러</span>
                 </div>
                 {exchangeRate && usdAvgPrice && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, paddingLeft: 4 }}>({Math.round((parseFloat(usdAvgPrice) || 0) * exchangeRate).toLocaleString()}원)</div>}
+                {avgPriceError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>평균 매수가를 입력해 주세요</div>}
               </div>
               <div style={{ marginBottom: 10 }}>
                 <div style={{ position: 'relative' }}>
@@ -1512,12 +1643,13 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                 {exchangeRate && usdCurrentPrice && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, paddingLeft: 4 }}>({Math.round((parseFloat(usdCurrentPrice) || 0) * exchangeRate).toLocaleString()}원)</div>}
               </div>
             </>) : (<>
-              <div style={{ position: 'relative', marginBottom: 10 }}>
+              <div style={{ position: 'relative', marginBottom: avgPriceError ? 4 : 10 }}>
                 <input type="text" placeholder="평균 매수가" value={avgPrice} inputMode="numeric"
-                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setAvgPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
-                  required style={{ ...inp, paddingRight: 36 }} />
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setAvgPrice(r ? parseInt(r).toLocaleString('ko-KR') : ''); setAvgPriceError(false) }}
+                  style={{ ...inp, paddingRight: 36, border: avgPriceError ? '1.5px solid #dc3545' : inp.border }} />
                 <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
               </div>
+              {avgPriceError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>평균 매수가를 입력해 주세요</div>}
               <div style={{ position: 'relative', marginBottom: 10 }}>
                 <input type="text" placeholder="현재가 (선택사항)" value={currentPrice} inputMode="numeric"
                   onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setCurrentPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
@@ -1527,6 +1659,13 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
             </>)}
             <input type="text" placeholder="메모 (선택)" value={memo} onChange={e => setMemo(e.target.value)}
               style={{ ...inp, marginBottom: 10 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setExcludeStats(v => !v)}>
+              <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>📊 통계에서 제외</label>
+              <div className="ios-toggle">
+                <div className={`ios-track${excludeStats ? ' on' : ''}`} />
+                <div className={`ios-dot${excludeStats ? ' on' : ''}`} />
+              </div>
+            </div>
           </form>
         </div>
         <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>

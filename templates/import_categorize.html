@@ -143,6 +143,22 @@
     font-size: 0.58rem; font-weight: 700; color: white; flex-shrink: 0;
   }
 
+  .transfer-box {
+    background: var(--bg-accent);
+    border-radius: 10px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .transfer-box-header { display: flex; align-items: center; gap: 4px; }
+  .transfer-box-header span { flex: 1; text-align: center; font-size: 0.66rem; color: var(--text-muted); font-weight: 600; }
+  .transfer-box-header i { color: #b088f9; font-size: 0.9rem; flex-shrink: 0; }
+  .transfer-box-btns { display: flex; gap: 6px; }
+  .transfer-box-btns .picker-btn { flex: 1; padding: 6px 8px; font-size: 0.78rem; }
+  .picker-btn.field-invalid { border-color: #dc3545 !important; }
+  .field-error-text { color: #dc3545; font-size: 0.74rem; margin-top: 4px; }
+
   .sticky-footer {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -335,6 +351,7 @@
       <input type="hidden" name="cat_{{ i }}" id="cat-val-{{ i }}" value="{{ cat_default }}">
       {% if cards %}
       <input type="hidden" name="card_{{ i }}" id="card-val-{{ i }}" value="">
+      <input type="hidden" name="transfer_to_{{ i }}" id="transfer-to-val-{{ i }}" value="">
       {% endif %}
 
       <div class="picker-row">
@@ -353,14 +370,38 @@
           <i class="bi bi-chevron-down"></i>
         </button>
         {% if cards %}
-        <button type="button" class="picker-btn" id="card-btn-{{ i }}"
-                onclick="openCardPicker({{ i }})">
-          <span class="pb-icon-wrap" id="card-icon-{{ i }}"></span>
-          <span class="pb-text muted" id="card-label-{{ i }}">카드/계좌</span>
-          <i class="bi bi-chevron-down"></i>
-        </button>
+        <div>
+          <button type="button" class="picker-btn" id="card-btn-{{ i }}"
+                  onclick="openCardPicker({{ i }})">
+            <span class="pb-icon-wrap" id="card-icon-{{ i }}"></span>
+            <span class="pb-text muted" id="card-label-{{ i }}">카드/계좌</span>
+            <i class="bi bi-chevron-down"></i>
+          </button>
+          <div class="transfer-box" id="transfer-box-{{ i }}" style="display:none;">
+            <div class="transfer-box-header">
+              <span>📤 보내는</span>
+              <i class="bi bi-arrow-right"></i>
+              <span>📥 받는</span>
+            </div>
+            <div class="transfer-box-btns">
+              <button type="button" class="picker-btn" id="transfer-from-btn-{{ i }}"
+                      onclick="openTransferFromPicker({{ i }})">
+                <span class="pb-icon-wrap" id="transfer-from-icon-{{ i }}"></span>
+                <span class="pb-text muted" id="transfer-from-label-{{ i }}">선택</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <button type="button" class="picker-btn" id="transfer-to-btn-{{ i }}"
+                      onclick="openTransferToPicker({{ i }})">
+                <span class="pb-icon-wrap" id="transfer-to-icon-{{ i }}"></span>
+                <span class="pb-text muted" id="transfer-to-label-{{ i }}">선택</span>
+                <i class="bi bi-chevron-down"></i>
+              </button>
+            </div>
+          </div>
+        </div>
         {% endif %}
       </div>
+      {% if cards %}<div class="field-error-text" id="row-err-{{ i }}" style="display:none;"></div>{% endif %}
     </div>
     {% endfor %}
   </form>
@@ -440,6 +481,64 @@ function getBankColor(n) {
   for (var i=0;i<BANK_COLORS.length;i++) if (n.indexOf(BANK_COLORS[i][0])>=0) return BANK_COLORS[i][1];
   return '#6c757d';
 }
+var IS_TRANSFER_CAT = '계좌 이체';
+
+function setTransferMode(idx, isTransfer) {
+  var cardBtn = document.getElementById('card-btn-' + idx);
+  var box = document.getElementById('transfer-box-' + idx);
+  if (!cardBtn || !box) return;
+  cardBtn.style.display = isTransfer ? 'none' : '';
+  box.style.display = isTransfer ? 'flex' : 'none';
+  if (isTransfer) {
+    updateTransferAccBtn('transfer-from', idx, document.getElementById('card-val-' + idx).value);
+  } else {
+    document.getElementById('card-val-' + idx).value = '';
+    document.getElementById('transfer-to-val-' + idx).value = '';
+    updateCardBtn(idx, '');
+    updateTransferAccBtn('transfer-from', idx, '');
+    updateTransferAccBtn('transfer-to', idx, '');
+  }
+}
+
+function updateTransferAccBtn(prefix, idx, value) {
+  var iconEl = document.getElementById(prefix + '-icon-' + idx);
+  var lblEl = document.getElementById(prefix + '-label-' + idx);
+  if (!value) {
+    if (iconEl) iconEl.innerHTML = '';
+    if (lblEl) { lblEl.textContent = '선택'; lblEl.classList.add('muted'); }
+    return;
+  }
+  if (lblEl) { lblEl.textContent = value; lblEl.classList.remove('muted'); }
+  if (!iconEl) return;
+  var logo = getCardLogo(value);
+  if (logo) {
+    iconEl.innerHTML = '<img src="' + logo + '" class="pb-icon">';
+  } else {
+    iconEl.innerHTML = '<span class="pb-init" style="background:' + getBankColor(value) + '">' + value.slice(0,2) + '</span>';
+  }
+}
+
+function openTransferFromPicker(rowIdx) {
+  sheetMode = 'transfer-from-row';
+  sheetRow = rowIdx;
+  var current = document.getElementById('card-val-' + rowIdx).value;
+  document.getElementById('sheet-title').textContent = '보내는 계좌 선택';
+  var items = buildCardItem('', '계좌 없음', null, null, !current);
+  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getCardLogo(c.name), getBankColor(c.name), c.name === current); });
+  document.getElementById('sheet-items').innerHTML = items;
+  openSheet();
+}
+
+function openTransferToPicker(rowIdx) {
+  sheetMode = 'transfer-to-row';
+  sheetRow = rowIdx;
+  var current = document.getElementById('transfer-to-val-' + rowIdx).value;
+  document.getElementById('sheet-title').textContent = '받는 계좌 선택';
+  var items = buildCardItem('', '계좌 없음', null, null, !current);
+  cardList.forEach(function(c) { items += buildCardItem(c.name, c.name, getCardLogo(c.name), getBankColor(c.name), c.name === current); });
+  document.getElementById('sheet-items').innerHTML = items;
+  openSheet();
+}
 
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escQ(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
@@ -513,7 +612,11 @@ function buildCardItem(value, label, logo, color, selected) {
   }
   var onclick = sheetMode === 'bulk-card'
     ? 'selectBulkCard(\'' + escQ(value) + '\',\'' + escQ(label) + '\')'
-    : 'selectCard(\'' + escQ(value) + '\',\'' + escQ(label) + '\')';
+    : (sheetMode === 'transfer-to-row'
+        ? 'selectTransferTo(\'' + escQ(value) + '\')'
+        : (sheetMode === 'transfer-from-row'
+            ? 'selectTransferFrom(\'' + escQ(value) + '\')'
+            : 'selectCard(\'' + escQ(value) + '\',\'' + escQ(label) + '\')'));
   return '<div class="sheet-item' + (selected?' selected':'') + '" onclick="' + onclick + '">' +
     iconHtml + '<span class="sheet-item-name">' + escHtml(label) + '</span>' +
     (selected ? '<i class="bi bi-check-circle-fill sheet-item-check"></i>' : '') +
@@ -523,6 +626,19 @@ function buildCardItem(value, label, logo, color, selected) {
 function selectCat(name, icon) {
   document.getElementById('cat-val-' + sheetRow).value = name;
   document.getElementById('cat-label-' + sheetRow).textContent = icon + ' ' + name;
+  setTransferMode(sheetRow, name === IS_TRANSFER_CAT);
+  closeSheet();
+}
+
+function selectTransferFrom(value) {
+  document.getElementById('card-val-' + sheetRow).value = value;
+  updateTransferAccBtn('transfer-from', sheetRow, value);
+  closeSheet();
+}
+
+function selectTransferTo(value) {
+  document.getElementById('transfer-to-val-' + sheetRow).value = value;
+  updateTransferAccBtn('transfer-to', sheetRow, value);
   closeSheet();
 }
 
@@ -580,6 +696,7 @@ function applyBulk(type) {
     inp.value = val;
     var lbl = document.getElementById('cat-label-' + idx);
     if (lbl) lbl.textContent = icon;
+    setTransferMode(idx, val === IS_TRANSFER_CAT);
   });
 }
 
@@ -635,6 +752,57 @@ function sheetTouchEnd() {
   touchStartY = null;
   touchStartDrag = 0;
 }
+
+document.querySelectorAll('[id^="cat-val-"]').forEach(function(inp) {
+  var idx = inp.id.replace('cat-val-', '');
+  if (inp.value === IS_TRANSFER_CAT) setTransferMode(idx, true);
+});
+
+function validateRows() {
+  var firstInvalid = null;
+  var ok = true;
+  document.querySelectorAll('[id^="cat-val-"]').forEach(function(inp) {
+    var idx = inp.id.replace('cat-val-', '');
+    var cardBtn = document.getElementById('card-btn-' + idx);
+    if (!cardBtn) return; // no cards registered — nothing to validate
+    var errEl = document.getElementById('row-err-' + idx);
+    var fromBtn = document.getElementById('transfer-from-btn-' + idx);
+    var toBtn = document.getElementById('transfer-to-btn-' + idx);
+    cardBtn.classList.remove('field-invalid');
+    if (fromBtn) fromBtn.classList.remove('field-invalid');
+    if (toBtn) toBtn.classList.remove('field-invalid');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+    var isTransfer = inp.value === IS_TRANSFER_CAT;
+    var msg = '';
+    if (isTransfer) {
+      var from = document.getElementById('card-val-' + idx).value;
+      var to = document.getElementById('transfer-to-val-' + idx).value;
+      if (!from || !to) {
+        msg = '보내는/받는 계좌를 선택해 주세요';
+        if (!from && fromBtn) fromBtn.classList.add('field-invalid');
+        if (!to && toBtn) toBtn.classList.add('field-invalid');
+      }
+    } else {
+      var card = document.getElementById('card-val-' + idx).value;
+      if (!card) {
+        msg = '카드/계좌를 선택해 주세요';
+        cardBtn.classList.add('field-invalid');
+      }
+    }
+    if (msg) {
+      ok = false;
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+      if (!firstInvalid) firstInvalid = cardBtn.closest('.tx-card');
+    }
+  });
+  if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return ok;
+}
+
+document.getElementById('mainForm').addEventListener('submit', function(e) {
+  if (!validateRows()) e.preventDefault();
+});
 
 function toggleErrors() {
   var list = document.getElementById('errorList');

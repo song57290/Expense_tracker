@@ -83,7 +83,7 @@ function YearDrum({ value, onChange }) {
   )
 }
 
-export default function DatePickerSheet({ value, onChange }) {
+export default function DatePickerSheet({ value, onChange, error }) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const [mode, setMode] = useState('day') // 'day' | 'year'
@@ -139,7 +139,7 @@ export default function DatePickerSheet({ value, onChange }) {
     <>
       <button type="button" onClick={() => setOpen(true)} style={{
         width: '100%', height: 38, display: 'flex', alignItems: 'center', gap: 8,
-        background: 'var(--input-bg)', border: '1px solid var(--border-input)',
+        background: 'var(--input-bg)', border: `1px solid ${error ? '#dc3545' : 'var(--border-input)'}`,
         borderRadius: 8, padding: '0 12px', cursor: 'pointer',
         color: value ? 'var(--text-primary)' : 'var(--text-muted)',
       }}>

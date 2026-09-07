@@ -965,6 +965,13 @@ export default function Settings() {
               {serverApkInfo ? `${serverApkInfo.version_name || '?'} (build ${serverApkInfo.version_code ?? '?'})` : '불러오는 중...'}
             </span>
           </div>
+          {serverApkInfo?.url && (
+            <button type="button" onClick={() => { window.location.href = serverApkInfo.url }}
+              className="btn w-100 mt-2"
+              style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', borderRadius: 10, border: 'none', padding: '9px 0' }}>
+              최신 APK 다운로드
+            </button>
+          )}
         </div>
       </div>
 

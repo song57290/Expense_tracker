@@ -9,7 +9,7 @@ export default function AppUpdateModal() {
   const [visible, setVisible] = useState(false)
   const [skipUntilNext, setSkipUntilNext] = useState(false)
 
-  useEffect(() => {
+  function checkForUpdate(respectSkip) {
     if (!Capacitor.isNativePlatform()) return
     Promise.all([
       fetch('/api/app-version', { credentials: 'same-origin' }).then(r => r.json()),
@@ -17,12 +17,21 @@ export default function AppUpdateModal() {
     ]).then(([server, appInfo]) => {
       const currentCode = parseInt(appInfo.build, 10) || 0
       if (!server.version_code || server.version_code <= currentCode) return
-      const skipped = localStorage.getItem('apk_update_skipped_version')
-      if (skipped === String(server.version_code)) return
+      if (respectSkip) {
+        const skipped = localStorage.getItem('apk_update_skipped_version')
+        if (skipped === String(server.version_code)) return
+      }
       setInfo(server)
       setOpen(true)
       requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
     }).catch(() => {})
+  }
+
+  useEffect(() => {
+    checkForUpdate(true)
+    // 설치 권한 허용 화면에 다녀온 뒤 재개되는 다운로드/설치는 네이티브
+    // MainActivity.onResume이 전담한다 — 여기서 또 안내를 띄우면 아직 설치가
+    // 끝나지 않은 상태(버전 코드 그대로)라 매번 다시 눌러야 하는 것처럼 보인다.
   }, [])
 
   function close() {
