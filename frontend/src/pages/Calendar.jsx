@@ -80,6 +80,7 @@ export default function Calendar() {
   const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
   const [addAmountDisplay, setAddAmountDisplay] = useState('')
   const [addAmountError, setAddAmountError] = useState(false)
+  const [addCardError, setAddCardError] = useState(false)
   const [addSaving, setAddSaving] = useState(false)
   const [addTransferFrom, setAddTransferFrom] = useState('')
   const [addTransferTo, setAddTransferTo] = useState('')
@@ -93,6 +94,8 @@ export default function Calendar() {
     setAddTab('manual')
     setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAddAmountDisplay('')
+    setAddAmountError(false)
+    setAddCardError(false)
     setAddTransferFrom('')
     setAddTransferTo('')
     setPendingReceiptFile(null)
@@ -109,10 +112,12 @@ export default function Calendar() {
   async function handleAddSubmit(e) {
     e.preventDefault()
     const amt = parseInt(addAmountDisplay.replace(/,/g, ''))
-    if (!amt) { setAddAmountError(true); return }
-    setAddAmountError(false)
-    if (!addForm.category) return
     const isTransfer = addForm.category === '계좌 이체'
+    const cardOk = isTransfer || !!addForm.card
+    setAddAmountError(!amt)
+    setAddCardError(!cardOk)
+    if (!amt || !cardOk) return
+    if (!addForm.category) return
     setAddSaving(true)
     try {
       const payload = { ...addForm, amount: amt }
@@ -342,11 +347,13 @@ export default function Calendar() {
                         }}
                       />
                     </div>
-                    <div className="col-12" style={{ position: 'relative' }}>
-                      <input className={`form-control${addAmountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={addAmountDisplay}
-                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAddAmountError(false) }}
-                        style={{ paddingRight: 36 }} />
-                      <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                    <div className="col-12">
+                      <div style={{ position: 'relative' }}>
+                        <input className={`form-control${addAmountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={addAmountDisplay}
+                          onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAddAmountError(false) }}
+                          style={{ paddingRight: 36 }} />
+                        <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                      </div>
                       {addAmountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}
                     </div>
                     <div className="col-12">
@@ -367,8 +374,10 @@ export default function Calendar() {
                         <CardPicker
                           cards={(homeData.card_list || []).filter(c => !c.is_loan)}
                           value={addForm.card}
-                          onChange={name => setAddForm(f => ({ ...f, card: name }))}
+                          onChange={name => { setAddForm(f => ({ ...f, card: name })); setAddCardError(false) }}
+                          error={addCardError}
                         />
+                        {addCardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드/계좌를 선택해 주세요</div>}
                       </div>
                     )}
                     {addForm.type === 'expense' && (
@@ -606,7 +615,7 @@ export default function Calendar() {
         )
       })()}
 
-      {confirmSheet && (
+      {confirmSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 6000, alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>삭제하시겠습니까?</p>
@@ -615,7 +624,8 @@ export default function Calendar() {
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSheet(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {txMenu && createPortal(
@@ -642,7 +652,7 @@ export default function Calendar() {
         document.body
       )}
 
-      {photoViewerTxId && (
+      {photoViewerTxId && createPortal(
         <div onClick={() => setPhotoViewerTxId(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
           <div onClick={e => e.stopPropagation()}
@@ -652,7 +662,8 @@ export default function Calendar() {
             <img src={`/api/transactions/${photoViewerTxId}/receipt`} alt="사진 보기"
               style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

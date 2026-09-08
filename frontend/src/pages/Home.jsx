@@ -76,12 +76,14 @@ export default function Home() {
   const amountRef = useRef(null)
   const [routineSheet, setRoutineSheet] = useState(null)
   const [routineSheetVisible, setRoutineSheetVisible] = useState(false)
+  const [routineSheetDrag, setRoutineSheetDrag] = useState(0)
+  const routineTouchStartY = useRef(null)
+  const routineSheetBodyRef = useRef(null)
   const [photoViewerTxId, setPhotoViewerTxId] = useState(null)
   const [budgetDialog, setBudgetDialog] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
   const [budgetSaving, setBudgetSaving] = useState(false)
   const [routineSheetDate, setRoutineSheetDate] = useState('')
-  const [routineSheetCard, setRoutineSheetCard] = useState('')
   const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
   const [routineSheetError, setRoutineSheetError] = useState(false)
   const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
@@ -274,20 +276,34 @@ export default function Home() {
   function openRoutineSheet(r) {
     setRoutineSheet(r)
     setRoutineSheetDate(today())
-    setRoutineSheetCard(r.card || '')
-    setRoutineSheetAmounts((r.items || []).map(() => ({ amount: '', description: '' })))
+    setRoutineSheetAmounts((r.items || []).map(item => ({ amount: '', description: item.description || '', card: r.card || '' })))
     requestAnimationFrame(() => requestAnimationFrame(() => setRoutineSheetVisible(true)))
   }
   function closeRoutineSheet() {
     setRoutineSheetVisible(false)
+    setRoutineSheetDrag(0)
     setTimeout(() => setRoutineSheet(null), 350)
+  }
+  function routineSheetTouchStart(e) {
+    if ((routineSheetBodyRef.current?.scrollTop || 0) === 0) routineTouchStartY.current = e.touches[0].clientY
+  }
+  function routineSheetTouchMove(e) {
+    if (routineTouchStartY.current === null) return
+    const dy = e.touches[0].clientY - routineTouchStartY.current
+    if (dy > 0) setRoutineSheetDrag(dy)
+    else routineTouchStartY.current = null
+  }
+  function routineSheetTouchEnd() {
+    if (routineSheetDrag > 100) closeRoutineSheet()
+    else setRoutineSheetDrag(0)
+    routineTouchStartY.current = null
   }
   async function submitRoutineSheet() {
     if (!routineSheet) return
     const toSave = (routineSheet.items || [])
       .map((item, i) => {
         const raw = (routineSheetAmounts[i]?.amount || '').replace(/,/g, '')
-        return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '' }
+        return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '', card: routineSheetAmounts[i]?.card || '' }
       })
       .filter(item => item.amount > 0)
     if (!toSave.length) { setRoutineSheetError(true); return }
@@ -297,7 +313,7 @@ export default function Home() {
         await api.post('/api/transactions', {
           date: routineSheetDate, type: item.cat_type, category: item.category,
           description: item.description, amount: item.amount,
-          card: routineSheetCard,
+          card: item.card,
           exclude_perf: !!item.exclude_card_perf,
           exclude_stats: !!item.exclude_stats,
         })
@@ -651,27 +667,20 @@ export default function Home() {
       {routineSheet && createPortal(
         <div onClick={e => e.target === e.currentTarget && closeRoutineSheet()}
           style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${routineSheetVisible ? 0.45 : 0})`, zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', transition: 'background 0.3s ease' }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '80vh', display: 'flex', flexDirection: 'column', transform: routineSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+          <div onTouchStart={routineSheetTouchStart} onTouchMove={routineSheetTouchMove} onTouchEnd={routineSheetTouchEnd}
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '80vh', display: 'flex', flexDirection: 'column', transform: routineSheetVisible ? `translateY(${routineSheetDrag}px)` : 'translateY(100%)', transition: routineSheetDrag > 0 ? 'none' : 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', cursor: 'grab' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 14px', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
               <span style={{ fontWeight: 700, fontSize: '1rem' }}>📋 {routineSheet.name}</span>
               <button onClick={closeRoutineSheet} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '14px 16px' }}>
-              {/* 날짜·카드 */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                <div style={{ flex: 1 }}>
-                  <DatePickerSheet value={routineSheetDate} onChange={setRoutineSheetDate} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <CardPicker
-                    cards={data.card_list.filter(c => !c.is_loan)}
-                    value={routineSheetCard}
-                    onChange={setRoutineSheetCard}
-                  />
-                </div>
+            <div ref={routineSheetBodyRef}
+              style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '14px 16px' }}>
+              {/* 날짜 — 카드는 항목별로 따로 선택 (같은 루틴이라도 결제 카드가 다를 수 있어서) */}
+              <div style={{ marginBottom: 14 }}>
+                <DatePickerSheet value={routineSheetDate} onChange={setRoutineSheetDate} />
               </div>
               {/* 카테고리별 금액 입력 */}
               {!(routineSheet.items?.length) && (
@@ -708,6 +717,13 @@ export default function Home() {
                       <input placeholder="설명 (선택)" value={routineSheetAmounts[i]?.description || ''}
                         onChange={e => setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
                         style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border-input)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <CardPicker
+                        cards={data.card_list.filter(c => !c.is_loan)}
+                        value={routineSheetAmounts[i]?.card || ''}
+                        onChange={name => setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, card: name } : x))}
+                      />
                     </div>
                   </div>
                 )

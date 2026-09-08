@@ -76,8 +76,8 @@ public class WeeklyWidget extends BaseWidget {
 
             views.setTextViewTextSize(R.id.weekly_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.weekly_updated, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
-            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 24f * scale);
-            views.setTextViewTextSize(R.id.weekly_avg, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
+            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 30f * scale);
+            views.setTextViewTextSize(R.id.weekly_avg, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
             for (int i = 0; i < 7; i++) {
                 views.setTextViewTextSize(dayIds[i], TypedValue.COMPLEX_UNIT_DIP, 11f * scale);
             }
