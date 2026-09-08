@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
 
 const fmt = n => Number(n || 0).toLocaleString()
+const headerLabelY = Capacitor.isNativePlatform() ? -1.5 : 1
 
 export default function Search() {
   const navigate = useNavigate()
@@ -56,11 +58,11 @@ export default function Search() {
     <div style={{ maxWidth: 600, margin: '0 auto', paddingBottom: 32 }}>
       {/* iOS 헤더 */}
       <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 16px 12px', borderBottom: '0.5px solid var(--border-light)', marginBottom: 16 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
-          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
-          <span style={{ fontSize: '0.95rem' }}>뒤로</span>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 700, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <i className="bi bi-chevron-left" style={{ fontSize: '1.3rem' }} />
+          <span style={{ fontSize: '1.05rem', transform: `translateY(${headerLabelY}px)` }}>뒤로</span>
         </button>
-        <h5 style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', margin: 0, fontWeight: 700, fontSize: '1.2rem' }}>내역 검색</h5>
+        <h5 style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', margin: 0, fontWeight: 700, fontSize: '1.3rem' }}>내역 검색</h5>
       </div>
 
       <div style={{ padding: '0 16px' }}>
