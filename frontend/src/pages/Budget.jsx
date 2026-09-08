@@ -487,6 +487,7 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
   const [repayments, setRepayments] = useState([])
   const [repayForm, setRepayForm] = useState({ amount: '', date: today(), memo: '', card: '' })
   const [repayLoading, setRepayLoading] = useState(false)
+  const [repayCardPickerPressed, setRepayCardPickerPressed] = useState(false)
 
   async function loadRepayments() {
     const res = await api.get(`/api/cards/${card.id}/repayments`)
@@ -680,7 +681,14 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
                       </button>
                     </div>
                     {accountCards.length > 0 && (
-                      <div style={{ position: 'relative' }}>
+                      <div className="no-press-scale"
+                        onMouseDown={() => setRepayCardPickerPressed(true)}
+                        onMouseUp={() => setRepayCardPickerPressed(false)}
+                        onMouseLeave={() => setRepayCardPickerPressed(false)}
+                        onTouchStart={() => setRepayCardPickerPressed(true)}
+                        onTouchEnd={() => setRepayCardPickerPressed(false)}
+                        onTouchCancel={() => setRepayCardPickerPressed(false)}
+                        style={{ position: 'relative', transform: repayCardPickerPressed ? 'scale(0.94)' : 'scale(1)', opacity: repayCardPickerPressed ? 0.8 : 1, transition: 'transform 0.1s ease, opacity 0.1s ease' }}>
                         <CardPicker
                           cards={accountCards}
                           value={repayForm.card}

@@ -150,6 +150,8 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_card_perf BOOLEAN NOT NULL DEFAULT 0"))
             if 'exclude_stats' not in ri_cols:
                 conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0"))
+            if 'description' not in ri_cols:
+                conn.execute(text("ALTER TABLE routine_item ADD COLUMN description VARCHAR(200) DEFAULT ''"))
             conn.commit()
     except Exception:
         pass
@@ -328,7 +330,7 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 53
+    _apk_version_code = 55
     _apk_version_name = 'ver 2.65'
     _apk_build_date = '2026-09-07'
     _apk_notice = None
@@ -1386,6 +1388,7 @@ def api_calendar():
             'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
             'cashback': tx.cashback or 0,
             'balance_after': running_balances.get(tx.id),
+            'has_receipt': bool(getattr(tx, 'has_receipt', False)),
         })
 
     return jsonify({
@@ -2564,7 +2567,7 @@ def api_salary():
                                 'item_type': 'savings', 'stype': s.stype})
         return jsonify({
             'salary': {'amount': cfg.amount if cfg else 0, 'pay_day': cfg.pay_day if cfg else None},
-            'allocations': [{'id': a.id, 'category_name': a.category_name, 'percent': a.percent} for a in allocs],
+            'allocations': [{'id': a.id, 'category_name': a.category_name, 'percent': a.percent, 'monthly_limit': a.monthly_limit} for a in allocs],
             'fixed_expenses': fixed_list,
             'actual': actual,
         })
@@ -2971,6 +2974,7 @@ def _routine_items(uid):
         by_routine.setdefault(it.routine_id, []).append({
             'id': it.id, 'category': it.category, 'cat_type': it.cat_type,
             'exclude_card_perf': bool(it.exclude_card_perf), 'exclude_stats': bool(it.exclude_stats),
+            'description': it.description or '',
         })
     return by_routine
 
@@ -2992,6 +2996,7 @@ def api_routines():
                                            category=it['category'], cat_type=it.get('cat_type', 'expense'),
                                            exclude_card_perf=bool(it.get('exclude_card_perf', False)),
                                            exclude_stats=bool(it.get('exclude_stats', False)),
+                                           description=it.get('description', '') or '',
                                            position=i))
         db.session.commit()
         return jsonify({'ok': True, 'id': r.id})
@@ -3045,6 +3050,7 @@ def api_routine(rid):
                                            category=it['category'], cat_type=it.get('cat_type', 'expense'),
                                            exclude_card_perf=bool(it.get('exclude_card_perf', False)),
                                            exclude_stats=bool(it.get('exclude_stats', False)),
+                                           description=it.get('description', '') or '',
                                            position=i))
     db.session.commit()
     return jsonify({'ok': True})

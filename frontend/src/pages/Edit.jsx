@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
+
+const headerLabelY = Capacitor.isNativePlatform() ? -1.5 : 1
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
@@ -14,6 +17,7 @@ export default function Edit() {
   const [form, setForm] = useState(null)
   const [amountDisplay, setAmountDisplay] = useState('')
   const [amountError, setAmountError] = useState(false)
+  const [cardError, setCardError] = useState(false)
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -22,7 +26,8 @@ export default function Edit() {
   const [photoViewer, setPhotoViewer] = useState(false)
   const [typeSheet, setTypeSheet] = useState(false)
   const [typeSheetVisible, setTypeSheetVisible] = useState(false)
-  const [convOpen, setConvOpen] = useState(false)
+  const [typeSheetDrag, setTypeSheetDrag] = useState(0)
+  const typeSheetTouchStartY = useRef(null)
   const receiptInputRef = useRef(null)
 
   useEffect(() => {
@@ -36,7 +41,21 @@ export default function Edit() {
   }
   function closeTypeSheet() {
     setTypeSheetVisible(false)
+    setTypeSheetDrag(0)
     setTimeout(() => setTypeSheet(false), 300)
+  }
+  function typeSheetTouchStart(e) {
+    typeSheetTouchStartY.current = e.touches[0].clientY
+  }
+  function typeSheetTouchMove(e) {
+    if (typeSheetTouchStartY.current === null) return
+    const dy = e.touches[0].clientY - typeSheetTouchStartY.current
+    if (dy > 0) setTypeSheetDrag(dy)
+  }
+  function typeSheetTouchEnd() {
+    if (typeSheetDrag > 100) closeTypeSheet()
+    else setTypeSheetDrag(0)
+    typeSheetTouchStartY.current = null
   }
   function selectType(newType) {
     const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
@@ -76,8 +95,10 @@ export default function Edit() {
   async function handleSave(e) {
     e.preventDefault()
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
-    if (!amt) { setAmountError(true); return }
-    setAmountError(false)
+    const cardOk = isAccountTransfer || !!form.card
+    setAmountError(!amt)
+    setCardError(!cardOk)
+    if (!amt || !cardOk) return
     if (!form.category) return
     await api.put(`/api/transactions/${id}`, { ...form, amount: amt })
     syncWidget()
@@ -124,11 +145,11 @@ export default function Edit() {
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 0 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: '1.5rem' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
-          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
-          <span style={{ fontSize: '0.95rem' }}>뒤로</span>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 700, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <i className="bi bi-chevron-left" style={{ fontSize: '1.3rem' }} />
+          <span style={{ fontSize: '1.05rem', transform: `translateY(${headerLabelY}px)` }}>뒤로</span>
         </button>
-        <h5 className="mb-0 fw-bold" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '1.2rem' }}>내역 수정</h5>
+        <h5 className="mb-0 fw-bold" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '1.3rem' }}>내역 수정</h5>
       </div>
 
       <div className="card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
@@ -181,39 +202,29 @@ export default function Edit() {
               <CardPicker
                 cards={data.card_list.filter(c => !c.is_loan)}
                 value={form.card}
-                onChange={name => setForm(f => ({ ...f, card: name }))}
+                onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
+                error={cardError}
               />
+              {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드/계좌를 선택해 주세요</div>}
             </div>
 
-            {/* 편의 기능 — 접이식 */}
-            <div className="mb-3" style={{ borderRadius: 12, border: '1.5px solid var(--border-light)', overflow: 'hidden' }}>
-              <div onClick={() => setConvOpen(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', cursor: 'pointer', background: 'var(--bg-section)', userSelect: 'none' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>⚙️ 편의 기능</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', transition: 'transform 0.2s', display: 'inline-block', transform: convOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-              </div>
-              {convOpen && (
-                <div style={{ padding: '4px 14px 8px', borderTop: '1px solid var(--border-light)' }}>
-                  {form.type === 'expense' && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}
-                      onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
-                      <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>💱 카드 실적에서 제외</label>
-                      <div className="ios-toggle">
-                        <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
-                        <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
-                    onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
-                    <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>📊 통계에서 제외</label>
-                    <div className="ios-toggle">
-                      <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
-                      <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
-                    </div>
-                  </div>
+            {form.type === 'expense' && (
+              <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+                onClick={() => setForm(f => ({ ...f, exclude_perf: !f.exclude_perf }))}>
+                <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>💱 카드 실적에서 제외</label>
+                <div className="ios-toggle">
+                  <div className={`ios-track${form.exclude_perf ? ' on' : ''}`} />
+                  <div className={`ios-dot${form.exclude_perf ? ' on' : ''}`} />
                 </div>
-              )}
+              </div>
+            )}
+            <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+              onClick={() => setForm(f => ({ ...f, exclude_stats: !f.exclude_stats }))}>
+              <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>📊 통계에서 제외</label>
+              <div className="ios-toggle">
+                <div className={`ios-track${form.exclude_stats ? ' on' : ''}`} />
+                <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
+              </div>
             </div>
 
             {/* 사진 */}
@@ -251,8 +262,9 @@ export default function Edit() {
         <div onClick={closeTypeSheet}
           style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${typeSheetVisible ? 0.45 : 0})`, zIndex: 5000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', transition: 'background 0.3s ease' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)', transform: typeSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+            onTouchStart={typeSheetTouchStart} onTouchMove={typeSheetTouchMove} onTouchEnd={typeSheetTouchEnd}
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)', transform: typeSheetVisible ? `translateY(${typeSheetDrag}px)` : 'translateY(100%)', transition: typeSheetDrag > 0 ? 'none' : 'transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px', cursor: 'grab' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
             </div>
             <div style={{ padding: '8px 20px 4px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>유형 선택</div>

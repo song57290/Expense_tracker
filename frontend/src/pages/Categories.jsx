@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
+
+const headerLabelY = Capacitor.isNativePlatform() ? -1.5 : 1
 
 function SlidingTabs({ options, value, onChange }) {
   const tabRefs = useRef([])
@@ -243,12 +246,12 @@ export default function Categories() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top) + 8px) 10px 12px', position: 'relative', borderBottom: '0.5px solid var(--border-light)', marginBottom: 16 }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 500, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 2 }}>
-          <span style={{ fontSize: '3rem', lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-4px)' }}>‹</span>
-          <span style={{ fontSize: '0.95rem' }}>설정</span>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b088f9', fontWeight: 700, padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <i className="bi bi-chevron-left" style={{ fontSize: '1.3rem' }} />
+          <span style={{ fontSize: '1.05rem', transform: `translateY(${headerLabelY}px)` }}>설정</span>
         </button>
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <h5 className="mb-0 fw-bold" style={{ fontSize: '1.2rem' }}>카테고리 관리</h5>
+          <h5 className="mb-0 fw-bold" style={{ fontSize: '1.3rem' }}>카테고리 관리</h5>
           <span style={{ fontSize: '0.75rem', background: 'rgba(176,136,249,0.15)', color: '#b088f9', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{cats.length}</span>
         </div>
       </div>

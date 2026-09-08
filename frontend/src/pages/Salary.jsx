@@ -232,6 +232,18 @@ export default function Salary() {
   const now = new Date()
   const monthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`
 
+  // 카테고리별 월 한도의 80% 이상 지출된 항목 — 근접/초과 배너용
+  const catIconMap = Object.fromEntries((categories || []).map(c => [c[0], c[1]]))
+  const nearLimitCats = allocations
+    .filter(a => a.monthly_limit)
+    .map(a => {
+      const spent = actual[a.category_name] || 0
+      const ratio = spent / a.monthly_limit
+      return { name: a.category_name, spent, limit: a.monthly_limit, ratio }
+    })
+    .filter(c => c.ratio >= 0.8)
+    .sort((a, b) => b.ratio - a.ratio)
+
   const inputStyle = { padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border-input)', fontSize: '0.9rem', background: 'var(--bg-elevated)', width: '100%', color: 'var(--text-primary)' }
   const cardStyle = { background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '18px 16px', marginBottom: 12 }
 
@@ -239,6 +251,24 @@ export default function Salary() {
     <>
     <div style={{ padding: '16px 14px 16px', maxWidth: 540, margin: '0 auto' }}>
       <h5 className="fw-bold mb-3">월급 관리</h5>
+
+      {/* 한도 근접/초과 배너 */}
+      {nearLimitCats.length > 0 && (
+        <div style={{ ...cardStyle, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {nearLimitCats.map(c => {
+            const isOver = c.ratio >= 1
+            return (
+              <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 10, background: isOver ? 'rgba(255,59,48,0.1)' : 'rgba(255,159,10,0.1)' }}>
+                <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{isOver ? '🚨' : '⚠️'}</span>
+                <span style={{ fontSize: '0.85rem', color: isOver ? '#dc3545' : '#c07a00', flex: 1 }}>
+                  <strong>{catIconMap[c.name] ? `${catIconMap[c.name]} ` : ''}{c.name}</strong>
+                  {isOver ? ' 한도를 초과했어요' : ' 한도에 임박했어요'} ({Math.round(c.ratio * 100)}%) — 아껴 써주세요!
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* 월급 설정 카드 */}
       <div style={cardStyle}>

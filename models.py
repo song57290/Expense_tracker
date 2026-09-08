@@ -196,3 +196,4 @@ class RoutineItem(db.Model):
     exclude_card_perf = db.Column(db.Boolean, nullable=False, default=False)
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)
+    description = db.Column(db.String(200), nullable=True, default='')

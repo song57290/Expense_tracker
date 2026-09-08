@@ -524,3 +524,10 @@ button:active {
   transform: scale(0.94);
   opacity: 0.8;
 }
+/* 버튼 위에 별개의 버튼(예: 지우기 X)을 겹쳐 얹은 조합에서는, 아래쪽 버튼만
+   눌림 효과로 줄어들고 위에 얹은 버튼은 그대로라 서로 어긋나 보인다.
+   이런 조합엔 이 클래스를 씌워 눌림 효과 자체를 꺼서 어긋남을 없앤다. */
+.no-press-scale button:active {
+  transform: none;
+  opacity: 1;
+}
