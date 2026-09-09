@@ -5,7 +5,7 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
-import { fmt, fmtMonth, fmtDate, bankColor, useCardColorMap } from '../utils.js'
+import { fmt, fmtMonth, fmtDate, bankColor, useCardColorMap, restoreCaretAfterFormat } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
 import TxListFilter from '../components/TxListFilter.jsx'
 import { syncWidget } from '../widgetSync.js'
@@ -41,10 +41,14 @@ function SlidingTabs({ options, value, onChange }) {
   )
 }
 
+// 탭 전환마다 이 페이지가 다시 마운트되면서 로딩 스피너가 매번 깜빡이지 않도록,
+// 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
+let _calendarCache = null
+
 export default function Calendar() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => _calendarCache)
   const [selected, setSelected] = useState(null)
   const [confirmSheet, setConfirmSheet] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
@@ -56,6 +60,51 @@ export default function Calendar() {
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
   const longPressTimer = useRef(null)
+  const calendarWrapRef = useRef(null)
+  const dragTouchRef = useRef({ active: false, startDate: null, lastDate: null })
+
+  // FullCalendar의 selectAllow는 드래그 중 매 칸마다 안정적으로 불려주지 않아(터치에서
+  // 첫 칸 이후로는 잘 갱신되지 않음) 직접 터치 좌표 아래의 날짜 셀을 추적해 하루씩
+  // 넘어갈 때마다 진동을 준다. 실제 선택 범위 계산은 FullCalendar의 select에 맡긴다.
+  useEffect(() => {
+    const el = calendarWrapRef.current
+    if (!el) return
+    function dateAt(x, y) {
+      const target = document.elementFromPoint(x, y)
+      const cell = target && target.closest && target.closest('[data-date]')
+      return cell ? cell.getAttribute('data-date') : null
+    }
+    function onStart(e) {
+      const t = e.touches[0]
+      if (!t) return
+      const d = dateAt(t.clientX, t.clientY)
+      dragTouchRef.current = { active: !!d, startDate: d, lastDate: d }
+    }
+    function onMove(e) {
+      const s = dragTouchRef.current
+      if (!s.active) return
+      const t = e.touches[0]
+      if (!t) return
+      const d = dateAt(t.clientX, t.clientY)
+      if (d && d !== s.lastDate) {
+        s.lastDate = d
+        if (d !== s.startDate && localStorage.getItem('vibration_enabled') !== 'false') navigator.vibrate?.(8)
+      }
+    }
+    function onEnd() {
+      dragTouchRef.current = { active: false, startDate: null, lastDate: null }
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: true })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    el.addEventListener('touchcancel', onEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [])
   const [yearMonth, setYearMonth] = useState(() => {
     const fromUrl = searchParams.get('month')
     if (fromUrl && /^\d{4}-\d{2}$/.test(fromUrl)) return fromUrl
@@ -88,11 +137,31 @@ export default function Calendar() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
   const calReceiptInputRef = useRef(null)
   const [photoViewerTxId, setPhotoViewerTxId] = useState(null)
+  const [addDates, setAddDates] = useState(null)
 
   function openAdd(date) {
+    setAddDates(null)
     setAddOpen(true)
     setAddTab('manual')
     setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
+    setAddAmountDisplay('')
+    setAddAmountError(false)
+    setAddCardError(false)
+    setAddTransferFrom('')
+    setAddTransferTo('')
+    setPendingReceiptFile(null)
+    setReceiptPreviewUrl(null)
+    if (!homeData) api.get('/api/home').then(setHomeData).catch(console.error)
+    requestAnimationFrame(() => requestAnimationFrame(() => setAddVisible(true)))
+  }
+  // 캘린더에서 날짜를 꾹 눌러 드래그로 여러 날짜를 선택했을 때 — 같은 내역을
+  // 선택된 날짜마다 동일하게 추가한다. 사진(영수증)은 하루짜리 내역 개념이라
+  // 여러 날짜에 붙이는 게 어색해서 이 모드에서는 첨부 UI 자체를 숨긴다.
+  function openAddRange(dates) {
+    setAddDates(dates)
+    setAddOpen(true)
+    setAddTab('manual')
+    setAddForm(f => ({ ...f, date: dates[0], type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
     setAddAmountDisplay('')
     setAddAmountError(false)
     setAddCardError(false)
@@ -107,7 +176,7 @@ export default function Calendar() {
     setAddVisible(false)
     setPendingReceiptFile(null)
     setReceiptPreviewUrl(null)
-    setTimeout(() => setAddOpen(false), 280)
+    setTimeout(() => { setAddOpen(false); setAddDates(null) }, 280)
   }
   async function handleAddSubmit(e) {
     e.preventDefault()
@@ -122,12 +191,17 @@ export default function Calendar() {
     try {
       const payload = { ...addForm, amount: amt }
       if (isTransfer && addTransferFrom) payload.card = addTransferFrom
-      const res = await api.post('/api/transactions', payload)
-      if (pendingReceiptFile && res?.id) {
+      const dates = addDates || [addForm.date]
+      let firstId = null
+      for (const d of dates) {
+        const res = await api.post('/api/transactions', { ...payload, date: d })
+        if (!firstId) firstId = res?.id
+      }
+      if (pendingReceiptFile && firstId) {
         try {
           const fd = new FormData()
           fd.append('receipt', pendingReceiptFile)
-          await fetch(`/api/transactions/${res.id}/receipt`, { method: 'POST', credentials: 'include', body: fd })
+          await fetch(`/api/transactions/${firstId}/receipt`, { method: 'POST', credentials: 'include', body: fd })
         } catch {}
       }
       closeAdd()
@@ -147,7 +221,7 @@ export default function Calendar() {
   }, [addForm.type, homeData, addOpen])
 
   const load = useCallback((ym) => {
-    api.get(`/api/calendar?month=${ym}`).then(setData).catch(console.error)
+    api.get(`/api/calendar?month=${ym}`).then(d => { _calendarCache = d; setData(d) }).catch(console.error)
   }, [])
 
   useEffect(() => { load(yearMonth) }, [yearMonth, load])
@@ -218,13 +292,13 @@ export default function Calendar() {
 
   const getCardColor = useCardColorMap(homeData?.card_list)
 
-  if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
+  if (!data) return null
 
   const selDay = selected ? data.day_transactions[selected] : null
   const [curY, curM] = yearMonth.split('-').map(Number)
 
   return (
-    <div>
+    <div style={{ animation: 'fadeIn 0.25s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
         <div className="d-flex align-items-center gap-1">
           <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.3rem', padding: '4px 10px', cursor: 'pointer', lineHeight: 1 }} onClick={goPrev}>
@@ -239,7 +313,7 @@ export default function Calendar() {
         </div>
       </div>
 
-      <div className="card mb-3" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+      <div className="card mb-3" data-scroll-x ref={calendarWrapRef} style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
         <div className="card-body p-2">
           <FullCalendar
             plugins={[dayGridPlugin, interactionPlugin]}
@@ -281,6 +355,26 @@ export default function Calendar() {
               if (info.dateStr === selected) { setSelectedVisible(false); setTimeout(() => setSelected(null), 350) }
               else { setSelected(info.dateStr); requestAnimationFrame(() => requestAnimationFrame(() => setSelectedVisible(true))) }
             }}
+            selectable={true}
+            selectMirror={true}
+            unselectAuto={false}
+            select={info => {
+              const calendarApi = info.view.calendar
+              const start = new Date(info.startStr + 'T00:00:00')
+              const end = new Date(info.endStr + 'T00:00:00') // 종료일 제외(exclusive)
+              const dayCount = Math.round((end - start) / 86400000)
+              // 드래그 없이 하루만 눌렀을 때도 selectable이 켜져 있으면 select가 함께
+              // 발생한다 — 이건 dateClick의 기존 "날짜 상세보기" 토글에 맡기고 무시.
+              if (dayCount <= 1) { calendarApi.unselect(); return }
+              const dates = []
+              const cur = new Date(start)
+              for (let i = 0; i < dayCount; i++) {
+                dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`)
+                cur.setDate(cur.getDate() + 1)
+              }
+              calendarApi.unselect()
+              openAddRange(dates)
+            }}
             headerToolbar={false}
             height="auto"
             locale="ko"
@@ -295,31 +389,42 @@ export default function Calendar() {
           <div onClick={e => e.stopPropagation()}
             style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(addForm.date)} 내역 추가</span>
+              <span className="fw-bold" style={{ fontSize: '1rem' }}>{addDates ? `${addDates.length}개 날짜에 내역 추가` : `${fmtDate(addForm.date)} 내역 추가`}</span>
               <button onClick={closeAdd} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
-            {/* 탭 */}
-            <div style={{ display: 'flex', gap: 4, margin: '12px 20px 0', background: 'var(--bg-accent)', borderRadius: 12, padding: 4, flexShrink: 0 }}>
-              {[['manual', '✏️ 직접 입력'], ['text', '💬 문자 가져오기']].map(([t, label]) => (
-                <button key={t} type="button" onClick={() => setAddTab(t)}
-                  style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-                    background: addTab === t ? 'var(--bg-card)' : 'transparent',
-                    color: addTab === t ? '#b088f9' : 'var(--text-muted)',
-                    boxShadow: addTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            {/* 탭 — 여러 날짜 일괄 추가 모드에서는 문자 가져오기가 의미 없어 직접 입력만 사용 */}
+            {!addDates && (
+              <div style={{ display: 'flex', gap: 4, margin: '12px 20px 0', background: 'var(--bg-accent)', borderRadius: 12, padding: 4, flexShrink: 0 }}>
+                {[['manual', '✏️ 직접 입력'], ['text', '💬 문자 가져오기']].map(([t, label]) => (
+                  <button key={t} type="button" onClick={() => setAddTab(t)}
+                    style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                      background: addTab === t ? 'var(--bg-card)' : 'transparent',
+                      color: addTab === t ? '#b088f9' : 'var(--text-muted)',
+                      boxShadow: addTab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 20px 32px' }}>
               {addTab === 'manual' ? (
                 !homeData ? (
                   <div className="text-center py-4"><div className="spinner-border spinner-border-sm" style={{ color: '#b088f9' }} /></div>
                 ) : (
                   <form onSubmit={handleAddSubmit} className="row g-2">
-                    <div className="col-6">
-                      <DatePickerSheet value={addForm.date} onChange={date => setAddForm(f => ({ ...f, date }))} />
-                    </div>
-                    <div className="col-6">
+                    {addDates ? (
+                      <div className="col-12">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, background: 'var(--bg-accent)', color: '#b088f9', fontSize: '0.83rem', fontWeight: 600 }}>
+                          <i className="bi bi-calendar-range" />
+                          {fmtDate(addDates[0])} ~ {fmtDate(addDates[addDates.length - 1])} · {addDates.length}일 모두 동일하게 추가돼요
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="col-6">
+                        <DatePickerSheet value={addForm.date} onChange={date => setAddForm(f => ({ ...f, date }))} />
+                      </div>
+                    )}
+                    <div className={addDates ? 'col-12' : 'col-6'}>
                       <div style={{ position: 'relative', display: 'flex', background: 'var(--bg-accent)', borderRadius: 10, padding: 3, height: 38 }}>
                         <div style={{ position: 'absolute', top: 3, bottom: 3, width: 'calc(50% - 3px)', borderRadius: 8,
                           background: addForm.type === 'expense' ? '#ff3b30' : '#34c759',
@@ -350,7 +455,7 @@ export default function Calendar() {
                     <div className="col-12">
                       <div style={{ position: 'relative' }}>
                         <input className={`form-control${addAmountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={addAmountDisplay}
-                          onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAddAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAddAmountError(false) }}
+                          onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setAddAmountDisplay(v); setAddAmountError(false) }}
                           style={{ paddingRight: 36 }} />
                         <span style={{ position: 'absolute', right: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                       </div>
@@ -400,33 +505,35 @@ export default function Calendar() {
                         </div>
                       </div>
                     </div>
-                    <div className="col-12">
-                      <input type="file" id="cal-receipt-input" accept="image/*" ref={calReceiptInputRef} style={{ display: 'none' }}
-                        onChange={e => {
-                          const f = e.target.files?.[0]
-                          if (!f) return
-                          setPendingReceiptFile(f)
-                          setReceiptPreviewUrl(URL.createObjectURL(f))
-                          e.target.value = ''
-                        }} />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px' }}>
-                        <label htmlFor="cal-receipt-input" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-                          📷 {pendingReceiptFile ? '사진 변경' : '사진 추가'}
-                        </label>
-                        {receiptPreviewUrl && (
-                          <div style={{ position: 'relative', display: 'inline-block' }}>
-                            <img src={receiptPreviewUrl} alt="사진 미리보기"
-                              style={{ height: 28, width: 28, objectFit: 'cover', borderRadius: 6, border: '1.5px solid var(--border-light)' }} />
-                            <button type="button" onClick={() => { setPendingReceiptFile(null); setReceiptPreviewUrl(null) }}
-                              style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.65)', border: 'none', borderRadius: '50%', width: 13, height: 13, color: 'white', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
-                          </div>
-                        )}
+                    {!addDates && (
+                      <div className="col-12">
+                        <input type="file" id="cal-receipt-input" accept="image/*" ref={calReceiptInputRef} style={{ display: 'none' }}
+                          onChange={e => {
+                            const f = e.target.files?.[0]
+                            if (!f) return
+                            setPendingReceiptFile(f)
+                            setReceiptPreviewUrl(URL.createObjectURL(f))
+                            e.target.value = ''
+                          }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px' }}>
+                          <label htmlFor="cal-receipt-input" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 10, border: '1.5px solid var(--border-light)', background: 'var(--bg-accent)', color: '#b088f9', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                            📷 {pendingReceiptFile ? '사진 변경' : '사진 추가'}
+                          </label>
+                          {receiptPreviewUrl && (
+                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                              <img src={receiptPreviewUrl} alt="사진 미리보기"
+                                style={{ height: 28, width: 28, objectFit: 'cover', borderRadius: 6, border: '1.5px solid var(--border-light)' }} />
+                              <button type="button" onClick={() => { setPendingReceiptFile(null); setReceiptPreviewUrl(null) }}
+                                style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.65)', border: 'none', borderRadius: '50%', width: 13, height: 13, color: 'white', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="col-12 mt-1">
                       <button type="submit" className="btn w-100" disabled={addSaving}
                         style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, borderRadius: 12, padding: '12px 0' }}>
-                        {addSaving ? '저장 중...' : '추가'}
+                        {addSaving ? '저장 중...' : addDates ? `${addDates.length}개 날짜에 추가` : '추가'}
                       </button>
                     </div>
                   </form>

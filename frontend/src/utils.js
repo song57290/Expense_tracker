@@ -125,6 +125,26 @@ export function fmt(n) {
   return Number(n).toLocaleString('ko-KR')
 }
 
+// 금액 입력창은 콤마(,)가 매 입력마다 자동으로 붙었다 떨어졌다 하는데, 이때 React가
+// value를 새로 세팅하면 커서가 항상 맨 끝으로 밀려서 중간 자리를 고치기 어려웠다.
+// 커서 직전에 있던 "숫자 개수"를 기준으로, 새로 포맷된 문자열에서 같은 개수만큼의
+// 숫자 뒤 위치를 다시 찾아 커서를 되돌린다.
+export function restoreCaretAfterFormat(inputEl, formattedValue) {
+  if (!inputEl) return
+  const prevPos = inputEl.selectionStart ?? inputEl.value.length
+  const digitsBefore = inputEl.value.slice(0, prevPos).replace(/[^0-9]/g, '').length
+  requestAnimationFrame(() => {
+    let count = 0, pos = formattedValue.length
+    for (let i = 0; i < formattedValue.length; i++) {
+      if (/[0-9]/.test(formattedValue[i])) {
+        count++
+        if (count === digitsBefore) { pos = i + 1; break }
+      }
+    }
+    try { inputEl.setSelectionRange(pos, pos) } catch {}
+  })
+}
+
 export function today() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`

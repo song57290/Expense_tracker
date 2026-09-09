@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import api from '../api.js'
-import { fmt, today, bankColor, bankLogo, cardLogo, fmtDate, useCardColorMap } from '../utils.js'
+import { fmt, today, bankColor, bankLogo, cardLogo, fmtDate, useCardColorMap, restoreCaretAfterFormat } from '../utils.js'
 
 const WidgetData = registerPlugin('WidgetData')
 import TxItem from '../components/TxItem.jsx'
@@ -44,8 +44,12 @@ function SlidingTabs({ options, value, onChange }) {
 }
 
 
+// 탭 전환마다 이 페이지가 다시 마운트되면서 로딩 스피너가 매번 깜빡이지 않도록,
+// 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
+let _homeCache = null
+
 export default function Home() {
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => _homeCache)
   const [filter, setFilter] = useState('all')
   const [sortAsc, setSortAsc] = useState(false)
   const [showBalance, setShowBalance] = useState(true)
@@ -96,6 +100,7 @@ export default function Home() {
   const [params] = useSearchParams()
 
   const load = useCallback(() => api.get('/api/home').then(d => {
+    _homeCache = d
     setData(d)
     syncWidget(d)
   }).catch(console.error), [])
@@ -156,7 +161,7 @@ export default function Home() {
 
   const getCardColor = useCardColorMap(data?.card_list)
 
-  if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
+  if (!data) return null
 
   const cats = form.type === 'expense' ? data.expense_cats : data.income_cats
 
@@ -337,7 +342,7 @@ export default function Home() {
     : []
 
   return (
-    <div>
+    <div style={{ animation: 'fadeIn 0.25s ease' }}>
       {params.get('imported') && (
         <div className="alert alert-success alert-dismissible mb-3">
           {params.get('imported')}건 가져오기 완료{params.get('skipped') > 0 ? ` (오류 ${params.get('skipped')}건 제외)` : ''}
@@ -518,7 +523,7 @@ export default function Home() {
               <div className="col-6 col-lg-2">
                 <div style={{ position: 'relative' }}>
                   <input ref={amountRef} className={`form-control${amountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={amountDisplay}
-                    onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAmountError(false) }} style={{ paddingRight: 36 }} />
+                    onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setAmountDisplay(v); setAmountError(false) }} style={{ paddingRight: 36 }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
                 {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}
@@ -709,6 +714,7 @@ export default function Home() {
                           onChange={e => {
                             const raw = e.target.value.replace(/[^0-9]/g, '')
                             const val = raw ? parseInt(raw).toLocaleString('ko-KR') : ''
+                            restoreCaretAfterFormat(e.target, val)
                             setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, amount: val } : x))
                           }}
                           style={{ width: '100%', padding: '8px 36px 8px 12px', borderRadius: 10, border: '1px solid var(--border-input)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
@@ -915,7 +921,7 @@ export default function Home() {
                 inputMode="numeric"
                 placeholder="0"
                 value={budgetInput}
-                onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setBudgetInput(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setBudgetInput(v) }}
                 onKeyDown={e => e.key === 'Enter' && saveBudget()}
                 style={{ paddingRight: 36, fontSize: '1rem', fontWeight: 600 }}
               />

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
+import { restoreCaretAfterFormat } from '../utils.js'
 
 const headerLabelY = Capacitor.isNativePlatform() ? -1.5 : 1
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
@@ -178,7 +179,7 @@ export default function Edit() {
               <label className="form-label fw-semibold">금액</label>
               <div className="input-group">
                 <input className={`form-control${amountError ? ' field-invalid' : ''}`} inputMode="numeric" placeholder="금액" value={amountDisplay}
-                  onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmountDisplay(raw ? parseInt(raw).toLocaleString('ko-KR') : ''); setAmountError(false) }} />
+                  onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setAmountDisplay(v); setAmountError(false) }} />
                 <span className="input-group-text">원</span>
               </div>
               {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>금액을 입력해 주세요</div>}

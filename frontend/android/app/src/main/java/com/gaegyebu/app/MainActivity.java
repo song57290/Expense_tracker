@@ -41,6 +41,10 @@ public class MainActivity extends BridgeActivity {
         refreshWidgets();
         storeWidgetNav(getIntent());
         setupDownloadListener();
+        // 기기의 "글자 크기(접근성)" 시스템 설정을 웹뷰가 그대로 따라가면 하단바
+        // 아이콘 같은 rem 단위 UI가 사람마다 다른 크기로 보인다 — 100%로 고정해
+        // 시스템 설정과 무관하게 항상 디자인 크기 그대로 렌더링되게 한다.
+        getBridge().getWebView().getSettings().setTextZoom(100);
     }
 
     // Capacitor's WebView has no built-in file-download support, so

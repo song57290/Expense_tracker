@@ -9,7 +9,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.util.Log;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
@@ -49,7 +48,7 @@ public class WeeklyWidget extends BaseWidget {
 
             int[] dayIds = {R.id.weekly_day1, R.id.weekly_day2, R.id.weekly_day3, R.id.weekly_day4,
                     R.id.weekly_day5, R.id.weekly_day6, R.id.weekly_day7};
-            int accentColor = dark ? 0xFF7BAFF0 : 0xFF0D6EFD;
+            int accentColor = 0xFF0D6EFD;
 
             if (!isSystem) {
                 views.setTextColor(R.id.weekly_title, WidgetTheme.dim(dark));
@@ -67,7 +66,7 @@ public class WeeklyWidget extends BaseWidget {
             for (int i = 0; i < 7; i++) views.setTextViewText(dayIds[i], DAY_LABELS[i]);
 
             int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
-            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(700, 220, daily, todayIndex, accentColor, mutedColor));
+            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(context, 700, 220, daily, todayIndex, accentColor, mutedColor));
 
             int widthDp = grantedWidthDp(manager, widgetId, 250);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
@@ -76,7 +75,7 @@ public class WeeklyWidget extends BaseWidget {
 
             views.setTextViewTextSize(R.id.weekly_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.weekly_updated, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
-            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 30f * scale);
+            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 36f * scale);
             views.setTextViewTextSize(R.id.weekly_avg, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
             for (int i = 0; i < 7; i++) {
                 views.setTextViewTextSize(dayIds[i], TypedValue.COMPLEX_UNIT_DIP, 11f * scale);
@@ -98,7 +97,7 @@ public class WeeklyWidget extends BaseWidget {
         }
     }
 
-    static Bitmap createBarsBitmap(int w, int h, long[] daily, int todayIndex, int accentColor, int mutedColor) {
+    static Bitmap createBarsBitmap(Context context, int w, int h, long[] daily, int todayIndex, int accentColor, int mutedColor) {
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
 
@@ -114,8 +113,11 @@ public class WeeklyWidget extends BaseWidget {
 
         Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         labelPaint.setTextAlign(Paint.Align.CENTER);
-        labelPaint.setTypeface(Typeface.DEFAULT_BOLD);
-        labelPaint.setTextSize(h * 0.11f);
+        labelPaint.setTypeface(boldTypeface(context));
+        // 실제 기기의 위젯 높이/너비와 무관하게 비율(h에 대한 %)로 정의 — 비트맵이
+        // fitXY로 위젯의 실제 크기에 맞춰 늘어나므로 이 비율만 지키면 어떤 위젯
+        // 크기에서도 총액 대비 상대적으로 같은 비율의 글자 크기를 유지한다.
+        labelPaint.setTextSize(h * 0.09f);
 
         for (int i = 0; i < cols; i++) {
             float cx = colW * i + colW / 2f;

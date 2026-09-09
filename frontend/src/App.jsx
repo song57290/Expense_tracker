@@ -199,11 +199,7 @@ export default function App() {
   }
 
   if (user === undefined) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#b088f9,#7baff0)' }}>
-        <div className="spinner-border" style={{ color: 'white', width: '2.5rem', height: '2.5rem' }} />
-      </div>
-    )
+    return <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }} />
   }
 
   return (

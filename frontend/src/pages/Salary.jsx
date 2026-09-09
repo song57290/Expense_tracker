@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import api from '../api.js'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import { restoreCaretAfterFormat } from '../utils.js'
 
 const fmt = n => Number(n || 0).toLocaleString()
 
@@ -162,10 +163,12 @@ export default function Salary() {
     setAllocations(prev => prev.map(a => a.category_name === catName ? { ...a, percent: 0 } : a))
   }
 
-  function handleWonInput(catName, raw) {
+  function handleWonInput(catName, raw, inputEl) {
     const digits = raw.replace(/[^0-9]/g, '')
     const won = parseInt(digits) || 0
-    setWonInputs(prev => ({ ...prev, [catName]: won > 0 ? won.toLocaleString('ko-KR') : '' }))
+    const formatted = won > 0 ? won.toLocaleString('ko-KR') : ''
+    restoreCaretAfterFormat(inputEl, formatted)
+    setWonInputs(prev => ({ ...prev, [catName]: formatted }))
     const pct = salaryAmt > 0 ? (won / salaryAmt * 100) : 0
     setAllocations(prev => {
       const exists = prev.find(a => a.category_name === catName)
@@ -411,7 +414,7 @@ export default function Salary() {
                             )}
                             <div style={{ position: 'relative', width: 120 }}>
                               <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
-                                onChange={e => handleWonInput(catName, e.target.value)}
+                                onChange={e => handleWonInput(catName, e.target.value, e.target)}
                                 style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', textAlign: 'right', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
                               <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
                             </div>
@@ -426,7 +429,11 @@ export default function Salary() {
                             <input type="text" inputMode="numeric"
                               value={limitInputs[catName] ? Number(limitInputs[catName]).toLocaleString('ko-KR') : ''}
                               placeholder="없음"
-                              onChange={e => setLimitInputs(prev => ({ ...prev, [catName]: e.target.value.replace(/[^0-9]/g, '') }))}
+                              onChange={e => {
+                                const digits = e.target.value.replace(/[^0-9]/g, '')
+                                restoreCaretAfterFormat(e.target, digits ? Number(digits).toLocaleString('ko-KR') : '')
+                                setLimitInputs(prev => ({ ...prev, [catName]: digits }))
+                              }}
                               style={{ width: '100%', padding: '3px 26px 3px 8px', borderRadius: 7, border: '1.5px solid var(--border-light)', fontSize: '0.78rem', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
                             <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.68rem', pointerEvents: 'none' }}>원</span>
                           </div>

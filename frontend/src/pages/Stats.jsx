@@ -52,10 +52,14 @@ function defaultTrendRange() {
   return { from: shiftMonth(to, -5), to }
 }
 
+// 탭 전환마다 이 페이지가 다시 마운트되면서 로딩 스피너가 매번 깜빡이지 않도록,
+// 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
+let _statsCache = null
+
 export default function Stats() {
   const navigate = useNavigate()
   const [month, setMonth] = useState(nowYM)
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => _statsCache)
   const [cardFilter, setCardFilter] = useState('__all__')
   const [catOpen, setCatOpen] = useState(true)
   const [barOpen, setBarOpen] = useState(true)
@@ -123,7 +127,7 @@ export default function Stats() {
   }
 
   const load = useCallback(() => {
-    api.get(`/api/stats?month=${month}&trend_from=${trendFrom}&trend_to=${trendTo}&bar_from=${barFrom}&bar_to=${barTo}`).then(setData).catch(console.error)
+    api.get(`/api/stats?month=${month}&trend_from=${trendFrom}&trend_to=${trendTo}&bar_from=${barFrom}&bar_to=${barTo}`).then(d => { _statsCache = d; setData(d) }).catch(console.error)
   }, [month, trendFrom, trendTo, barFrom, barTo])
   useEffect(() => { load() }, [load])
 
@@ -139,7 +143,7 @@ export default function Stats() {
     return () => window.removeEventListener('appBackButton', handler)
   }, [assetDetail, pickerOpen])
 
-  if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
+  if (!data) return null
 
   const isCurrent = month === nowYM()
   const cats = [...(data.expense_cats || [])].sort((a, b) => b.amount - a.amount)
@@ -171,7 +175,7 @@ export default function Stats() {
   const pickerBtnStyle = { flex: 1, border: '1.5px solid var(--border-input)', borderRadius: 10, padding: '6px 8px', fontSize: '0.82rem', color: 'var(--text-secondary)', background: 'var(--bg-elevated)', cursor: 'pointer', textAlign: 'center', fontWeight: 500 }
 
   return (
-    <div>
+    <div style={{ animation: 'fadeIn 0.25s ease' }}>
       {/* 커스텀 년/월 피커 모달 */}
       {pickerOpen && createPortal(
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}

@@ -9,7 +9,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.os.Build;
 import android.util.Log;
 import android.util.TypedValue;
@@ -65,7 +64,7 @@ public class BudgetWidget extends BaseWidget {
             int   arcColor   = WidgetTheme.arcColor(percent, dark);
 
             // 원형 링 비트맵 생성 (퍼센트 텍스트 + 이번 달 남은 일수 포함)
-            views.setImageViewBitmap(R.id.budget_ring, createRingBitmap(300, percent, arcColor, percentInt, dark, daysLeftInMonth()));
+            views.setImageViewBitmap(R.id.budget_ring, createRingBitmap(context, 300, percent, arcColor, percentInt, dark, daysLeftInMonth()));
 
             // 하단 남은/초과 금액
             long   remaining = budget - expense;
@@ -125,7 +124,7 @@ public class BudgetWidget extends BaseWidget {
         return lastDay - today;
     }
 
-    static Bitmap createRingBitmap(int size, float percent, int arcColor, int percentInt, boolean dark, int daysLeft) {
+    static Bitmap createRingBitmap(Context context, int size, float percent, int arcColor, int percentInt, boolean dark, int daysLeft) {
         Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
 
@@ -156,7 +155,7 @@ public class BudgetWidget extends BaseWidget {
         Paint pct = new Paint(Paint.ANTI_ALIAS_FLAG);
         pct.setTextAlign(Paint.Align.CENTER);
         pct.setTextSize(size * 0.2f);
-        pct.setTypeface(Typeface.DEFAULT_BOLD);
+        pct.setTypeface(boldTypeface(context));
         pct.setColor(arcColor);
         float cy = size / 2f + pct.getTextSize() * 0.25f;
         canvas.drawText(percentInt + "%", size / 2f, cy, pct);

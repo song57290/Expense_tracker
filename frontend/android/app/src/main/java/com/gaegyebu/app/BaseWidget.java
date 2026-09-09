@@ -4,12 +4,34 @@ import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.Intent;
 import android.appwidget.AppWidgetProvider;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+
+import androidx.core.content.res.ResourcesCompat;
 
 import java.util.Calendar;
 
 public abstract class BaseWidget extends AppWidgetProvider {
+
+    private static Typeface boldTypeface;
+
+    // 위젯 숫자는 RemoteViews가 아니라 Canvas/Paint로 직접 그리는데, Typeface.DEFAULT_BOLD는
+    // 제조사별 시스템 폰트 설정(예: 삼성 "글자 스타일" 변경)에 따라 굵기/모양이 기기마다 달라
+    // 보인다. res/font에 내장한 폰트를 써서 항상 같은 폰트로 그리도록 고정한다 — 같은
+    // 리소스를 widget_weekly.xml의 android:fontFamily에서도 참조해 RemoteViews 텍스트뷰와
+    // 캔버스 텍스트가 동일한 폰트를 쓰게 한다.
+    protected static synchronized Typeface boldTypeface(Context context) {
+        if (boldTypeface == null) {
+            try {
+                boldTypeface = ResourcesCompat.getFont(context, R.font.gothic_a1_bold);
+            } catch (Exception e) {
+                boldTypeface = null;
+            }
+            if (boldTypeface == null) boldTypeface = Typeface.DEFAULT_BOLD;
+        }
+        return boldTypeface;
+    }
 
     @Override
     public void onReceive(Context context, Intent intent) {
