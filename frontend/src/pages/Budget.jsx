@@ -4,7 +4,7 @@ import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSens
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
-import { fmt, bankLogo, cardLogo, fmtMonth, today } from '../utils.js'
+import { fmt, bankLogo, cardLogo, fmtMonth, today, restoreCaretAfterFormat } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import ImageCropper from '../components/ImageCropper.jsx'
@@ -378,7 +378,9 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                   const neg = forceNeg || e.target.value.startsWith('-')
                   const raw = e.target.value.replace(/[^0-9]/g, '')
                   if (!raw) { setInitialBalance(neg ? '-' : ''); return }
-                  setInitialBalance((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
+                  const v = (neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR')
+                  restoreCaretAfterFormat(e.target, v)
+                  setInitialBalance(v)
                 }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
@@ -386,7 +388,9 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               <input type="text" className="form-control" placeholder={assetType === 'loan' ? '월 상환 목표 (선택)' : assetType === 'cash' ? '월 지출 목표 (선택)' : '월 목표 금액 (선택)'} inputMode="numeric"
                 value={target} onChange={e => {
                   const raw = e.target.value.replace(/[^0-9]/g, '')
-                  setTarget(raw ? parseInt(raw).toLocaleString('ko-KR') : '')
+                  const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''
+                  restoreCaretAfterFormat(e.target, v)
+                  setTarget(v)
                 }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
@@ -436,7 +440,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                   </div>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <input type="text" className="form-control" placeholder="충전 금액" inputMode="numeric"
-                      value={pointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setPointResetAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                      value={pointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setPointResetAmount(v) }}
                       style={{ borderRadius: 10, paddingRight: 28 }} />
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                   </div>
@@ -673,7 +677,7 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
                         <DatePickerSheet value={repayForm.date} onChange={date => setRepayForm(f => ({ ...f, date }))} />
                       </div>
                       <input type="text" inputMode="numeric" placeholder="금액" value={repayForm.amount} required
-                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRepayForm(f => ({ ...f, amount: raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '' })) }}
+                        onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setRepayForm(f => ({ ...f, amount: v })) }}
                         style={{ flex: 2, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #e0d5ff', fontSize: '0.82rem', background: 'var(--bg-accent)', color: 'var(--text-primary)' }} />
                       <button type="submit" disabled={repayLoading}
                         style={{ flex: 1, borderRadius: 8, border: 'none', background: '#b088f9', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>
@@ -1131,7 +1135,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>이름을 입력해 주세요</div>}
             <div className="mb-1" style={{ position: 'relative' }}>
               <input type="text" className={`form-control${amountError ? ' field-invalid' : ''}`} placeholder={stype === '예금' ? '예치금액' : stype === '청약' ? '월 납입액 (2~50만원)' : '월 납입액'} inputMode="numeric"
-                value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setAmount(raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''); setAmountError(false) }} style={{ borderRadius: 10, paddingRight: 36 }} />
+                value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setAmount(v); setAmountError(false) }} style={{ borderRadius: 10, paddingRight: 36 }} />
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
             {amountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>금액을 입력해 주세요</div>}
@@ -1232,7 +1236,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
                 <label className="text-muted mb-1 d-block" style={{ fontSize: '0.75rem' }}>🎁 월 정부 지원금 <span style={{ color: '#aaa', fontWeight: 400 }}>(청년도약·내일저축 등, 없으면 비워두세요)</span></label>
                 <div style={{ position: 'relative' }}>
                   <input type="text" className="form-control" placeholder="없음" inputMode="numeric"
-                    value={bonusAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setBonusAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                    value={bonusAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setBonusAmount(v) }}
                     style={{ borderRadius: 10, paddingRight: 36 }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                 </div>
@@ -1653,14 +1657,14 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
             </>) : (<>
               <div style={{ position: 'relative', marginBottom: avgPriceError ? 4 : 10 }}>
                 <input type="text" placeholder="평균 매수가" value={avgPrice} inputMode="numeric"
-                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setAvgPrice(r ? parseInt(r).toLocaleString('ko-KR') : ''); setAvgPriceError(false) }}
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); const v = r ? parseInt(r).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setAvgPrice(v); setAvgPriceError(false) }}
                   style={{ ...inp, paddingRight: 36, border: avgPriceError ? '1.5px solid #dc3545' : inp.border }} />
                 <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
               </div>
               {avgPriceError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>평균 매수가를 입력해 주세요</div>}
               <div style={{ position: 'relative', marginBottom: 10 }}>
                 <input type="text" placeholder="현재가 (선택사항)" value={currentPrice} inputMode="numeric"
-                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setCurrentPrice(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); const v = r ? parseInt(r).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setCurrentPrice(v) }}
                   style={{ ...inp, paddingRight: 36 }} />
                 <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
               </div>
@@ -1686,9 +1690,13 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   )
 }
 
+// 탭 전환마다 이 페이지가 다시 마운트되면서 로딩 스피너가 매번 깜빡이지 않도록,
+// 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
+let _budgetCache = null
+
 export default function Budget() {
   const [searchParams] = useSearchParams()
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => _budgetCache)
   const [confirmCard, setConfirmCard] = useState(null)
   const [convertCard, setConvertCard] = useState(null)
   const [convertLoading, setConvertLoading] = useState(false)
@@ -1745,7 +1753,7 @@ export default function Budget() {
       .catch(err => { setBalHistResults(null); setBalHistError(err.message || '조회 중 오류가 발생했습니다.') })
       .finally(() => setBalHistLoading(false))
   }
-  const load = useCallback(() => api.get('/api/budget').then(setData).catch(console.error), [])
+  const load = useCallback(() => api.get('/api/budget').then(d => { _budgetCache = d; setData(d) }).catch(console.error), [])
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
@@ -1915,17 +1923,19 @@ export default function Budget() {
     setConfirmInv(null); load()
   }
 
-  function fmtInput(val, setter, allowNeg = false, forceNeg = false) {
+  function fmtInput(val, setter, allowNeg = false, forceNeg = false, inputEl = null) {
     const neg = forceNeg || (allowNeg && val.startsWith('-'))
     const raw = val.replace(/[^0-9]/g, '')
     if (!raw) { setter(neg ? '-' : ''); return }
-    setter((neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR'))
+    const formatted = (neg ? '-' : '') + parseInt(raw).toLocaleString('ko-KR')
+    restoreCaretAfterFormat(inputEl, formatted)
+    setter(formatted)
   }
 
-  if (!data) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#b088f9' }} /></div>
+  if (!data) return null
 
   return (
-    <div>
+    <div style={{ animation: 'fadeIn 0.25s ease' }}>
       <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
         <div className="d-flex align-items-center gap-2">
@@ -2365,7 +2375,7 @@ export default function Budget() {
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고</label>
                   <div style={{ position: 'relative' }}>
                     <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
-                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true, editCard?.is_loan)} />
+                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true, editCard?.is_loan, e.target)} />
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                   </div>
                   <div className="mt-2">
@@ -2377,7 +2387,7 @@ export default function Budget() {
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월 실적 목표 금액</label>
                   <div style={{ position: 'relative' }}>
                     <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
-                      value={editTarget} onChange={e => fmtInput(e.target.value, setEditTarget)} />
+                      value={editTarget} onChange={e => fmtInput(e.target.value, setEditTarget, false, false, e.target)} />
                     <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                   </div>
                 </div>
@@ -2471,7 +2481,7 @@ export default function Budget() {
                           </div>
                           <div style={{ position: 'relative', flex: 1 }}>
                             <input type="text" className="form-control" placeholder="충전 금액" inputMode="numeric"
-                              value={editPointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setEditPointResetAmount(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }}
+                              value={editPointResetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setEditPointResetAmount(v) }}
                               style={{ borderRadius: 10, paddingRight: 28 }} />
                             <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                           </div>

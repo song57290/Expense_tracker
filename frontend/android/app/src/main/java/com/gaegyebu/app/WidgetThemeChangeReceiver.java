@@ -13,7 +13,22 @@ public class WidgetThemeChangeReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (!Intent.ACTION_CONFIGURATION_CHANGED.equals(intent.getAction())) return;
+        String action = intent.getAction();
+
+        // 앱 업데이트로 APK가 교체돼도 위젯 프로바이더는 자동으로 다시 그려지지 않고,
+        // 다음 30분 주기 갱신이나 syncWidget() 호출 전까지 예전 화면을 그대로 보여준다 —
+        // 업데이트 직후 바로 최신 코드로 다시 그리도록 여기서 강제로 한 번 갱신한다.
+        if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            Log.d(TAG, "App updated → refreshing all widgets");
+            CompactWidget.updateAll(context);
+            BudgetWidget.updateAll(context);
+            TodayWidget.updateAll(context);
+            PaceWidget.updateAll(context);
+            WeeklyWidget.updateAll(context);
+            return;
+        }
+
+        if (!Intent.ACTION_CONFIGURATION_CHANGED.equals(action)) return;
 
         int currentNight = context.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK;

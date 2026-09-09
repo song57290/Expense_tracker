@@ -314,6 +314,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
         java.util.Calendar cal = java.util.Calendar.getInstance();
         int daysLeft = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH) - cal.get(java.util.Calendar.DAY_OF_MONTH);
         Bitmap ring = BudgetWidget.createRingBitmap(
+                this,
                 300,
                 pct,
                 arcColor,
@@ -457,7 +458,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
         ImageView bars = wv.findViewById(R.id.weekly_bars);
-        bars.setImageBitmap(WeeklyWidget.createBarsBitmap(700, 220, daily, prefsWeekTodayIndex, accentColor, mutedColor));
+        bars.setImageBitmap(WeeklyWidget.createBarsBitmap(this, 700, 220, daily, prefsWeekTodayIndex, accentColor, mutedColor));
     }
 
     private void updateThemeChecks() {
