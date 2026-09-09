@@ -8,7 +8,7 @@ from collections import defaultdict
 import openpyxl
 import xlrd
 from io import BytesIO
-import tempfile, json, os, re, base64, random, smtplib
+import tempfile, json, os, re, base64, random, smtplib, threading
 try:
     from PIL import Image as PILImage
     _PIL_OK = True
@@ -330,9 +330,9 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 55
-    _apk_version_name = 'ver 2.65'
-    _apk_build_date = '2026-09-07'
+    _apk_version_code = 64
+    _apk_version_name = 'ver 2.80'
+    _apk_build_date = '2026-09-10'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
                               'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
@@ -821,16 +821,28 @@ def _needs_price_update(inv):
     last = inv.price_updated_at.replace(tzinfo=timezone.utc).astimezone(_KST)
     return last < _last_market_close(market)
 
-_PRICE_FETCH_TIMEOUT = 8  # seconds — bounds how long a request can block on external price sources
+_PRICE_FETCH_TIMEOUT = 20  # seconds — bounds the background fetch, doesn't block any request
 
 def _auto_fetch_investment_prices(inv_list):
+    # Fires the actual fetch on a background thread so /api/budget returns immediately
+    # with whatever prices are already cached — previously this awaited the external
+    # price API inline and could stall the budget tab's first load for seconds.
+    todo_ids = [inv.id for inv in inv_list if _needs_price_update(inv) and (inv.ticker or '').strip()]
+    if not todo_ids:
+        return
+    threading.Thread(target=_fetch_investment_prices_bg, args=(todo_ids,), daemon=True).start()
+
+def _fetch_investment_prices_bg(todo_ids):
+    with app.app_context():
+        todo = Investment.query.filter(Investment.id.in_(todo_ids)).all()
+        if not todo:
+            return
+        _fetch_investment_prices_sync(todo)
+
+def _fetch_investment_prices_sync(todo):
     from concurrent.futures import ThreadPoolExecutor, wait
     from datetime import date, timedelta
     import FinanceDataReader as fdr
-
-    todo = [inv for inv in inv_list if _needs_price_update(inv) and (inv.ticker or '').strip()]
-    if not todo:
-        return
 
     start = (date.today() - timedelta(days=7)).strftime('%Y-%m-%d')
 
@@ -3917,18 +3929,27 @@ def test_notify():
             app.logger.error('Test push failed: %s', e)
     if expired_endpoints:
         _save_subs([s for s in all_subs if s.get('endpoint') not in expired_endpoints])
-    # FCM 토큰으로도 전송
+    # FCM 토큰으로도 전송 — NotRegistered는 기기에서 알림 권한을 끄거나 앱을 삭제/
+    # 재설치하면 토큰이 무효화되면서 뜨는 표준 오류라, 따로 구분해 죽은 토큰은
+    # 정리하고 사용자에게는 원인을 짐작할 수 있는 문구로 안내한다.
+    unregistered_tokens = []
     for tok in fcm_subs:
         try:
             _do_send_fcm(tok['token'], title='✅ 테스트 알림', body='알림이 정상 작동합니다!')
             sent += 1
         except Exception as e:
-            errors.append(str(e))
+            err_str = str(e)
+            if 'NotRegistered' in err_str or 'UNREGISTERED' in err_str.upper():
+                unregistered_tokens.append(tok.get('token'))
+            else:
+                errors.append(err_str)
             app.logger.error('Test FCM failed: %s', e)
+    if unregistered_tokens:
+        _save_fcm_tokens([t for t in all_fcm if t.get('token') not in unregistered_tokens])
     if sent > 0:
         return jsonify({'ok': True, 'sent': sent})
-    if expired_endpoints:
-        return jsonify({'ok': False, 'error': '구독이 만료되었습니다. 알림을 껐다가 다시 켜주세요.'}), 400
+    if expired_endpoints or (unregistered_tokens and not errors):
+        return jsonify({'ok': False, 'error': '알림 권한이 꺼져있는 것 같아요. 기기 설정에서 이 앱의 알림 권한을 확인해주세요.', 'reason': 'permission_off'}), 400
     return jsonify({'ok': False, 'error': '; '.join(errors)}), 500
 
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
