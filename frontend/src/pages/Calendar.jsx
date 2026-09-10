@@ -66,19 +66,29 @@ export default function Calendar() {
   // FullCalendar의 selectAllow는 드래그 중 매 칸마다 안정적으로 불려주지 않아(터치에서
   // 첫 칸 이후로는 잘 갱신되지 않음) 직접 터치 좌표 아래의 날짜 셀을 추적해 하루씩
   // 넘어갈 때마다 진동을 준다. 실제 선택 범위 계산은 FullCalendar의 select에 맡긴다.
+  // elementFromPoint는 selectMirror가 그리는 드래그 하이라이트 오버레이가 날짜 셀
+  // 위를 덮어버려 그 오버레이만 잡히는 경우가 있어, 대신 각 날짜 셀의 실제 좌표
+  // 사각형과 터치 좌표를 직접 비교(포함 판정)한다.
   useEffect(() => {
     const el = calendarWrapRef.current
     if (!el) return
     function dateAt(x, y) {
-      const target = document.elementFromPoint(x, y)
-      const cell = target && target.closest && target.closest('[data-date]')
-      return cell ? cell.getAttribute('data-date') : null
+      const cells = el.querySelectorAll('[data-date]')
+      for (const cell of cells) {
+        const r = cell.getBoundingClientRect()
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return cell.getAttribute('data-date')
+      }
+      return null
+    }
+    function vibrate() {
+      if (localStorage.getItem('vibration_enabled') !== 'false') navigator.vibrate?.(8)
     }
     function onStart(e) {
       const t = e.touches[0]
       if (!t) return
       const d = dateAt(t.clientX, t.clientY)
       dragTouchRef.current = { active: !!d, startDate: d, lastDate: d }
+      if (d) vibrate()
     }
     function onMove(e) {
       const s = dragTouchRef.current
@@ -88,21 +98,24 @@ export default function Calendar() {
       const d = dateAt(t.clientX, t.clientY)
       if (d && d !== s.lastDate) {
         s.lastDate = d
-        if (d !== s.startDate && localStorage.getItem('vibration_enabled') !== 'false') navigator.vibrate?.(8)
+        vibrate()
       }
     }
     function onEnd() {
       dragTouchRef.current = { active: false, startDate: null, lastDate: null }
     }
-    el.addEventListener('touchstart', onStart, { passive: true })
-    el.addEventListener('touchmove', onMove, { passive: true })
-    el.addEventListener('touchend', onEnd, { passive: true })
-    el.addEventListener('touchcancel', onEnd, { passive: true })
+    // capture 단계에서 먼저 가로챈다 — FullCalendar 자체 드래그 인식기가 날짜 셀
+    // 요소에서 stopPropagation을 호출하면 버블 단계로는 이 래퍼까지 이벤트가
+    // 아예 안 올라와서(진동이 전혀 안 울리던 원인), capture로 그보다 먼저 잡는다.
+    el.addEventListener('touchstart', onStart, { passive: true, capture: true })
+    el.addEventListener('touchmove', onMove, { passive: true, capture: true })
+    el.addEventListener('touchend', onEnd, { passive: true, capture: true })
+    el.addEventListener('touchcancel', onEnd, { passive: true, capture: true })
     return () => {
-      el.removeEventListener('touchstart', onStart)
-      el.removeEventListener('touchmove', onMove)
-      el.removeEventListener('touchend', onEnd)
-      el.removeEventListener('touchcancel', onEnd)
+      el.removeEventListener('touchstart', onStart, { capture: true })
+      el.removeEventListener('touchmove', onMove, { capture: true })
+      el.removeEventListener('touchend', onEnd, { capture: true })
+      el.removeEventListener('touchcancel', onEnd, { capture: true })
     }
   }, [])
   const [yearMonth, setYearMonth] = useState(() => {
@@ -313,7 +326,10 @@ export default function Calendar() {
         </div>
       </div>
 
-      <div className="card mb-3" data-scroll-x ref={calendarWrapRef} style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+      {/* touchAction: 'pan-y' — data-scroll-x 클래스의 기본 pan-x를 덮어써서, 가로
+          드래그(날짜 범위 선택)도 브라우저가 가로채지 않고 계속 JS로 넘어오게 한다.
+          세로 스크롤은 그대로 허용돼 캘린더 위에서 페이지 스크롤도 정상 동작. */}
+      <div className="card mb-3" data-scroll-x ref={calendarWrapRef} style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden', touchAction: 'pan-y' }}>
         <div className="card-body p-2">
           <FullCalendar
             plugins={[dayGridPlugin, interactionPlugin]}
@@ -358,6 +374,9 @@ export default function Calendar() {
             selectable={true}
             selectMirror={true}
             unselectAuto={false}
+            // 기본(1000ms)이면 꾹 눌러도 한참 있다가 보라색이 칠해져서 굼떠 보인다 —
+            // 진동은 이미 별도 로직으로 즉시 울리니, 하이라이트도 거의 즉시 따라오게 짧게.
+            selectLongPressDelay={150}
             select={info => {
               const calendarApi = info.view.calendar
               const start = new Date(info.startStr + 'T00:00:00')
