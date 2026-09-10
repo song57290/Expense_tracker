@@ -10,3 +10,4 @@ expense.db
 firebase-adminsdk.json
 releases/*
 !releases/.gitkeep
+.vscode/

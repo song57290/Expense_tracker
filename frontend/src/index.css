@@ -415,6 +415,17 @@ body.sheet-open .top-fade { display: none !important; }
 .fc-daygrid-day-frame { position: relative !important; min-height: 52px !important; }
 .fc-daygrid-day-number { position: static !important; }
 
+/* 여러 날짜 드래그 선택(select/selectMirror) 하이라이트 — 기본은 옅은 배경색만
+   있어 잘 안 보여서, 배경을 더 진하게 하고 좌우 테두리를 추가해 뚜렷이 보이게 한다.
+   선택이 다음 주로 넘어가면 FullCalendar가 주(행)마다 하이라이트를 따로 그리는데,
+   위/아래(box-shadow inset 전체)에 테두리를 주면 그 경계에서 선이 겹쳐 보이므로
+   위/아래 테두리는 넣지 않고 좌우만 준다. */
+.fc-highlight {
+  background: rgba(176, 136, 249, 0.35) !important;
+  border-left: 2px solid #b088f9 !important;
+  border-right: 2px solid #b088f9 !important;
+}
+
 /* Drum picker scrollbar hide */
 .drum-scroll::-webkit-scrollbar { display: none; }
 

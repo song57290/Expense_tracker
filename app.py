@@ -561,7 +561,7 @@ def _compute_cashback(uid, card_name, tx_type, amount):
         return 0
     if (card.cashback_type == 'payment' and tx_type == 'expense') or \
        (card.cashback_type == 'charge' and tx_type == 'income'):
-        return round(amount * card.cashback_rate / 100)
+        return int(amount * card.cashback_rate / 100)
     return 0
 
 def _effective_point_reset_date(year, month, day):
