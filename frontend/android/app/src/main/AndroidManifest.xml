@@ -51,7 +51,7 @@
         <receiver
             android:name=".CompactWidget"
             android:exported="true"
-            android:label="가계부 간편">
+            android:label="간편">
 
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
