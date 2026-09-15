@@ -27,7 +27,7 @@ export default function Login({ onLogin }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const emailOk = email.trim() !== ''
+    const emailOk = email.trim() !== '' && email.includes('@')
     const passwordOk = password !== ''
     setEmailError(!emailOk); setPasswordError(!passwordOk)
     if (!emailOk || !passwordOk) return
@@ -55,7 +55,7 @@ export default function Login({ onLogin }) {
   async function handleResetRequest(e) {
     e.preventDefault()
     setError('')
-    const emailOk = resetEmail.trim() !== ''
+    const emailOk = resetEmail.trim() !== '' && resetEmail.includes('@')
     setResetEmailError(!emailOk)
     if (!emailOk) return
     setLoading(true)
@@ -144,13 +144,13 @@ export default function Login({ onLogin }) {
 
         {/* 로그인 / 회원가입 */}
         {tab !== 'reset' && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
               <input type="email" value={email} onChange={e => { setEmail(e.target.value); setEmailError(false) }} placeholder="example@email.com"
                 style={{ ...inputStyle, border: emailError ? '1.5px solid #dc3545' : inputStyle.border }}
                 onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = emailError ? '#dc3545' : '#e8e8e8'} />
-              {emailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>이메일을 입력해 주세요</div>}
+              {emailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>{email.trim() === '' ? '이메일을 입력해 주세요' : '올바른 이메일 형식이 아니에요'}</div>}
             </div>
             <div style={{ marginBottom: 8 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>비밀번호 {tab === 'register' && <span style={{ color: 'var(--text-muted)' }}>(6자 이상)</span>}</label>
@@ -183,14 +183,14 @@ export default function Login({ onLogin }) {
 
         {/* 비밀번호 찾기 - 1단계 */}
         {tab === 'reset' && resetStep === 1 && (
-          <form onSubmit={handleResetRequest}>
+          <form onSubmit={handleResetRequest} noValidate>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 16 }}>가입한 이메일로 인증번호를 발송합니다.</p>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 6 }}>이메일</label>
               <input type="email" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetEmailError(false) }} placeholder="example@email.com"
                 style={{ ...inputStyle, border: resetEmailError ? '1.5px solid #dc3545' : inputStyle.border }}
                 onFocus={e => e.target.style.borderColor = '#b088f9'} onBlur={e => e.target.style.borderColor = resetEmailError ? '#dc3545' : '#e8e8e8'} />
-              {resetEmailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>이메일을 입력해 주세요</div>}
+              {resetEmailError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4 }}>{resetEmail.trim() === '' ? '이메일을 입력해 주세요' : '올바른 이메일 형식이 아니에요'}</div>}
             </div>
             <button type="submit" disabled={loading}
               style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontSize: '0.95rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
@@ -201,7 +201,7 @@ export default function Login({ onLogin }) {
 
         {/* 비밀번호 찾기 - 2단계 */}
         {tab === 'reset' && resetStep === 2 && (
-          <form onSubmit={handleResetConfirm}>
+          <form onSubmit={handleResetConfirm} noValidate>
             <div style={{ background: 'var(--bg-accent)', borderRadius: 12, padding: '12px 16px', marginBottom: 20, textAlign: 'center' }}>
               <div style={{ fontSize: '0.85rem', color: '#b088f9', fontWeight: 600 }}>📧 인증번호를 이메일로 발송했습니다</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{resetEmail} · 30분 이내 입력</div>

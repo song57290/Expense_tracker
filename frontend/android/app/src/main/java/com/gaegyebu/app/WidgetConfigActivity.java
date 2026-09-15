@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,14 +28,21 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
     private String prefsMonth = "--월";
     private String prefsUpdated = "";
-    private String prefsIncome = "0";
-    private String prefsExpense = "0";
-    private String prefsBalance = "0";
-    private long prefsBudget = 0;
-    private String prefsWeekDaily = "";
-    private int prefsWeekTodayIndex = 0;
-    private long prefsWeekTotal = 0;
-    private long prefsWeekAvg = 0;
+
+    // 미리보기용 고정 샘플 값 — 실제 계정 데이터를 쓰면 테마를 고를 때마다(그리고
+    // 사람마다) 금액이 들쭉날쭉해 크기·레이아웃을 비교하기 어려워서, 항상 같은
+    // 예시 값으로 보여준다.
+    private static final long PREVIEW_INCOME = 3200000;
+    private static final long PREVIEW_EXPENSE = 1850000;
+    private static final long PREVIEW_BUDGET = 2000000;
+    private static final long PREVIEW_TODAY_TOTAL = 32000;
+    private static final long[] PREVIEW_WEEK_DAILY = {45000, 12000, 38000, 0, 95000, 60000, 35000};
+    private static final int PREVIEW_WEEK_TODAY_INDEX = 4;
+
+    // 1.3배까지 키웠더니 너무 커서 읽기 부담스럽다는 피드백으로 1.0(기본 크기)로 되돌림 —
+    // 대신 상자 자체를 넉넉하게 키워뒀으니(아래 updatePreview) 글씨는 원래 크기 그대로
+    // 두고 여백만 넓어지는 효과를 낸다.
+    private static final float PREVIEW_SCALE = 1.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,14 +76,6 @@ public class WidgetConfigActivity extends AppCompatActivity {
         selectedTheme = WidgetTheme.getTheme(prefs, appWidgetId);
         prefsMonth = prefs.getString("month", "--월");
         prefsUpdated = prefs.getString("updated", "");
-        prefsIncome = prefs.getString("income", "0");
-        prefsExpense = prefs.getString("expense", "0");
-        prefsBalance = prefs.getString("balance", "0");
-        prefsBudget = parseLong(prefs.getString("budget", "0"));
-        prefsWeekDaily = prefs.getString("week_daily", "");
-        prefsWeekTodayIndex = parseInt(prefs.getString("week_today_index", "0"));
-        prefsWeekTotal = parseLong(prefs.getString("week_total", "0"));
-        prefsWeekAvg = parseLong(prefs.getString("week_avg", "0"));
 
         setContentView(R.layout.activity_widget_config);
 
@@ -140,26 +140,29 @@ public class WidgetConfigActivity extends AppCompatActivity {
         int wW;
         int wH;
 
+        // 테마 고르는 화면에서 미리보기가 너무 작아 잘 안 보인다는 피드백으로 전체적으로 확대.
+        // 예산·지출 추이는 글씨를 1.3배로 키운 만큼(PREVIEW_SCALE) 상자도 더 넉넉히 줘야
+        // 안 겹치고 안 잘린다 — 190/220dp로는 부족해서 다른 위젯과 같이 240dp로 맞춘다.
         if (isBudget) {
-            contH = (int) (130 * dp);
-            wW = (int) (130 * dp);
-            wH = (int) (130 * dp);
+            contH = (int) (240 * dp);
+            wW = (int) (240 * dp);
+            wH = (int) (240 * dp);
         } else if (isToday) {
-            contH = (int) (190 * dp);
+            contH = (int) (240 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
-            wH = (int) (190 * dp);
+            wH = (int) (240 * dp);
         } else if (isPace) {
-            contH = (int) (160 * dp);
-            wW = (int) (160 * dp);
-            wH = (int) (160 * dp);
+            contH = (int) (240 * dp);
+            wW = (int) (240 * dp);
+            wH = (int) (240 * dp);
         } else if (isWeekly) {
-            contH = (int) (190 * dp);
+            contH = (int) (240 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
-            wH = (int) (190 * dp);
+            wH = (int) (240 * dp);
         } else {
-            contH = (int) (130 * dp);
+            contH = (int) (170 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
-            wH = (int) (130 * dp);
+            wH = (int) (170 * dp);
         }
 
         ViewGroup.LayoutParams clp = container.getLayoutParams();
@@ -183,8 +186,8 @@ public class WidgetConfigActivity extends AppCompatActivity {
         View root = wv.findViewById(rootId);
         applyPreviewBackground(root, dark, dp);
 
-        long expenseLong = parseLong(prefsExpense);
-        float pct = prefsBudget > 0 ? (float) expenseLong / prefsBudget : 0f;
+        long expenseLong = PREVIEW_EXPENSE;
+        float pct = (float) expenseLong / PREVIEW_BUDGET;
         int pctInt = Math.round(pct * 100);
         int arcColor = getArcColor(pct, dark);
 
@@ -251,9 +254,17 @@ public class WidgetConfigActivity extends AppCompatActivity {
         int income = WidgetTheme.income(dark);
         int expense = WidgetTheme.expense(dark);
 
+        // 간편 위젯은 실제로 배정된 dp가 아니라 "이 기기의 화면 너비"를 기준으로 글씨
+        // 배율을 정한다(CompactWidget.java와 동일 공식) — 고정 1.15배(최댓값)로 미리보기를
+        // 그리면 화면이 작은 기기에서는 실제 위젯보다 미리보기가 부자연스럽게 커 보인다.
+        float dm = getResources().getDisplayMetrics().density;
+        int screenWidthDp = Math.round(getResources().getDisplayMetrics().widthPixels / dm);
+        float compactScale = Math.max(0.85f, Math.min(1.15f, screenWidthDp / 360f));
+
         TextView month = wv.findViewById(R.id.compact_month);
         month.setTextColor(primary);
         month.setText(prefsMonth);
+        month.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15f * compactScale);
 
         TextView updated = wv.findViewById(R.id.compact_updated);
         updated.setTextColor(hint);
@@ -262,11 +273,13 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView balanceLabel = wv.findViewById(R.id.compact_balance_label);
         if (balanceLabel != null) {
             balanceLabel.setTextColor(text);
+            balanceLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f * compactScale);
         }
 
         TextView balance = wv.findViewById(R.id.compact_balance);
         balance.setTextColor(primary);
-        balance.setText(fmtSigned(prefsBalance) + "원");
+        balance.setText(fmtSigned(String.valueOf(PREVIEW_INCOME - PREVIEW_EXPENSE)) + "원");
+        balance.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f * compactScale);
 
         // 카드 패널 배경 (다크/라이트 드로어블 전환)
         View incomeCard = wv.findViewById(R.id.compact_income_card);
@@ -283,20 +296,24 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView incomeLabel = wv.findViewById(R.id.compact_income_label);
         if (incomeLabel != null) {
             incomeLabel.setTextColor(income);
+            incomeLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15f * compactScale);
         }
 
         TextView incomeValue = wv.findViewById(R.id.compact_income);
         incomeValue.setTextColor(income);
-        incomeValue.setText(fmtUnsigned(prefsIncome) + "원");
+        incomeValue.setText(fmtUnsigned(String.valueOf(PREVIEW_INCOME)) + "원");
+        incomeValue.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f * compactScale);
 
         TextView expenseLabel = wv.findViewById(R.id.compact_expense_label);
         if (expenseLabel != null) {
             expenseLabel.setTextColor(expense);
+            expenseLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15f * compactScale);
         }
 
         TextView expenseValue = wv.findViewById(R.id.compact_expense);
         expenseValue.setTextColor(expense);
-        expenseValue.setText(fmtUnsigned(prefsExpense) + "원");
+        expenseValue.setText(fmtUnsigned(String.valueOf(PREVIEW_EXPENSE)) + "원");
+        expenseValue.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f * compactScale);
     }
 
     private void setupBudgetPreview(
@@ -310,6 +327,12 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView month = wv.findViewById(R.id.budget_month);
         month.setTextColor(WidgetTheme.primary(dark));
         month.setText(prefsMonth);
+        month.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f * PREVIEW_SCALE);
+
+        // 실제 위젯은 D-day를 링 비트맵 안에 직접 그려서 "사용" 라벨을 숨기는데, 미리보기는
+        // 이걸 안 숨겨서 링 위 "93%" 글자와 "사용" 글자가 겹쳐 보이던 게 진짜 원인이었다.
+        View usageLabel = wv.findViewById(R.id.budget_usage_label);
+        if (usageLabel != null) usageLabel.setVisibility(View.GONE);
 
         java.util.Calendar cal = java.util.Calendar.getInstance();
         int daysLeft = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH) - cal.get(java.util.Calendar.DAY_OF_MONTH);
@@ -326,14 +349,24 @@ public class WidgetConfigActivity extends AppCompatActivity {
         ImageView ringView = wv.findViewById(R.id.budget_ring);
         ringView.setImageBitmap(ring);
 
-        long remainingValue = prefsBudget - expenseLong;
+        float density = getResources().getDisplayMetrics().density;
+
+        // 연/월(budget_month)만 빼고 나머지(링·남음·업데이트)를 다 같이 살짝 아래로.
+        View ringFrame = wv.findViewById(R.id.budget_ring_frame);
+        ViewGroup.MarginLayoutParams ringFrameLp = (ViewGroup.MarginLayoutParams) ringFrame.getLayoutParams();
+        ringFrameLp.topMargin = (int) (11 * PREVIEW_SCALE * density);
+        ringFrameLp.bottomMargin = (int) (2 * PREVIEW_SCALE * density);
+        ringFrame.setLayoutParams(ringFrameLp);
+
+        View budgetRoot = wv.findViewById(R.id.widget_budget_root);
+        int rootPad = (int) (6 * PREVIEW_SCALE * density);
+        budgetRoot.setPadding(rootPad, rootPad, rootPad, rootPad);
+
+        long remainingValue = PREVIEW_BUDGET - expenseLong;
         String remainingText;
         int remainingColor;
 
-        if (prefsBudget == 0) {
-            remainingText = "예산 미설정";
-            remainingColor = WidgetTheme.hint(dark);
-        } else if (remainingValue >= 0) {
+        if (remainingValue >= 0) {
             remainingText = fmt(remainingValue) + "원 남음";
             remainingColor = arcColor;
         } else {
@@ -344,10 +377,18 @@ public class WidgetConfigActivity extends AppCompatActivity {
         TextView remaining = wv.findViewById(R.id.budget_remaining);
         remaining.setTextColor(remainingColor);
         remaining.setText(remainingText);
+        remaining.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10f * PREVIEW_SCALE);
+        ViewGroup.MarginLayoutParams remainingLp = (ViewGroup.MarginLayoutParams) remaining.getLayoutParams();
+        remainingLp.topMargin = (int) (9 * PREVIEW_SCALE * density);
+        remaining.setLayoutParams(remainingLp);
 
         TextView updated = wv.findViewById(R.id.budget_updated);
         updated.setTextColor(WidgetTheme.hint(dark));
         updated.setText(prefsUpdated);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 6.5f * PREVIEW_SCALE);
+        ViewGroup.MarginLayoutParams updatedLp = (ViewGroup.MarginLayoutParams) updated.getLayoutParams();
+        updatedLp.topMargin = (int) (4 * PREVIEW_SCALE * density);
+        updated.setLayoutParams(updatedLp);
     }
 
     private void setupTodayPreview(View wv, boolean dark) {
@@ -358,19 +399,37 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         TextView title = wv.findViewById(R.id.today_title);
         title.setTextColor(primary);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f * PREVIEW_SCALE);
 
+        java.util.Calendar cal = java.util.Calendar.getInstance();
         TextView date = wv.findViewById(R.id.today_date);
         date.setTextColor(hint);
+        date.setText((cal.get(java.util.Calendar.MONTH) + 1) + "월 " + cal.get(java.util.Calendar.DAY_OF_MONTH) + "일");
+        date.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f * PREVIEW_SCALE);
 
         TextView updated = wv.findViewById(R.id.today_updated);
         updated.setTextColor(hint);
         updated.setText(prefsUpdated);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 9f * PREVIEW_SCALE);
 
         TextView total = wv.findViewById(R.id.today_total);
         total.setTextColor(expense);
+        total.setText(fmt(PREVIEW_TODAY_TOTAL) + "원");
+        total.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22f * PREVIEW_SCALE);
 
         TextView empty = wv.findViewById(R.id.today_empty);
         empty.setTextColor(hint);
+        empty.setVisibility(View.GONE);
+
+        // 레이아웃엔 카테고리 행이 5개까지 있는데 미리보기 샘플은 3개뿐이라, 나머지
+        // 2개는 실제 위젯처럼(내용 없을 때) 숨겨야 빈 줄이 남지 않는다.
+        View row4 = wv.findViewById(R.id.today_row4);
+        View row5 = wv.findViewById(R.id.today_row5);
+        if (row4 != null) row4.setVisibility(View.GONE);
+        if (row5 != null) row5.setVisibility(View.GONE);
+
+        String[] previewNames = {"식비", "카페", "교통"};
+        long[] previewAmounts = {18000, 6500, 7500};
 
         int[] nameIds = {
                 R.id.today_cat1_name,
@@ -389,7 +448,11 @@ public class WidgetConfigActivity extends AppCompatActivity {
             TextView amount = wv.findViewById(amountIds[i]);
 
             name.setTextColor(text);
+            name.setText(previewNames[i]);
+            name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f * PREVIEW_SCALE);
             amount.setTextColor(expense);
+            amount.setText(fmt(previewAmounts[i]) + "원");
+            amount.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f * PREVIEW_SCALE);
         }
     }
 
@@ -402,24 +465,30 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         TextView title = wv.findViewById(R.id.pace_title);
         title.setTextColor(WidgetTheme.dim(dark));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f * PREVIEW_SCALE);
 
         TextView daily = wv.findViewById(R.id.pace_daily);
         daily.setTextColor(WidgetTheme.text(dark));
         daily.setText(fmt(dailyAvg) + "원");
+        daily.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26f * PREVIEW_SCALE);
 
         TextView dailyLabel = wv.findViewById(R.id.pace_daily_label);
         dailyLabel.setTextColor(WidgetTheme.hint(dark));
+        dailyLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11f * PREVIEW_SCALE);
 
         TextView projLabel = wv.findViewById(R.id.pace_proj_label);
         projLabel.setTextColor(WidgetTheme.hint(dark));
+        projLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11f * PREVIEW_SCALE);
 
         TextView proj = wv.findViewById(R.id.pace_proj);
         proj.setTextColor(dark ? 0xFF7BAFF0 : 0xFF0D6EFD);
         proj.setText(fmt(projected) + "원");
+        proj.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15f * PREVIEW_SCALE);
 
         TextView updated = wv.findViewById(R.id.pace_updated);
         updated.setTextColor(WidgetTheme.hint(dark));
         updated.setText(prefsUpdated);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 9f * PREVIEW_SCALE);
     }
 
     private void setupWeeklyPreview(View wv, boolean dark) {
@@ -429,36 +498,47 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         TextView title = wv.findViewById(R.id.weekly_title);
         title.setTextColor(WidgetTheme.dim(dark));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f * PREVIEW_SCALE);
 
         TextView updated = wv.findViewById(R.id.weekly_updated);
         updated.setTextColor(hint);
         updated.setText(prefsUpdated);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 9f * PREVIEW_SCALE);
+
+        long weekTotal = 0;
+        for (long v : PREVIEW_WEEK_DAILY) weekTotal += v;
+        long weekAvg = weekTotal / (PREVIEW_WEEK_TODAY_INDEX + 1);
 
         TextView total = wv.findViewById(R.id.weekly_total);
         total.setTextColor(WidgetTheme.text(dark));
-        total.setText(fmt(prefsWeekTotal) + "원");
+        total.setText(fmt(weekTotal) + "원");
+        total.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 28f * PREVIEW_SCALE);
 
         TextView avg = wv.findViewById(R.id.weekly_avg);
         avg.setTextColor(hint);
-        avg.setText("평균 " + fmt(prefsWeekAvg) + "원/일");
-
-        long[] daily = new long[7];
-        if (!prefsWeekDaily.isEmpty()) {
-            String[] parts = prefsWeekDaily.split(",");
-            for (int i = 0; i < 7 && i < parts.length; i++) daily[i] = parseLong(parts[i]);
-        }
+        avg.setText("평균 " + fmt(weekAvg) + "원/일");
+        avg.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 9f * PREVIEW_SCALE);
 
         int[] dayIds = {R.id.weekly_day1, R.id.weekly_day2, R.id.weekly_day3, R.id.weekly_day4,
                 R.id.weekly_day5, R.id.weekly_day6, R.id.weekly_day7};
         for (int i = 0; i < 7; i++) {
             TextView day = wv.findViewById(dayIds[i]);
             day.setText(dayLabels[i]);
-            day.setTextColor(i == prefsWeekTodayIndex ? accentColor : hint);
+            day.setTextColor(i == PREVIEW_WEEK_TODAY_INDEX ? accentColor : hint);
+            day.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11f * PREVIEW_SCALE);
         }
 
         int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
         ImageView bars = wv.findViewById(R.id.weekly_bars);
-        bars.setImageBitmap(WeeklyWidget.createBarsBitmap(this, 700, 220, daily, prefsWeekTodayIndex, accentColor, mutedColor));
+        // 고정 700x220 비트맵을 fitXY로 늘려 채우다 보니, 미리보기처럼 화면 폭 전체로
+        // 넓어진(비율이 700:220과 많이 다른) 박스에서는 숫자가 세로로 눌려 보였다 —
+        // 레이아웃이 끝난 뒤 실제 이 뷰의 픽셀 크기로 그려서 늘어남 자체를 없앤다.
+        bars.post(() -> {
+            int w = bars.getWidth();
+            int h = bars.getHeight();
+            if (w <= 0 || h <= 0) { w = 700; h = 220; }
+            bars.setImageBitmap(WeeklyWidget.createBarsBitmap(this, w, h, PREVIEW_WEEK_DAILY, PREVIEW_WEEK_TODAY_INDEX, accentColor, mutedColor));
+        });
     }
 
     private void updateThemeChecks() {
@@ -557,25 +637,5 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
     private String fmt(long n) {
         return String.format("%,d", n);
-    }
-
-    private long parseLong(String s) {
-        try {
-            return Long.parseLong(
-                    s.replace(",", "")
-                            .replace("-", "")
-                            .trim()
-            );
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    private int parseInt(String s) {
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (Exception e) {
-            return 0;
-        }
     }
 }

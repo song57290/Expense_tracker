@@ -85,21 +85,26 @@ public class BudgetWidget extends BaseWidget {
             views.setTextColor(R.id.budget_remaining, remainColor);
 
             // minWidth/minHeight 110dp(2x2)는 선언일 뿐, 실제로 받는 픽셀 크기는
-            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수 있다. budget_usage_label은
-            // 숨기고(D-day는 createRingBitmap에서 그림) 남은 텍스트들만 좁게 받은 경우 크기를 줄인다.
+            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수도, 클 수도 있다. 좁다/
+            // 넉넉하다 이분법 대신 실제 받은 크기 비율(scale)만큼 연속적으로 같이 늘고
+            // 줄이되, 위젯이 과도하게 크게 배치된 경우까지 글씨가 커지지 않도록 1.3f를 상한으로 둔다.
             int widthDp = grantedWidthDp(manager, widgetId, 110);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
-            boolean tight = widthDp < 100 || heightDp < 100;
+            float scale = Math.max(0.75f, Math.min(1.3f, Math.min(widthDp / 110f, heightDp / 110f)));
 
-            views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, tight ? 16.5f : 19.5f);
-            views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, tight ? 9.9f : 12.1f);
-            views.setTextViewTextSize(R.id.budget_updated, TypedValue.COMPLEX_UNIT_DIP, tight ? 8f : 9f);
+            views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
+            views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, 10f * scale);
+            views.setTextViewTextSize(R.id.budget_updated, TypedValue.COMPLEX_UNIT_DIP, 6.5f * scale);
             views.setViewVisibility(R.id.budget_usage_label, android.view.View.GONE);
             views.setViewPadding(R.id.widget_budget_root,
-                    dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10),
-                    dpToPx(context, tight ? 6 : 10), dpToPx(context, tight ? 6 : 10));
+                    dpToPx(context, 6 * scale), dpToPx(context, 6 * scale),
+                    dpToPx(context, 6 * scale), dpToPx(context, 6 * scale));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, tight ? 6 : 14, TypedValue.COMPLEX_UNIT_DIP);
+                // 연/월(budget_month)만 빼고 나머지(링·남음·업데이트)를 다 같이 살짝 아래로.
+                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, 11 * scale, TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_BOTTOM, 2 * scale, TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.budget_remaining, RemoteViews.MARGIN_TOP, 9 * scale, TypedValue.COMPLEX_UNIT_DIP);
+                views.setViewLayoutMargin(R.id.budget_updated, RemoteViews.MARGIN_TOP, 4 * scale, TypedValue.COMPLEX_UNIT_DIP);
             }
 
             // 클릭 → 앱 실행 (예산 미설정 시 예산 설정 화면으로 이동)
@@ -129,7 +134,9 @@ public class BudgetWidget extends BaseWidget {
         Canvas canvas = new Canvas(bmp);
 
         float stroke = size * 0.13f;
-        float margin = stroke / 2f + 8f;
+        // margin이 stroke/2보다 작아지면 선(stroke)이 비트맵 바깥으로 잘려 나가므로
+        // stroke/2를 하한으로 유지 — 이게 원이 캔버스를 최대한 꽉 채우는 한계치.
+        float margin = stroke / 2f;
         RectF oval = new RectF(margin, margin, size - margin, size - margin);
 
         // 배경 트랙
@@ -156,6 +163,7 @@ public class BudgetWidget extends BaseWidget {
         pct.setTextAlign(Paint.Align.CENTER);
         pct.setTextSize(size * 0.2f);
         pct.setTypeface(boldTypeface(context));
+        pct.setFakeBoldText(true);
         pct.setColor(arcColor);
         float cy = size / 2f + pct.getTextSize() * 0.25f;
         canvas.drawText(percentInt + "%", size / 2f, cy, pct);
