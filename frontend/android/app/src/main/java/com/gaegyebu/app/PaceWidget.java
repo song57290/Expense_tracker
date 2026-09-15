@@ -57,14 +57,15 @@ public class PaceWidget extends BaseWidget {
 
             int widthDp = grantedWidthDp(manager, widgetId, 140);
             int heightDp = grantedHeightDp(manager, widgetId, 140);
-            float scale = Math.min(1f, Math.min(widthDp / 140f, heightDp / 140f));
-            scale = Math.max(scale, 0.6f);
+            // 1f로 위쪽을 완전히 막지는 않되, 실제 위젯이 기본보다 훨씬 크게 배치된
+            // 경우까지 글씨가 과도하게 커지지 않도록 1.3f를 상한으로 둔다.
+            float scale = Math.max(0.6f, Math.min(1.3f, Math.min(widthDp / 140f, heightDp / 140f)));
 
             views.setTextViewTextSize(R.id.pace_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.pace_daily, TypedValue.COMPLEX_UNIT_DIP, 26f * scale);
             views.setTextViewTextSize(R.id.pace_daily_label, TypedValue.COMPLEX_UNIT_DIP, 11f * scale);
             views.setTextViewTextSize(R.id.pace_proj_label, TypedValue.COMPLEX_UNIT_DIP, 11f * scale);
-            views.setTextViewTextSize(R.id.pace_proj, TypedValue.COMPLEX_UNIT_DIP, 18f * scale);
+            views.setTextViewTextSize(R.id.pace_proj, TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
             views.setTextViewTextSize(R.id.pace_updated, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
             views.setViewPadding(R.id.widget_pace_root,
                     dpToPx(context, 14 * scale), dpToPx(context, 14 * scale),

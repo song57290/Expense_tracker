@@ -108,12 +108,12 @@ public class CompactWidget extends BaseWidget {
             scale = Math.min(scale, heightGuard);
 
             views.setTextViewTextSize(R.id.compact_month,         TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
-            views.setTextViewTextSize(R.id.compact_balance_label, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
+            views.setTextViewTextSize(R.id.compact_balance_label, TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
             views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
-            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
-            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
-            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
-            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
+            views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
+            views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
+            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
+            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
 
             int padH = dpToPx(context, 10 * scale);
             int padEnd = dpToPx(context, 8 * scale);

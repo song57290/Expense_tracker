@@ -66,16 +66,19 @@ public class WeeklyWidget extends BaseWidget {
             for (int i = 0; i < 7; i++) views.setTextViewText(dayIds[i], DAY_LABELS[i]);
 
             int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
-            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(context, 700, 220, daily, todayIndex, accentColor, mutedColor));
+            // 총액 글씨가 커서 막대 영역이 상대적으로 많이 눌려 보인다는 피드백으로
+            // 총액을 줄이고(아래) 비트맵 자체 비율도 세로 방향으로 덜 납작하게 조정.
+            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(context, 700, 260, daily, todayIndex, accentColor, mutedColor));
 
             int widthDp = grantedWidthDp(manager, widgetId, 250);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
-            float scale = Math.min(1f, Math.min(widthDp / 250f, heightDp / 110f));
-            scale = Math.max(scale, 0.6f);
+            // 1f로 위쪽을 완전히 막지는 않되, 실제 위젯이 기본보다 훨씬 크게 배치된
+            // 경우까지 글씨가 과도하게 커지지 않도록 1.3f를 상한으로 둔다.
+            float scale = Math.max(0.6f, Math.min(1.3f, Math.min(widthDp / 250f, heightDp / 110f)));
 
             views.setTextViewTextSize(R.id.weekly_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.weekly_updated, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
-            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 36f * scale);
+            views.setTextViewTextSize(R.id.weekly_total, TypedValue.COMPLEX_UNIT_DIP, 28f * scale);
             views.setTextViewTextSize(R.id.weekly_avg, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
             for (int i = 0; i < 7; i++) {
                 views.setTextViewTextSize(dayIds[i], TypedValue.COMPLEX_UNIT_DIP, 11f * scale);
@@ -117,7 +120,9 @@ public class WeeklyWidget extends BaseWidget {
         // 실제 기기의 위젯 높이/너비와 무관하게 비율(h에 대한 %)로 정의 — 비트맵이
         // fitXY로 위젯의 실제 크기에 맞춰 늘어나므로 이 비율만 지키면 어떤 위젯
         // 크기에서도 총액 대비 상대적으로 같은 비율의 글자 크기를 유지한다.
-        labelPaint.setTextSize(h * 0.09f);
+        labelPaint.setTextSize(h * 0.13f);
+        // 높이(글자 크기)는 그대로 두고 너비만 살짝 좁혀서 조금 더 슬림하게 보이도록.
+        labelPaint.setTextScaleX(0.92f);
 
         for (int i = 0; i < cols; i++) {
             float cx = colW * i + colW / 2f;
