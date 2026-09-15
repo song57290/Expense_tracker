@@ -106,14 +106,15 @@ public class CompactWidget extends BaseWidget {
             int heightDp = grantedHeightDp(manager, widgetId, 85);
             float heightGuard = Math.max(0.4f, heightDp / 85f);
             scale = Math.min(scale, heightGuard);
+            scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
 
             views.setTextViewTextSize(R.id.compact_month,         TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
             views.setTextViewTextSize(R.id.compact_balance_label, TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
             views.setTextViewTextSize(R.id.compact_balance,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
             views.setTextViewTextSize(R.id.compact_income_label,  TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
             views.setTextViewTextSize(R.id.compact_expense_label, TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
-            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
-            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 16f * scale);
+            views.setTextViewTextSize(R.id.compact_income,        TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
+            views.setTextViewTextSize(R.id.compact_expense,       TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
 
             int padH = dpToPx(context, 10 * scale);
             int padEnd = dpToPx(context, 8 * scale);

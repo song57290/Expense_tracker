@@ -63,15 +63,37 @@ export default function App() {
     const fallback = Capacitor.isNativePlatform()
       ? setTimeout(() => { if (!done) SplashScreen.hide() }, 6000)
       : null
-    fetch('/api/me', { credentials: 'same-origin' })
-      .then(r => r.json())
-      .then(d => setUser(d.user))
-      .catch(() => setUser(null))
-      .finally(() => {
-        done = true
-        clearTimeout(fallback)
-        if (Capacitor.isNativePlatform()) SplashScreen.hide()
-      })
+    const finish = (u) => {
+      setUser(u)
+      done = true
+      clearTimeout(fallback)
+      if (Capacitor.isNativePlatform()) SplashScreen.hide()
+    }
+    if (localStorage.getItem('auto_login') === 'false') {
+      // 자동 로그인을 꺼둔 경우 — 이 useEffect는 앱을 완전히 종료했다가 다시 켰을
+      // 때(콜드 스타트)에만 다시 실행되므로(홈 버튼 등 잠깐의 백그라운드 전환으로는
+      // 재실행되지 않음), /api/me를 조회하지 않고 바로 로그인 화면부터 시작한다.
+      // 여기서 /api/logout까지 호출하면 그 응답이 사용자가 곧바로 이어서 시도하는
+      // 로그인의 응답보다 늦게 도착할 때 방금 로그인한 세션 쿠키를 덮어써 버리는
+      // 경합이 생겨(로그인 직후 다시 튕기는 원인이었음), 서버 세션은 그대로 두고
+      // 클라이언트만 로그인 화면으로 보낸다.
+      finish(null)
+      return
+    }
+    // Fly.io 단일 머신이 유휴 상태에서 잠들어 있다가 깨어나는 콜드 스타트 구간에는
+    // 요청이 느려지는 게 아니라 아예 실패로 끝나는 경우가 있다 — 이걸 "로그인 안
+    // 되어 있음"으로 바로 단정하면 실제로는 로그인돼 있는데도 간헐적으로 로그인
+    // 화면이 떴다 사라지는 것처럼 보이므로, 몇 번 재시도한 뒤에만 포기한다.
+    const tryFetchMe = (retriesLeft) => {
+      fetch('/api/me', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => finish(d.user))
+        .catch(() => {
+          if (retriesLeft > 0) setTimeout(() => tryFetchMe(retriesLeft - 1), 1500)
+          else finish(null)
+        })
+    }
+    tryFetchMe(2)
   }, [])
 
   useEffect(() => {

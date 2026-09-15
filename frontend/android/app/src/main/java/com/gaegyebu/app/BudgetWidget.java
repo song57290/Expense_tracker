@@ -91,6 +91,7 @@ public class BudgetWidget extends BaseWidget {
             int widthDp = grantedWidthDp(manager, widgetId, 110);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
             float scale = Math.max(0.75f, Math.min(1.3f, Math.min(widthDp / 110f, heightDp / 110f)));
+            scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
 
             views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
             views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, 10f * scale);

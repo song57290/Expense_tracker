@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.Build;
 import android.util.Log;
 import android.util.TypedValue;
 import android.widget.RemoteViews;
@@ -66,15 +67,30 @@ public class WeeklyWidget extends BaseWidget {
             for (int i = 0; i < 7; i++) views.setTextViewText(dayIds[i], DAY_LABELS[i]);
 
             int mutedColor = dark ? 0x66FFFFFF : 0x33000000;
-            // 총액 글씨가 커서 막대 영역이 상대적으로 많이 눌려 보인다는 피드백으로
-            // 총액을 줄이고(아래) 비트맵 자체 비율도 세로 방향으로 덜 납작하게 조정.
-            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(context, 700, 260, daily, todayIndex, accentColor, mutedColor));
 
             int widthDp = grantedWidthDp(manager, widgetId, 250);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
             // 1f로 위쪽을 완전히 막지는 않되, 실제 위젯이 기본보다 훨씬 크게 배치된
             // 경우까지 글씨가 과도하게 커지지 않도록 1.3f를 상한으로 둔다.
             float scale = Math.max(0.6f, Math.min(1.3f, Math.min(widthDp / 250f, heightDp / 110f)));
+            // 위젯 설정 화면에서 사용자가 직접 고른 글자 크기(작게/보통/크게) — 자동 배율
+            // 위에 추가로 곱해진다.
+            scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
+
+            // 막대그래프는 고정 크기 비트맵을 fitXY로 늘려서 채우는데, 실제로 배정된
+            // 폭:높이 비율이 그 고정 비율이랑 많이 다르면(특히 위젯이 넓게 배치된 경우)
+            // 숫자가 세로로 눌려 보인다 — 다른 요소들이 차지할 공간을 대략 뺀 나머지를
+            // 막대 영역의 실제 크기로 추정해 그 비율 그대로 비트맵을 그린다.
+            float titleRowDp = Math.max(12f * scale, 9f * scale + 2f + 9f * scale) * 1.25f;
+            float totalRowDp = -2f * scale + 28f * scale * 1.25f;
+            float dayRowDp = 2f + 11f * scale * 1.25f;
+            float nonBarsDp = 14f * scale * 2f + titleRowDp + totalRowDp + 8f + dayRowDp;
+            float barsHeightDp = Math.max(30f, heightDp - nonBarsDp);
+            float barsWidthDp = Math.max(60f, widthDp - 14f * scale * 2f);
+            int barsWpx = dpToPx(context, barsWidthDp);
+            int barsHpx = dpToPx(context, barsHeightDp);
+            float barLabelTextSizePx = dpToPx(context, 16f * scale);
+            views.setImageViewBitmap(R.id.weekly_bars, createBarsBitmap(context, barsWpx, barsHpx, daily, todayIndex, accentColor, mutedColor, barLabelTextSizePx));
 
             views.setTextViewTextSize(R.id.weekly_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.weekly_updated, TypedValue.COMPLEX_UNIT_DIP, 9f * scale);
@@ -86,6 +102,11 @@ public class WeeklyWidget extends BaseWidget {
             views.setViewPadding(R.id.widget_weekly_root,
                     dpToPx(context, 14 * scale), dpToPx(context, 14 * scale),
                     dpToPx(context, 14 * scale), dpToPx(context, 14 * scale));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // 제목-총액 사이 간격이 위젯이 클수록(글씨가 커질수록) 덩달아 커 보인다는
+                // 피드백 — XML 고정 -2dp 대신 scale에 비례해 더 끌어올린다.
+                views.setViewLayoutMargin(R.id.weekly_total, RemoteViews.MARGIN_TOP, -4f * scale, TypedValue.COMPLEX_UNIT_DIP);
+            }
 
             Intent intent = new Intent(context, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -100,7 +121,7 @@ public class WeeklyWidget extends BaseWidget {
         }
     }
 
-    static Bitmap createBarsBitmap(Context context, int w, int h, long[] daily, int todayIndex, int accentColor, int mutedColor) {
+    static Bitmap createBarsBitmap(Context context, int w, int h, long[] daily, int todayIndex, int accentColor, int mutedColor, float labelTextSizePx) {
         Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
 
@@ -117,10 +138,10 @@ public class WeeklyWidget extends BaseWidget {
         Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         labelPaint.setTextAlign(Paint.Align.CENTER);
         labelPaint.setTypeface(boldTypeface(context));
-        // 실제 기기의 위젯 높이/너비와 무관하게 비율(h에 대한 %)로 정의 — 비트맵이
-        // fitXY로 위젯의 실제 크기에 맞춰 늘어나므로 이 비율만 지키면 어떤 위젯
-        // 크기에서도 총액 대비 상대적으로 같은 비율의 글자 크기를 유지한다.
-        labelPaint.setTextSize(h * 0.13f);
+        // 막대 영역(h)은 다른 행들이 차지하는 공간을 뺀 나머지를 추정한 값이라 사용자가
+        // 글자 크기를 작게 고르면 오히려 막대 영역이 넓어져 h 비례 글자가 커지는 역전이
+        // 생긴다 — 그래서 h가 아니라 호출부에서 넘겨주는, scale에 직접 비례한 크기를 쓴다.
+        labelPaint.setTextSize(labelTextSizePx);
         // 높이(글자 크기)는 그대로 두고 너비만 살짝 좁혀서 조금 더 슬림하게 보이도록.
         labelPaint.setTextScaleX(0.92f);
 
