@@ -17,6 +17,23 @@ public class WidgetTheme {
     static final String WHITE = "white";
     static final String BLACK = "black";
 
+    // 글자 크기 — 배경 색상과 같은 방식(위젯 인스턴스별)으로 저장하는 사용자 선택값.
+    // 위젯 크기에 따라 자동으로 붙는 scale과는 별개로, 그 위에 곱해지는 배율이다.
+    static final String TEXTSIZE_PREF_KEY = "widget_textsize_";
+    static final String TEXT_SMALL = "small";
+    static final String TEXT_MEDIUM = "medium";
+    static final String TEXT_LARGE = "large";
+
+    static String getTextSizePref(SharedPreferences prefs, int widgetId) {
+        return prefs.getString(TEXTSIZE_PREF_KEY + widgetId, TEXT_MEDIUM);
+    }
+
+    static float textScaleMultiplier(String pref) {
+        if (TEXT_SMALL.equals(pref)) return 0.85f;
+        if (TEXT_LARGE.equals(pref)) return 1.15f;
+        return 1.0f;
+    }
+
     // 다크 배경용 색상
     static final int D_PRIMARY = 0xFFFFFFFF;   // 흰색 — 어두운/투명 배경에서 가독성 최우선
     static final int D_ACCENT  = 0xFFB088F9;   // 브랜드 보라 — arc/링 등 강조 요소 전용

@@ -271,6 +271,158 @@
 
     </LinearLayout>
 
+    <!-- 글자 크기 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="글자 크기"
+        android:textColor="@color/config_hint"
+        android:textSize="13sp"
+        android:paddingStart="36dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="6dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_config_section"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:elevation="1dp">
+
+        <!-- 작게 -->
+        <LinearLayout
+            android:id="@+id/opt_text_small"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <TextView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:gravity="center"
+                android:text="가"
+                android:textColor="@color/config_hint"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="14dp"
+                android:text="작게"
+                android:textColor="@color/config_text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/check_text_small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✓"
+                android:textColor="#7C4DFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:background="@color/config_divider"
+            android:layout_marginStart="52dp" />
+
+        <!-- 보통 -->
+        <LinearLayout
+            android:id="@+id/opt_text_medium"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <TextView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:gravity="center"
+                android:text="가"
+                android:textColor="@color/config_hint"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="14dp"
+                android:text="보통"
+                android:textColor="@color/config_text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/check_text_medium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✓"
+                android:textColor="#7C4DFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:background="@color/config_divider"
+            android:layout_marginStart="52dp" />
+
+        <!-- 크게 -->
+        <LinearLayout
+            android:id="@+id/opt_text_large"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <TextView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:gravity="center"
+                android:text="가"
+                android:textColor="@color/config_hint"
+                android:textSize="20sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="14dp"
+                android:text="크게"
+                android:textColor="@color/config_text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/check_text_large"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✓"
+                android:textColor="#7C4DFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
     <!-- 남는 공간 -->
     <View
         android:layout_width="match_parent"

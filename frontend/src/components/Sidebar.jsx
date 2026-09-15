@@ -231,7 +231,7 @@ export default function Sidebar({ open, onClose, user, onLogout }) {
           {user && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px 10px', marginBottom: 4 }}>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{user.email}</span>
-              <button onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); onLogout() }}
+              <button onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); localStorage.removeItem('auto_login'); onLogout() }}
                 style={{ background: 'var(--bg-accent)', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
                 로그아웃
               </button>

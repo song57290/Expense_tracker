@@ -27,9 +27,16 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_PENDING_APK_FILE = "pending_apk_file_name";
     private static final String PREF_PENDING_APK_URL = "pending_apk_url";
     private static final String PREF_INSTALL_ATTEMPT_VERSION = "install_attempt_version";
+    private static final String PREF_INSTALL_ATTEMPT_AT = "install_attempt_at";
     private static final String PREF_PENDING_APK_STARTED_AT = "pending_apk_started_at";
     private static final String PREF_PENDING_APK_VERSION = "pending_apk_version";
+    private static final String PREF_INSTALL_RETRY_COUNT = "install_retry_count";
     private static final long PENDING_DOWNLOAD_STALE_MS = 10 * 60 * 1000;
+    // onResume()마다 "설치 안 끝난 파일이 남아있으면 다시 설치 시도"하는 안전망이,
+    // 기기가 설치를 계속 막는 경우(자동 차단 등) 끝없이 설치 화면을 다시 띄우는
+    // 무한루프가 돼버렸다 — 몇 번 실패하면 그만 포기하고 pending 기록을 지워서
+    // 앱이라도 정상적으로 열리게 한다(업데이트는 나중에 사용자가 다시 누르면 됨).
+    private static final int MAX_AUTO_INSTALL_RETRIES = 2;
     private BroadcastReceiver apkDownloadReceiver;
 
     @Override
@@ -133,6 +140,7 @@ public class MainActivity extends BridgeActivity {
                     .putString(PREF_PENDING_APK_FILE, fileName)
                     .putString(PREF_PENDING_APK_VERSION, versionParam(url))
                     .putLong(PREF_PENDING_APK_STARTED_AT, System.currentTimeMillis())
+                    .remove(PREF_INSTALL_RETRY_COUNT)
                     .apply();
         } catch (Exception e) {
             Log.e("MainActivity", "Failed to start APK download", e);
@@ -182,7 +190,8 @@ public class MainActivity extends BridgeActivity {
             Intent installIntent = new Intent(Intent.ACTION_VIEW);
             installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
             installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            prefs.edit().putInt(PREF_INSTALL_ATTEMPT_VERSION, currentVersionCode()).apply();
+            prefs.edit().putInt(PREF_INSTALL_ATTEMPT_VERSION, currentVersionCode())
+                    .putLong(PREF_INSTALL_ATTEMPT_AT, System.currentTimeMillis()).apply();
             startActivity(installIntent);
             // 여기서 PREF_PENDING_APK_FILE 등을 바로 지우지 않는다 — 설치 인텐트를
             // 띄웠다고 실제로 설치된 건 아니다(자동 차단 등으로 조용히 막힐 수 있음).
@@ -204,7 +213,8 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception ignored) {}
         }
         prefs.edit().remove(PREF_PENDING_APK_ID).remove(PREF_PENDING_APK_FILE)
-                .remove(PREF_PENDING_APK_STARTED_AT).remove(PREF_PENDING_APK_VERSION).apply();
+                .remove(PREF_PENDING_APK_STARTED_AT).remove(PREF_PENDING_APK_VERSION)
+                .remove(PREF_INSTALL_RETRY_COUNT).apply();
     }
 
     private int currentVersionCode() {
@@ -216,24 +226,41 @@ public class MainActivity extends BridgeActivity {
     }
 
     // 설치 인텐트를 띄운 뒤 앱으로 돌아왔는데 버전이 그대로면 삼성 자동 차단 등
-    // OS 차원의 설치 차단 가능성이 큼 — 보안 설정 화면으로 안내한다.
-    // true를 반환하면 이번 onResume에서는 추가로 재시도하지 않고, 사용자가 보안
-    // 설정을 만지고 돌아올 때까지 기다린다(바로 재시도하면 같은 이유로 또 막힌다).
+    // OS 차원의 설치 차단일 수도, 사용자가 설치 확인창에서 직접 취소한 것일 수도
+    // 있다 — 실제로 재봤더니 사용자가 빠르게 취소를 눌러도 조용히 차단된 것과
+    // 복귀 시간이 거의 똑같아서 시간으로는 구분이 안 됐다. 구분이 안 되는 이상
+    // 설정 화면으로 강제로 보내지 않는다 — 취소를 눌렀는데 원치 않는 화면으로
+    // 끌려가는 쪽이 더 나쁘다. 안내 메시지만 띄우고, 정말 차단된 사용자는 스스로
+    // 보안 설정을 찾아가게 한다.
     private boolean checkInstallOutcome() {
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
         if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return false;
         int versionBefore = prefs.getInt(PREF_INSTALL_ATTEMPT_VERSION, -1);
-        prefs.edit().remove(PREF_INSTALL_ATTEMPT_VERSION).apply();
+        prefs.edit().remove(PREF_INSTALL_ATTEMPT_VERSION).remove(PREF_INSTALL_ATTEMPT_AT).apply();
         if (currentVersionCode() != versionBefore) {
             // 설치 성공 — 더 이상 필요 없는 다운로드 기록·파일 정리
             clearPendingDownload(prefs);
-            return false;
+        } else {
+            // 설치가 안 된 것으로 보임 — 여기서 pending 기록을 남겨두면 바로 아래
+            // onResume의 재시도 로직이 설치창을 다시 띄워서, 취소를 눌러도 몇 번씩
+            // 다시 뜨는 것처럼 보인다(최대 재시도 횟수를 다 쓸 때까지). 취소든 차단
+            // 이든 한 번 시도로 끝내고, 다시 받고 싶으면 업데이트 버튼을 또 누르게 한다.
+            Toast.makeText(this, "설치가 진행되지 않았어요.\n설치창에서 취소했거나, 보안 설정에서 '자동 차단'이 켜져 있을 수 있어요", Toast.LENGTH_LONG).show();
+            clearPendingDownload(prefs);
         }
-        Toast.makeText(this, "설치가 진행되지 않았어요.\n보안 설정에서 '자동 차단'을 확인해주세요", Toast.LENGTH_LONG).show();
+        return false;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // 로그인 직후 앱을 바로 완전 종료하면(스와이프로 최근 앱 목록에서 제거 등)
+        // 로그인 세션 쿠키가 디스크에 채 기록되기 전에 프로세스가 죽어서, 다음에
+        // 앱을 열었을 때 자동 로그인이 켜져 있어도 로그인 화면이 다시 뜨는 문제가
+        // 있었다 — onPause 시점에 강제로 flush해 반드시 디스크에 남도록 한다.
         try {
-            startActivity(new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS));
+            android.webkit.CookieManager.getInstance().flush();
         } catch (Exception ignored) {}
-        return true;
     }
 
     @Override
@@ -269,7 +296,14 @@ public class MainActivity extends BridgeActivity {
         } else if (pendingUrl != null) {
             Toast.makeText(this, "아직 설치 권한이 없어요, 업데이트를 다시 눌러주세요", Toast.LENGTH_LONG).show();
         } else if (prefs.contains(PREF_PENDING_APK_FILE)) {
-            installDownloadedApk();
+            int retries = prefs.getInt(PREF_INSTALL_RETRY_COUNT, 0);
+            if (retries >= MAX_AUTO_INSTALL_RETRIES) {
+                Log.d("MainActivity", "onResume: giving up auto-install after " + retries + " retries, clearing pending state");
+                clearPendingDownload(prefs);
+            } else {
+                prefs.edit().putInt(PREF_INSTALL_RETRY_COUNT, retries + 1).apply();
+                installDownloadedApk();
+            }
         }
     }
 

@@ -9,6 +9,7 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false)
   const [emailError, setEmailError] = useState(false)
   const [passwordError, setPasswordError] = useState(false)
+  const [autoLogin, setAutoLogin] = useState(localStorage.getItem('auto_login') !== 'false')
 
   // 비밀번호 찾기
   const [resetStep, setResetStep] = useState(1)
@@ -34,7 +35,7 @@ export default function Login({ onLogin }) {
     setLoading(true)
     try {
       const url = tab === 'login' ? '/api/login' : '/api/register'
-      const body = { email: email.trim().toLowerCase(), password }
+      const body = { email: email.trim().toLowerCase(), password, remember: autoLogin }
       if (tab === 'register') body.nickname = nickname.trim()
       const r = await fetch(url, {
         method: 'POST',
@@ -44,6 +45,7 @@ export default function Login({ onLogin }) {
       })
       const d = await r.json()
       if (!r.ok) { setError(d.error || '오류가 발생했습니다'); return }
+      localStorage.setItem('auto_login', autoLogin ? 'true' : 'false')
       onLogin({ email: d.email, nickname: d.nickname })
     } catch {
       setError('서버에 연결할 수 없습니다')
@@ -167,7 +169,12 @@ export default function Login({ onLogin }) {
               </div>
             )}
             {tab === 'login' && (
-              <div style={{ textAlign: 'right', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={autoLogin} onChange={e => setAutoLogin(e.target.checked)}
+                    style={{ width: 15, height: 15, accentColor: '#b088f9', cursor: 'pointer' }} />
+                  자동 로그인
+                </label>
                 <button type="button" onClick={() => switchTab('reset')} style={{ background: 'none', border: 'none', fontSize: '0.8rem', color: '#b088f9', cursor: 'pointer', padding: 0 }}>
                   비밀번호를 잊으셨나요?
                 </button>
