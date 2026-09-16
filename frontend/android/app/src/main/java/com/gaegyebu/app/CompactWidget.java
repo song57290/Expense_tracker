@@ -118,9 +118,8 @@ public class CompactWidget extends BaseWidget {
 
             int padH = dpToPx(context, 10 * scale);
             int padEnd = dpToPx(context, 8 * scale);
-            // 계산으로 맞춘 값들이 실제 기기에서 계속 안 맞아서, 라벨 글씨를 줄이고
-            // 위아래 패딩 합(6dp)을 여유 있게 잡아뒀다. 합은 그대로 두고 위:아래
-            // 비율만 바꿔(2:4) 안쪽 글씨를 살짝 위로 올린다.
+            // 계산으로 맞춘 값들이 실제 기기에서 계속 안 맞아서, 라벨 글씨를 줄이고 위아래 패딩 합(6dp)을 여유 있게
+            // 비율만 바꿔(2:4) 안쪽 글씨를 살짝 위로 
             int padTop = dpToPx(context, 2 * scale);
             int padBottom = dpToPx(context, 4 * scale);
             views.setViewPadding(R.id.compact_income_card, padH, padTop, padEnd, padBottom);

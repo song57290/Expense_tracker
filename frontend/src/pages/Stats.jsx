@@ -9,8 +9,9 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
-import { fmt, cardLogo, fmtMonth } from '../utils.js'
+import { fmt, fmtMonth, useLocalStorageState } from '../utils.js'
 import YearDrum from '../components/YearDrum.jsx'
+import FilterPopup from '../components/FilterPopup.jsx'
 
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler, ChartDataLabels)
 
@@ -61,10 +62,13 @@ export default function Stats() {
   const [month, setMonth] = useState(nowYM)
   const [data, setData] = useState(() => _statsCache)
   const [cardFilter, setCardFilter] = useState('__all__')
-  const [catOpen, setCatOpen] = useState(true)
-  const [barOpen, setBarOpen] = useState(true)
-  const [assetOpen, setAssetOpen] = useState(true)
-  const [portfolioOpen, setPortfolioOpen] = useState(true)
+  // 접기/펼치기 상태도 탭 이동·앱 재실행 후에 유지되도록 로컬 저장
+  const [catOpen, setCatOpen] = useLocalStorageState('stats_cat_open', true)
+  const [barOpen, setBarOpen] = useLocalStorageState('stats_bar_open', true)
+  const [assetOpen, setAssetOpen] = useLocalStorageState('stats_asset_open', true)
+  const [portfolioOpen, setPortfolioOpen] = useLocalStorageState('stats_portfolio_open', true)
+  const [cmpOpen, setCmpOpen] = useLocalStorageState('stats_cmp_open', true)
+  const [cmpHelpOpen, setCmpHelpOpen] = useState(false)
   const [assetDetail, setAssetDetail] = useState(false)
   const [assetVisible, setAssetVisible] = useState(false)
   const [trendFrom, setTrendFrom] = useState(() => defaultTrendRange().from)
@@ -78,8 +82,20 @@ export default function Stats() {
   const [pickerDecade, setPickerDecade] = useState(() => Math.floor((new Date().getFullYear() - 1) / 10) * 10 + 1)
   const [barMode, setBarMode] = useState('both')
   const [bdOpen, setBdOpen] = useState({})
-  const [cmpSelected, setCmpSelected] = useState(null)
-  const [cmpFilterOpen, setCmpFilterOpen] = useState(false)
+  const [cmpSelected, setCmpSelected] = useState(() => {
+    try {
+      const saved = localStorage.getItem('stats_cmp_filter')
+      return saved ? new Set(JSON.parse(saved)) : null
+    } catch { return null }
+  })
+  useEffect(() => {
+    // 탭 이동·앱 재실행 후에도 골라둔 필터가 유지되도록 로컬에 저장 — 서버로는
+    // 아무것도 보내지 않으므로 서버 사용량과는 무관하다.
+    try {
+      if (cmpSelected === null) localStorage.removeItem('stats_cmp_filter')
+      else localStorage.setItem('stats_cmp_filter', JSON.stringify(Array.from(cmpSelected)))
+    } catch {}
+  }, [cmpSelected])
 
   useEffect(() => {
     document.body.classList.toggle('sheet-open', assetDetail || pickerOpen)
@@ -176,6 +192,10 @@ export default function Stats() {
 
   return (
     <div style={{ animation: 'fadeIn 0.25s ease' }}>
+      <style>{`
+        .s-arrow { display: inline-block; transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); color: var(--text-faint); font-size: 0.85rem; line-height: 1; }
+        .s-collapse { overflow: hidden; transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1); }
+      `}</style>
       {/* 커스텀 년/월 피커 모달 */}
       {pickerOpen && createPortal(
         <div onClick={e => e.target === e.currentTarget && setPickerOpen(false)}
@@ -243,9 +263,9 @@ export default function Stats() {
       {/* 카테고리별 지출 헤더 */}
       <div className="d-flex justify-content-between align-items-center mb-3 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
         <span className="fw-bold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{fmtMonth(month)} 카테고리별 지출</span>
-        <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
+        <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
       </div>
-      {catOpen && (
+      <div className="s-collapse" style={{ maxHeight: catOpen ? '3000px' : '0' }}>
         <div className="row mb-4 align-items-stretch">
           {/* 도넛 차트 */}
           <div className="col-md-6 mb-3 mb-md-0">
@@ -328,32 +348,7 @@ export default function Stats() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* 카드별 지출 */}
-      {(data.card_monthly || []).length > 0 && (
-        <div className="card mb-4">
-          <div className="card-body">
-            <h5 className="card-title">카드별 지출</h5>
-            {data.card_monthly.map(c => {
-              const logo = cardLogo(c)
-              return (
-                <div key={c.name} className="d-flex justify-content-between align-items-center py-2 border-bottom">
-                  <span className="d-flex align-items-center gap-2">
-                    {logo && <img src={logo} style={{ height: 22, width: 22, objectFit: 'contain', borderRadius: 4 }} />}
-                    {c.name}
-                  </span>
-                  <span className="fw-semibold">{fmt(c.spent)}원</span>
-                </div>
-              )
-            })}
-            <div className="d-flex justify-content-between align-items-center pt-2">
-              <span className="text-muted small">합계</span>
-              <span className="fw-bold">{fmt(data.card_monthly.reduce((s, c) => s + c.spent, 0))}원</span>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* 월별 지출/수입 추이 */}
       <div className="card mb-4">
@@ -361,7 +356,10 @@ export default function Stats() {
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setBarOpen(o => !o)}>
             <div className="d-flex align-items-center gap-2">
               <h5 className="card-title mb-0">월별 추이</h5>
-              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: 'var(--bg-section)', borderRadius: 10, padding: 3, gap: 2 }}>
+              {/* 조건부 마운트로 즉시 사라지면 아래 본문의 max-height 트랜지션과
+                  타이밍이 어긋나 버튼만 먼저 끊기듯 사라져 보였다 — 항상 렌더링해
+                  두고 폭+투명도로 같은 속도(0.32s)에 맞춰 부드럽게 접히게 한다. */}
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', background: 'var(--bg-section)', borderRadius: 10, padding: barOpen ? 3 : 0, gap: 2, maxWidth: barOpen ? 260 : 0, opacity: barOpen ? 1 : 0, overflow: 'hidden', whiteSpace: 'nowrap', transition: 'max-width 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease, padding 0.32s cubic-bezier(0.4,0,0.2,1)' }}>
                 {[['both', '전체'], ['income', '수입'], ['expense', '지출']].map(([mode, label]) => (
                   <button key={mode} onClick={() => setBarMode(mode)}
                     style={{ border: 'none', borderRadius: 7, padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
@@ -372,9 +370,9 @@ export default function Stats() {
                 ))}
               </div>
             </div>
-            <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{barOpen ? '▴' : '▾'}</span>
+            <span className="s-arrow" style={{ transform: barOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          {barOpen && (
+          <div className="s-collapse" style={{ maxHeight: barOpen ? '3000px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
               <button onClick={() => openPicker('barFrom')} style={pickerBtnStyle}>
                 {barFrom.slice(0,4)}년 {parseInt(barFrom.slice(5))}월
@@ -390,8 +388,6 @@ export default function Stats() {
                 </button>
               )}
             </div>
-          )}
-          {barOpen && (
             <div>
               {barMode === 'expense' && (
                 <select value={cardFilter}
@@ -452,7 +448,7 @@ export default function Stats() {
                 )
               })()}
             </div>
-          )}
+          </div>
         </div>
       </div>
       {/* 자산 구성 포트폴리오 */}
@@ -461,9 +457,10 @@ export default function Stats() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setPortfolioOpen(o => !o)}>
               <h5 className="card-title mb-0">자산 구성</h5>
-              <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{portfolioOpen ? '▴' : '▾'}</span>
+              <span className="s-arrow" style={{ transform: portfolioOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            {portfolioOpen && (() => {
+            <div className="s-collapse" style={{ maxHeight: portfolioOpen ? '3000px' : '0' }}>
+            {(() => {
               const PF_COLORS = ['#b088f9', '#7baff0', '#4BC0C0', '#FF6384', '#FF9F40', '#FFCE56', '#9966FF', '#C9CBCF']
               const allItems = [...(data.portfolio_breakdown || [])]
               const assetItems = allItems.filter(i => i.value >= 0).sort((a, b) => b.value - a.value)
@@ -480,11 +477,22 @@ export default function Stats() {
                   const cx = left + width / 2, cy = top + height / 2
                   const isDark = document.documentElement.dataset.theme === 'dark' || window.matchMedia?.('(prefers-color-scheme: dark)').matches
                   ctx.save()
-                  ctx.font = 'bold 20px sans-serif'
                   ctx.fillStyle = isDark ? '#f0eeff' : '#333'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'middle'
-                  ctx.fillText(netTotal >= 100000000 ? (netTotal / 100000000).toFixed(1) + '억원' : (netTotal / 10000).toFixed(0) + '만원', cx, cy - 10)
+                  const netLabel = fmt(netTotal) + '원'
+                  // 천단위 콤마로 풀어 쓰면 억/만원 축약 표기보다 훨씬 길어져 도넛
+                  // 구멍 밖으로 넘칠 수 있다 — 구멍 크기 대비 실측 너비를 재서
+                  // 넘치면 폰트를 줄여 항상 안에 들어오게 맞춘다.
+                  let netFontSize = 20
+                  ctx.font = `bold ${netFontSize}px sans-serif`
+                  const netMaxW = Math.min(width, height) * 0.42
+                  const netTextW = ctx.measureText(netLabel).width
+                  if (netTextW > netMaxW) {
+                    netFontSize = Math.max(11, Math.floor(netFontSize * netMaxW / netTextW))
+                    ctx.font = `bold ${netFontSize}px sans-serif`
+                  }
+                  ctx.fillText(netLabel, cx, cy - 10)
                   ctx.font = '12px sans-serif'
                   ctx.fillStyle = isDark ? '#9590a8' : '#888'
                   ctx.fillText('순자산', cx, cy + 14)
@@ -571,6 +579,7 @@ export default function Stats() {
                 </div>
               )
             })()}
+            </div>
           </div>
         </div>
       )}
@@ -580,9 +589,9 @@ export default function Stats() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setAssetOpen(o => !o)}>
             <h5 className="card-title mb-0">총 자산 추이</h5>
-            <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{assetOpen ? '▴' : '▾'}</span>
+            <span className="s-arrow" style={{ transform: assetOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          {assetOpen && (
+          <div className="s-collapse" style={{ maxHeight: assetOpen ? '3000px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
               <button onClick={() => openPicker('trendFrom')} style={pickerBtnStyle}>
                 {trendFrom.slice(0,4)}년 {parseInt(trendFrom.slice(5))}월
@@ -593,8 +602,7 @@ export default function Stats() {
               </button>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>최대 6개월</span>
             </div>
-          )}
-          {assetOpen && (() => {
+            {(() => {
             const trend = data.asset_trend || []
             const tLabels = trend.map(t => parseInt(t.month.slice(5)) + '월')
             const tData = trend.map(t => t.assets)
@@ -824,6 +832,7 @@ export default function Stats() {
               </div>
             )
           })()}
+          </div>
         </div>
       </div>
 
@@ -836,48 +845,34 @@ export default function Stats() {
         return (
           <div className="card mb-4">
             <div className="card-body">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <h5 className="card-title mb-0">전월 대비 카테고리</h5>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {cmpSelected !== null && (
-                    <button onClick={() => setCmpSelected(null)}
-                      style={{ background: 'none', border: 'none', fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}>
-                      초기화
-                    </button>
-                  )}
-                  <button onClick={() => setCmpFilterOpen(o => !o)}
-                    style={{ padding: '4px 10px', borderRadius: 20,
-                      border: `1.5px solid ${(cmpFilterOpen || cmpSelected !== null) ? '#b088f9' : 'var(--border-light)'}`,
-                      background: (cmpFilterOpen || cmpSelected !== null) ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)',
-                      color: (cmpFilterOpen || cmpSelected !== null) ? '#b088f9' : 'var(--text-muted)',
-                      fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                    필터 {cmpSelected !== null ? `(${selected.size})` : ''} <span style={{ fontSize: '0.6rem' }}>{cmpFilterOpen ? '▲' : '▼'}</span>
-                  </button>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, cursor: 'pointer', userSelect: 'none' }} onClick={() => setCmpOpen(o => !o)}>
+                <h5 className="card-title mb-0" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  전월 대비 카테고리
+                  <span onClick={e => { e.stopPropagation(); setCmpHelpOpen(o => !o) }}
+                    style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--bg-section)', color: 'var(--text-muted)', fontSize: '0.62rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    ?
+                  </span>
+                </h5>
+                {cmpHelpOpen && (
+                  <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 10, padding: '10px 12px', fontSize: '0.75rem', lineHeight: 1.5, color: 'var(--text-secondary)', boxShadow: '0 6px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
+                    카테고리별로 저번 달과 이번 달의 지출(계좌 이체 등 통계 제외 거래는 뺀)을 비교한 값이에요.<br />
+                    이번 달 지출에서 저번 달 지출을 뺀 값이 증감(▲/▼)으로 표시돼요.
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+                  <FilterPopup sections={[{
+                    label: '카테고리', type: 'grid',
+                    options: allItems.map(item => [item.name, `${item.icon} ${item.name}`]),
+                    value: cmpSelected === null ? 'all' : Array.from(cmpSelected),
+                    onChange: next => setCmpSelected(next === 'all' ? null : new Set(next)),
+                  }]} />
+                  <span className="s-arrow" onClick={() => setCmpOpen(o => !o)} style={{ transform: cmpOpen ? 'rotate(180deg)' : 'rotate(0deg)', cursor: 'pointer' }}>▼</span>
                 </div>
               </div>
+              <div className="s-collapse" style={{ maxHeight: cmpOpen ? '3000px' : '0' }}>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 10 }}>
                 {data.prev_month ? `${parseInt(data.prev_month.slice(5))}월 → ${parseInt(month.slice(5))}월 지출 변화` : ''}
               </div>
-              {/* 필터 토글 */}
-              {cmpFilterOpen && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, padding: '10px 12px', background: 'var(--bg-accent)', borderRadius: 12 }}>
-                  {allItems.map(item => {
-                    const on = selected.has(item.name)
-                    return (
-                      <button key={item.name} onClick={() => {
-                        const next = new Set(selected)
-                        if (on) { next.delete(item.name) } else { next.add(item.name) }
-                        setCmpSelected(next.size === allItems.length ? null : next)
-                      }}
-                        style={{ padding: '4px 10px', borderRadius: 20, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`,
-                          background: on ? 'rgba(176,136,249,0.12)' : 'var(--bg-card)',
-                          color: on ? '#b088f9' : 'var(--text-muted)', fontSize: '0.78rem', fontWeight: on ? 700 : 400, cursor: 'pointer' }}>
-                        {item.icon} {item.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {filtered.map(item => {
                   const diff = item.diff
@@ -915,6 +910,7 @@ export default function Stats() {
                     카테고리를 선택해 주세요
                   </div>
                 )}
+              </div>
               </div>
             </div>
           </div>

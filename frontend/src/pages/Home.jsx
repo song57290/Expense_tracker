@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import api from '../api.js'
-import { fmt, today, bankColor, bankLogo, cardLogo, fmtDate, useCardColorMap, restoreCaretAfterFormat } from '../utils.js'
+import { fmt, today, bankColor, bankLogo, cardLogo, fmtDate, useCardColorMap, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 
 const WidgetData = registerPlugin('WidgetData')
 import TxItem from '../components/TxItem.jsx'
@@ -53,12 +53,14 @@ export default function Home() {
   const [filter, setFilter] = useState('all')
   const [sortAsc, setSortAsc] = useState(false)
   const [showBalance, setShowBalance] = useState(true)
+  const [hideAmounts, setHideAmounts] = useLocalStorageState('hide_amounts', false)
   const [showTime, setShowTime] = useState(true)
-  const [summaryOpen, setSummaryOpen] = useState(true)
-  const [cardStatOpen, setCardStatOpen] = useState(true)
-  const [catOpen, setCatOpen] = useState(true)
-  const [addOpen, setAddOpen] = useState(true)
-  const [txOpen, setTxOpen] = useState(true)
+  // 접기/펼치기 상태도 탭 이동·앱 재실행 후에 유지되도록 로컬 저장
+  const [summaryOpen, setSummaryOpen] = useLocalStorageState('home_summary_open', true)
+  const [cardStatOpen, setCardStatOpen] = useLocalStorageState('home_cardstat_open', true)
+  const [catOpen, setCatOpen] = useLocalStorageState('home_cat_open', true)
+  const [addOpen, setAddOpen] = useLocalStorageState('home_add_open', true)
+  const [txOpen, setTxOpen] = useLocalStorageState('home_tx_open', true)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState('text')
   const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
@@ -353,10 +355,14 @@ export default function Home() {
       {/* 이번 달 요약 */}
       <div className="d-flex justify-content-between align-items-center mb-2 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSummaryOpen(o => !o)}>
         <span className="text-muted fw-semibold" style={{ fontSize: '1rem' }}>이번 달 요약</span>
-        <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{summaryOpen ? '▴' : '▾'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <i className={`bi ${hideAmounts ? 'bi-eye-slash' : 'bi-eye'}`}
+            onClick={e => { e.stopPropagation(); setHideAmounts(v => !v) }}
+            style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+          <span className="s-arrow" style={{ transform: summaryOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        </div>
       </div>
-      {summaryOpen && (
-        <>
+      <div className="s-collapse" style={{ maxHeight: summaryOpen ? '3000px' : '0' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: '수입', color: '#34c759', amt: `+${fmt(data.income_total)}원` },
@@ -365,7 +371,7 @@ export default function Home() {
             ].map(({ label, color, amt }) => (
               <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
+                <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
               </div>
             ))}
           </div>
@@ -378,6 +384,7 @@ export default function Home() {
                 </div>
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: budgetPct >= 100 ? '#ff3b30' : budgetPct >= 80 ? '#ff9f0a' : '#b088f9', flexShrink: 0 }}>{budgetPct}%</span>
                 <button onClick={() => { setBudgetInput(data.budget_amount.toLocaleString('ko-KR')); setBudgetDialog(true) }}
+                  className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
                   {fmt(data.budget_amount)}원 ✎
                 </button>
@@ -389,8 +396,7 @@ export default function Home() {
               </button>
             )}
           </div>
-        </>
-      )}
+      </div>
 
       {/* 카드 실적 */}
       {data.card_stats.length > 0 && (
@@ -398,9 +404,10 @@ export default function Home() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCardStatOpen(o => !o)}>
               <h5 className="card-title mb-0">카드 실적</h5>
-              <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{cardStatOpen ? '▴' : '▾'}</span>
+              <span className="s-arrow" style={{ transform: cardStatOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            {cardStatOpen && (() => {
+            <div className="s-collapse" style={{ maxHeight: cardStatOpen ? '3000px' : '0' }}>
+            {(() => {
               const visibleStats = data.card_stats.filter(cs => !cs.is_loan && !hiddenCards.has(cs.name))
               const hiddenStats = data.card_stats.filter(cs => !cs.is_loan && hiddenCards.has(cs.name))
               return (
@@ -418,7 +425,7 @@ export default function Home() {
                             {logo && <img src={logo} style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
                             {cs.name}
                           </span>
-                          <span className="text-nowrap">{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
+                          <span className={`text-nowrap amt-mask${hideAmounts ? ' amt-hidden' : ''}`}>{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
                         </div>
                         <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }}
                           onClick={() => { if (!wasLongPress.current) openCardSheet(cs.name); wasLongPress.current = false }}>
@@ -439,6 +446,7 @@ export default function Home() {
                 </>
               )
             })()}
+            </div>
           </div>
         </div>
       )}
@@ -449,9 +457,10 @@ export default function Home() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
               <h5 className="card-title mb-0">카테고리별 지출 <span className="text-muted fw-normal" style={{ fontSize: '0.78rem' }}></span></h5>
-              <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{catOpen ? '▴' : '▾'}</span>
+              <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            {catOpen && (() => {
+            <div className="s-collapse" style={{ maxHeight: catOpen ? '3000px' : '0' }}>
+            {(() => {
               const catEntries = Object.entries(data.category_totals).sort(([, a], [, b]) => b - a)
               const maxAmt = catEntries[0]?.[1] || 1
               return catEntries.map(([cat, amt]) => (
@@ -459,7 +468,7 @@ export default function Home() {
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span className="text-muted" style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
+                      <span className={`text-muted amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
                     </div>
                   </div>
@@ -469,6 +478,7 @@ export default function Home() {
                 </div>
               ))
             })()}
+            </div>
           </div>
         </div>
       )}
@@ -479,9 +489,10 @@ export default function Home() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setAddOpen(o => !o)}>
             <h5 className="card-title mb-0">내역 추가</h5>
-            <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{addOpen ? '▴' : '▾'}</span>
+            <span className="s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          {addOpen && data.routines?.length > 0 && (
+          <div className="s-collapse" style={{ maxHeight: addOpen ? '3000px' : '0' }}>
+          {data.routines?.length > 0 && (
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 10, marginBottom: 2 }}>
               {data.routines.map(r => (
                 <button key={r.id} type="button" onClick={() => openRoutineSheet(r)}
@@ -491,7 +502,6 @@ export default function Home() {
               ))}
             </div>
           )}
-          {addOpen && (
             <form onSubmit={handleAdd} className="row g-2 mt-1">
               <div className="col-6 col-lg-2">
                 <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
@@ -612,7 +622,7 @@ export default function Home() {
                 </div>
               </div>
             </form>
-          )}
+          </div>
         </div>
       </div>
 
@@ -622,7 +632,7 @@ export default function Home() {
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setTxOpen(o => !o)}>
               <h3 className="card-title mb-0">내역 목록</h3>
-              <span style={{ fontSize: '1.4rem', color: '#b088f9', lineHeight: 1 }}>{txOpen ? '▴' : '▾'}</span>
+              <span className="s-arrow" style={{ transform: txOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
             <div className="d-flex align-items-center gap-2">
               <TxListFilter sortAsc={sortAsc} onSortChange={setSortAsc} showBalance={showBalance} onShowBalanceChange={setShowBalance} showTime={showTime} onShowTimeChange={setShowTime}
@@ -630,7 +640,8 @@ export default function Home() {
               <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
             </div>
           </div>
-          {txOpen && (
+          <div className="s-collapse" style={{ maxHeight: txOpen ? '20000px' : '0' }}>
+          {(
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
             ) : (() => {
@@ -645,7 +656,7 @@ export default function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
                     <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <span className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0) >= 0
                         ? `+${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`
                         : `${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`}
@@ -655,7 +666,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideAmounts} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                         </div>
                       </SwipeItem>
                     ))}
@@ -664,6 +675,7 @@ export default function Home() {
               ))
             })()
           )}
+          </div>
         </div>
       </div>
       <div className="d-lg-none" style={{ height: 90 }} />

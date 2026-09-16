@@ -4,7 +4,7 @@ import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSens
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
-import { fmt, bankLogo, cardLogo, fmtMonth, today, restoreCaretAfterFormat } from '../utils.js'
+import { fmt, bankLogo, cardLogo, fmtMonth, today, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import ImageCropper from '../components/ImageCropper.jsx'
@@ -480,7 +480,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAccountName, accountCards = [], dnd }) {
+function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAccountName, accountCards = [], dnd, hideAmounts = false }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -603,13 +603,14 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
           </div>
           <div className="text-end">
             <div className="text-muted" style={{ fontSize: '0.7rem' }}>잔고</div>
-            <div className="fw-bold" style={{ fontSize: '1.15rem', color: card.balance < 0 ? '#dc3545' : '#198754' }}>
+            <div className={`fw-bold amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '1.15rem', color: card.balance < 0 ? '#dc3545' : '#198754' }}>
               {card.balance < 0 ? '-' : ''}{fmt(Math.abs(card.balance))}원
             </div>
           </div>
         </div>
         {card.point_reset_day && card.balance > 0 && card.balance <= 30000 && onConvert && (
           <button type="button" onClick={e => { e.stopPropagation(); onConvert() }}
+            className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`}
             style={{ width: '100%', marginBottom: 10, padding: '6px 0', borderRadius: 8, border: '1.5px dashed #d4a300', background: 'rgba(255,193,7,0.1)', color: '#b08900', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
             ⚠️ 남은 포인트 {fmt(card.balance)}원 · 초기화 전 전환하기
           </button>
@@ -1309,7 +1310,10 @@ const ITYPE_COLORS = {
 const ITYPE_ICONS = { '국내주식': '🇰🇷', '해외주식': '🌎', '펀드': '💼', '코인': '₿', 'ETF': '📊', '기타': '📦' }
 const ITYPE_UNITS = { '국내주식': '주', '해외주식': '주', '펀드': '좌', '코인': '개', 'ETF': '주', '기타': '' }
 const INV_ACCOUNT_COLORS = { ISA: '#5a9fd4', '연금저축': '#8b5cf6', IRP: '#e87000' }
-const INV_FILTERS = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타', 'ISA', '연금저축', 'IRP']
+const INV_TYPE_FILTERS = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타']
+const INV_TYPE_FILTER_SHORT = { '국내주식': '국내', '해외주식': '해외' }
+const INV_ACCOUNT_FILTERS = ['ISA', '연금저축', 'IRP']
+const INV_FILTERS = [...INV_TYPE_FILTERS, ...INV_ACCOUNT_FILTERS]
 function matchesInvFilter(item, filter) {
   return filter === 'all' || filter.includes(item.itype) || filter.includes(item.account_type)
 }
@@ -1730,14 +1734,17 @@ export default function Budget() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
-  const [invFilter, setInvFilter] = useState('all')
-  const [cardSort, setCardSort] = useState('기본')
-  const [cardSortDir, setCardSortDir] = useState('desc')
-  const [savingsSort, setSavingsSort] = useState('기본')
-  const [savingsSortDir, setSavingsSortDir] = useState('asc')
-  const [invSort, setInvSort] = useState('기본')
-  const [invSortDir, setInvSortDir] = useState('desc')
-  const [balHistOpen, setBalHistOpen] = useState(false)
+  // 필터·정렬 선택이 탭 이동·앱 재실행 후에도 유지되도록 로컬 저장(서버 무관)
+  // hide_amounts는 홈 탭과 같은 키를 써서 한쪽에서 켜면 다른 쪽에도 이어진다
+  const [hideAmounts, setHideAmounts] = useLocalStorageState('hide_amounts', false)
+  const [invFilter, setInvFilter] = useLocalStorageState('budget_inv_filter', 'all')
+  const [cardSort, setCardSort] = useLocalStorageState('budget_card_sort', '기본')
+  const [cardSortDir, setCardSortDir] = useLocalStorageState('budget_card_sort_dir', 'desc')
+  const [savingsSort, setSavingsSort] = useLocalStorageState('budget_savings_sort', '기본')
+  const [savingsSortDir, setSavingsSortDir] = useLocalStorageState('budget_savings_sort_dir', 'asc')
+  const [invSort, setInvSort] = useLocalStorageState('budget_inv_sort', '기본')
+  const [invSortDir, setInvSortDir] = useLocalStorageState('budget_inv_sort_dir', 'desc')
+  const [balHistOpen, setBalHistOpen] = useLocalStorageState('budget_balhist_open', false)
   const [balHistCardId, setBalHistCardId] = useState('')
   const [balHistStart, setBalHistStart] = useState('')
   const [balHistEnd, setBalHistEnd] = useState('')
@@ -1988,11 +1995,11 @@ export default function Budget() {
             <SortableSection items={accountCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('account', o)}
               renderItem={(card, dnd) => (
                 <div key={card.id}>
-                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} />
+                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} hideAmounts={hideAmounts} />
                   {(linkedByAccount[card.id] || []).map(lc => (
                     <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
                       <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
-                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} />
+                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} hideAmounts={hideAmounts} />
                     </div>
                   ))}
                 </div>
@@ -2005,7 +2012,7 @@ export default function Budget() {
                 </div>
                 <SortableSection items={pointCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('point', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} hideAmounts={hideAmounts} />
                   )} />
               </>
             )}
@@ -2017,7 +2024,7 @@ export default function Budget() {
                 </div>
                 <SortableSection items={loanCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('loan', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} dnd={dnd} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} dnd={dnd} hideAmounts={hideAmounts} />
                   )} />
               </>
             )}
@@ -2039,7 +2046,12 @@ export default function Budget() {
         return (
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid rgba(176,136,249,0.3)' }}>
             <div className="card-body py-3">
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', marginBottom: 10 }}>자산별 잔고 종합</div>
+              <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 10 }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9' }}>자산별 잔고 종합</span>
+                <i className={`bi ${hideAmounts ? 'bi-eye-slash' : 'bi-eye'}`}
+                  onClick={() => setHideAmounts(v => !v)}
+                  style={{ fontSize: '1rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+              </div>
               <div className="d-flex gap-2">
                 {[
                   { label: '총 잔고', val: totalBalance, color: totalBalance >= 0 ? '#198754' : '#dc3545' },
@@ -2048,7 +2060,7 @@ export default function Budget() {
                 ].map(({ label, val, color }) => (
                   <div key={label} style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{fmt(val)}원</div>
+                    <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{fmt(val)}원</div>
                   </div>
                 ))}
               </div>
@@ -2061,7 +2073,7 @@ export default function Budget() {
                   ].map(({ label, val, color }) => (
                     <div key={label} style={{ flex: 1, background: 'var(--bg-danger-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                       <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
+                      <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
                     </div>
                   ))}
                 </div>
@@ -2224,15 +2236,37 @@ export default function Budget() {
               value: invSort, onChange: setInvSort, dir: invSortDir, onDirChange: setInvSortDir,
             },
             {
-              label: '유형/계좌', type: 'grid',
-              options: INV_FILTERS.map(f => {
+              // 투자 종류(국내주식/ETF 등)와 절세 계좌(ISA/연금저축/IRP)를 한 목록에
+              // 섞어 나열하면 선택지가 뭐가 뭔지 구분이 안 되고 산만해 보인다는
+              // 피드백 — 두 섹션으로 나눠 각각 자기 "전체" 토글을 갖게 하되, 실제
+              // 선택 값은 하나의 invFilter 배열로 계속 합쳐서 관리(OR 매칭 유지).
+              label: '종류', type: 'grid',
+              options: INV_TYPE_FILTERS.map(f => {
+                // 필터 칩은 3열로 좁아서 아이콘 + 전체 이름을 같이 붙이면
+                // "국내..."처럼 글자가 잘려 보였다 — 아이콘은 유지하고 칩 안
+                // 이름만 짧게 줄인다(국내주식→국내, 해외주식→해외).
                 const tc = ITYPE_COLORS[f]
-                const ac = INV_ACCOUNT_COLORS[f]
-                const color = tc ? tc.color : (ac || undefined)
-                const bg = tc ? tc.bg : (ac ? `${ac}18` : undefined)
-                return [f, ITYPE_ICONS[f] ? `${ITYPE_ICONS[f]} ${f}` : f, color, bg]
+                const shortLabel = INV_TYPE_FILTER_SHORT[f] || f
+                return [f, ITYPE_ICONS[f] ? `${ITYPE_ICONS[f]} ${shortLabel}` : shortLabel, tc?.color, tc?.bg]
               }),
-              value: invFilter, onChange: setInvFilter,
+              value: invFilter === 'all' ? 'all' : invFilter.filter(v => INV_TYPE_FILTERS.includes(v)),
+              onChange: next => {
+                const accSel = invFilter === 'all' ? INV_ACCOUNT_FILTERS : invFilter.filter(v => INV_ACCOUNT_FILTERS.includes(v))
+                const typeSel = next === 'all' ? INV_TYPE_FILTERS : next
+                const merged = [...typeSel, ...accSel]
+                setInvFilter(merged.length === INV_FILTERS.length ? 'all' : merged)
+              },
+            },
+            {
+              label: '계좌', type: 'grid',
+              options: INV_ACCOUNT_FILTERS.map(f => [f, f, INV_ACCOUNT_COLORS[f], `${INV_ACCOUNT_COLORS[f]}18`]),
+              value: invFilter === 'all' ? 'all' : invFilter.filter(v => INV_ACCOUNT_FILTERS.includes(v)),
+              onChange: next => {
+                const typeSel = invFilter === 'all' ? INV_TYPE_FILTERS : invFilter.filter(v => INV_TYPE_FILTERS.includes(v))
+                const accSel = next === 'all' ? INV_ACCOUNT_FILTERS : next
+                const merged = [...typeSel, ...accSel]
+                setInvFilter(merged.length === INV_FILTERS.length ? 'all' : merged)
+              },
             },
           ]} />
           <button onClick={openInvAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>

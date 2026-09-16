@@ -170,6 +170,7 @@ export default function NotifySheet() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [testState, setTestState] = useState('idle') // idle | sending | ok | fail
   const [testError, setTestError] = useState('')
+  const [permWarning, setPermWarning] = useState('')
 
   useEffect(() => {
     window.openNotifySheet = () => { setOpen(true); setTimeout(() => setVisible(true), 10) }
@@ -184,6 +185,7 @@ export default function NotifySheet() {
   const close = () => { setVisible(false); setTimeout(() => { setOpen(false); setPickerOpen(false) }, 320) }
 
   async function handleToggle() {
+    setPermWarning('')
     if (active) {
       if (isCapacitor()) {
         try {
@@ -205,7 +207,10 @@ export default function NotifySheet() {
         try {
           const { PushNotifications } = await import('@capacitor/push-notifications')
           const perm = await PushNotifications.requestPermissions()
-          if (perm.receive !== 'granted') { alert('알림 권한이 거부되었습니다.'); return }
+          if (perm.receive !== 'granted') {
+            setPermWarning('알림 권한이 거부됐어요. 기기 설정 → 앱 → 가계부 → 알림에서 권한을 허용해야 켤 수 있어요.')
+            return
+          }
           await PushNotifications.register()
           const parts = time.split(':')
           await new Promise((resolve, reject) => {
@@ -311,6 +316,9 @@ export default function NotifySheet() {
         : (e.data?.error || '전송에 실패했어요. 잠시 후 다시 시도해주세요.')
       setTestError(friendly)
       setTestState('fail')
+      // 성공 시엔 버튼이 3초 뒤 원래대로 돌아오는데 실패 쪽엔 그 리셋이 빠져있어서
+      // "전송 실패" 상태로 계속 멈춰있던 문제 — 여기도 동일하게 되돌린다.
+      setTimeout(() => { setTestState('idle'); setTestError('') }, 4000)
     }
   }
 
@@ -360,6 +368,12 @@ export default function NotifySheet() {
               </>
             )}
           </div>
+          {permWarning && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a' }}>
+              <i className="bi bi-exclamation-triangle-fill" style={{ color: '#b45309', fontSize: '0.9rem', marginTop: 1, flexShrink: 0 }} />
+              <span style={{ color: '#b45309', fontSize: '0.82rem', lineHeight: 1.5 }}>{permWarning}</span>
+            </div>
+          )}
         </div>
         <div style={{ padding: '12px 20px 4px' }}>
           <button

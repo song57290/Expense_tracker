@@ -1,5 +1,20 @@
 import { useState, useEffect } from 'react'
 
+// 탭을 나갔다 오거나 앱을 껐다 켜도 골라둔 필터/정렬이 유지되도록 localStorage에
+// 값을 미러링하는 useState — 서버로는 아무것도 보내지 않는 순수 클라이언트 저장.
+export function useLocalStorageState(key, defaultValue) {
+  const [value, setValue] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key)
+      return saved !== null ? JSON.parse(saved) : defaultValue
+    } catch { return defaultValue }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+  }, [key, value])
+  return [value, setValue]
+}
+
 const BANK_COLORS = [
   ['신한', '#0046A0', 'white'], ['KB', '#FFB800', '#333'], ['국민', '#FFB800', '#333'],
   ['농협', '#009900', 'white'], ['NH', '#009900', 'white'], ['하나', '#009A8C', 'white'],
