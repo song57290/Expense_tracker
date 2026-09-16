@@ -7,12 +7,18 @@ import { restoreCaretAfterFormat } from '../utils.js'
 
 const fmt = n => Number(n || 0).toLocaleString()
 
+// 다른 탭들과 같은 이유로 — 탭을 나갔다 다시 들어올 때마다 0원·빈 목록으로
+// 렌더링됐다가 API 응답이 오면 실제 값으로 훅 뒤바뀌어서 유독 끊기는 느낌을
+// 줬다. 마지막으로 받은 값을 모듈 스코프에 캐시해두고 재마운트 시 바로 보여준다.
+let _salaryCache = null
+
 export default function Salary() {
-  const [salary, setSalary] = useState({ amount: 0, pay_day: '' })
-  const [allocations, setAllocations] = useState([])
-  const [fixed, setFixed] = useState([])
-  const [actual, setActual] = useState({})
-  const [categories, setCategories] = useState([])
+  const [salary, setSalary] = useState(() => _salaryCache?.salary ?? { amount: 0, pay_day: '' })
+  const [allocations, setAllocations] = useState(() => _salaryCache?.allocations ?? [])
+  const [fixed, setFixed] = useState(() => _salaryCache?.fixed ?? [])
+  const [actual, setActual] = useState(() => _salaryCache?.actual ?? {})
+  const [categories, setCategories] = useState(() => _salaryCache?.categories ?? [])
+  const [loaded, setLoaded] = useState(!!_salaryCache)
 
   const [salaryEdit, setSalaryEdit] = useState(false)
   const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
@@ -20,13 +26,13 @@ export default function Salary() {
 
   const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, auto_silent: false, tx_type: 'expense', tx_card: '' })
   const [limitInputs, setLimitInputs] = useState({})
+  const [summaryHelpOpen, setSummaryHelpOpen] = useState(null)
   const [fixedFormOpen, setFixedFormOpen] = useState(false)
   const [editFixed, setEditFixed] = useState(null)
   const [editFixedForm, setEditFixedForm] = useState({})
-  const [cards, setCards] = useState([])
+  const [cards, setCards] = useState(() => _salaryCache?.cards ?? [])
   const [wonInputs, setWonInputs] = useState({})
   const [selectedCats, setSelectedCats] = useState([])
-  const [catPickerOpen, setCatPickerOpen] = useState(false)
 
   const [dragIdx, setDragIdx] = useState(-1)
   const [dragOverIdx, setDragOverIdx] = useState(-1)
@@ -89,20 +95,33 @@ export default function Salary() {
 
   useEffect(() => {
     load()
-    api.get('/api/categories').then(d => setCategories(d?.expense || [])).catch(() => {})
-    api.get('/api/budget').then(d => setCards(d.card_stats || [])).catch(() => {})
+    api.get('/api/categories').then(d => {
+      const expense = d?.expense || []
+      setCategories(expense)
+      _salaryCache = { ..._salaryCache, categories: expense }
+    }).catch(() => {})
+    api.get('/api/budget').then(d => {
+      const cardStats = d.card_stats || []
+      setCards(cardStats)
+      _salaryCache = { ..._salaryCache, cards: cardStats }
+    }).catch(() => {})
   }, [])
 
   function load() {
     api.get('/api/salary').then(d => {
-      setSalary(d.salary || { amount: 0, pay_day: null })
-      setFixed(d.fixed_expenses || [])
-      setActual(d.actual || {})
+      const salaryVal = d.salary || { amount: 0, pay_day: null }
+      const fixedVal = d.fixed_expenses || []
+      const actualVal = d.actual || {}
       const allocs = d.allocations || []
+      setSalary(salaryVal)
+      setFixed(fixedVal)
+      setActual(actualVal)
       setAllocations(allocs)
       const limits = {}
       allocs.forEach(a => { if (a.monthly_limit) limits[a.category_name] = String(a.monthly_limit) })
       setLimitInputs(prev => ({ ...limits, ...prev }))
+      _salaryCache = { ..._salaryCache, salary: salaryVal, fixed: fixedVal, actual: actualVal, allocations: allocs }
+      setLoaded(true)
     }).catch(() => {})
   }
 
@@ -135,7 +154,10 @@ export default function Salary() {
   // wonInputs + selectedCats 초기화: allocations가 API에서 로드될 때 한 번만 세팅
   useEffect(() => {
     if (!allocations.length) return
-    const withBudget = allocations.filter(a => a.percent > 0).map(a => a.category_name)
+    // percent>0인 것만 "선택됨"으로 치면, 금액을 아직 안 넣은(percent=0) 채로
+    // 추가만 해둔 카테고리가 새로고침·탭 이동 후 목록에서 사라져 보였다 — 서버가
+    // 갖고 있는 배분 행 자체가 "선택돼 있다"는 뜻이므로 percent 상관없이 포함한다.
+    const withBudget = allocations.map(a => a.category_name)
     setSelectedCats(prev => {
       const merged = [...new Set([...prev, ...withBudget])]
       return merged
@@ -152,15 +174,30 @@ export default function Salary() {
     })
   }, [allocations]) // eslint-disable-line
 
-  function addCat(catName) {
-    setSelectedCats(prev => prev.includes(catName) ? prev : [...prev, catName])
-    setCatPickerOpen(false)
+  function addCats(catNames) {
+    const newNames = catNames.filter(n => !selectedCats.includes(n))
+    setSelectedCats(prev => [...prev, ...newNames])
+    // 배분 금액을 아직 안 넣은 채로 저장해도 사라지지 않도록, 추가되는 즉시
+    // percent 0짜리 배분 행을 만들어둔다(저장 시 이 이름이 payload에 포함돼야
+    // 서버가 실제로 카테고리를 계속 "선택된" 상태로 취급한다).
+    setAllocations(prev => {
+      const existingNames = new Set(prev.map(a => a.category_name))
+      const additions = newNames.filter(n => !existingNames.has(n)).map(n => ({ category_name: n, percent: 0 }))
+      return [...prev, ...additions]
+    })
   }
 
-  function removeCat(catName) {
+  async function removeCat(catName) {
     setSelectedCats(prev => prev.filter(n => n !== catName))
     setWonInputs(prev => { const next = { ...prev }; delete next[catName]; return next })
-    setAllocations(prev => prev.map(a => a.category_name === catName ? { ...a, percent: 0 } : a))
+    setLimitInputs(prev => { const next = { ...prev }; delete next[catName]; return next })
+    // percent만 0으로 내리면 로컬 allocations엔 행이 그대로 남아있어서, 한도
+    // 초과 배너(allocations 기준으로 계산)가 저장·재방문 전까진 안 사라졌다 —
+    // 아예 목록에서 빼서 배너가 바로 갱신되게 한다.
+    setAllocations(prev => prev.filter(a => a.category_name !== catName))
+    // 월 한도는 별도 저장 버튼(saveLimits)에서만 반영되므로, 카테고리 삭제
+    // 시점에는 즉시 서버에도 지워서 저장을 안 눌러도 한도가 같이 사라지게 한다.
+    await api.post('/api/salary/allocations/limits', { limits: { [catName]: 0 } })
   }
 
   function handleWonInput(catName, raw, inputEl) {
@@ -250,9 +287,11 @@ export default function Salary() {
   const inputStyle = { padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border-input)', fontSize: '0.9rem', background: 'var(--bg-elevated)', width: '100%', color: 'var(--text-primary)' }
   const cardStyle = { background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '18px 16px', marginBottom: 12 }
 
+  if (!loaded) return null
+
   return (
     <>
-    <div style={{ padding: '16px 14px 16px', maxWidth: 540, margin: '0 auto' }}>
+    <div style={{ padding: '16px 14px 16px', maxWidth: 540, margin: '0 auto', animation: 'fadeIn 0.25s ease' }}>
       <h5 className="fw-bold mb-3">월급 관리</h5>
 
       {/* 한도 근접/초과 배너 */}
@@ -445,24 +484,14 @@ export default function Salary() {
                 })}
               </div>
 
-              {/* 카테고리 추가 버튼 */}
+              {/* 카테고리 추가 드롭다운 */}
               {categories.filter(c => !selectedCats.includes(c.name)).length > 0 && (
-                <div style={{ position: 'relative' }}>
-                  <button onClick={() => setCatPickerOpen(o => !o)}
-                    style={{ width: '100%', padding: '9px', borderRadius: 10, border: '1.5px dashed #d8c8f8', background: 'var(--bg-card)', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
-                    + 카테고리 추가
-                  </button>
-                  {catPickerOpen && (
-                    <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, background: 'var(--bg-card)', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', padding: 12, zIndex: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {categories.filter(c => !selectedCats.includes(c.name)).map(cat => (
-                        <button key={cat.id} onClick={() => addCat(cat.name)}
-                          style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid var(--border-input)', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>
-                          {cat.icon} {cat.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <CategoryPicker
+                  cats={categories.filter(c => !selectedCats.includes(c.name)).map(c => [c.name, c.icon])}
+                  multi
+                  onSave={addCats}
+                  placeholder="+ 카테고리 추가"
+                />
               )}
 
               {selectedCats.length > 0 && (
@@ -719,15 +748,38 @@ export default function Salary() {
           {salaryAmt > 0 && (
             <div style={{ ...cardStyle, background: 'var(--bg-elevated)' }}>
               <div style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 12, color: 'var(--text-secondary)' }}>💰 {monthLabel} 요약</div>
-              {[
-                { label: '월급', value: salaryAmt, color: '#34c759' },
-                { label: '고정 지출 계획', value: -fixedTotal, color: '#ff9f0a' },
-                { label: '변동 지출 계획', value: -(salaryAmt * totalAllocPct / 100), color: '#b088f9' },
-                { label: '실제 지출 합계', value: -Object.values(actual).reduce((s, v) => s + v, 0), color: '#ff3b30' },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(176,136,249,0.1)' }}>
-                  <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>{label}</span>
+              {(() => {
+                const plannedFixed = fixedTotal
+                const plannedVariable = salaryAmt * totalAllocPct / 100
+                const actualTx = Object.values(actual).reduce((s, v) => s + v, 0)
+                return [
+                  { label: '월급', value: salaryAmt, color: '#34c759' },
+                  { label: '고정 지출 계획', value: -plannedFixed, color: '#ff9f0a' },
+                  { label: '변동 지출 계획', value: -plannedVariable, color: '#b088f9' },
+                  {
+                    label: '실제 지출 합계', value: -(actualTx + plannedFixed + plannedVariable), color: '#ff3b30',
+                    help: `이번 달 실제 거래액(${fmt(actualTx)}원) + 고정 지출 계획(${fmt(plannedFixed)}원) + 변동 지출 계획(${fmt(plannedVariable)}원)을 더한 값이에요.`,
+                  },
+                ]
+              })().map(({ label, value, color, help }) => (
+                <div key={label} style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid rgba(176,136,249,0.1)' }}>
+                  <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {label}
+                    {help && (
+                      <span onClick={() => setSummaryHelpOpen(o => o === label ? null : label)}
+                        style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--bg-section)', color: 'var(--text-muted)', fontSize: '0.62rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                        ?
+                      </span>
+                    )}
+                  </span>
                   <span style={{ fontSize: '0.9rem', fontWeight: 700, color }}>{value >= 0 ? '+' : ''}{fmt(value)}원</span>
+                  {help && summaryHelpOpen === label && (
+                    // 이 항목이 목록 맨 아래라 밑으로 펼치면 화면 밖(하단 탭바 등)으로
+                    // 밀려나가 글자가 잘려 보였다 — 위로 펼치도록 변경
+                    <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 4, background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 10, padding: '10px 12px', fontSize: '0.75rem', lineHeight: 1.5, color: 'var(--text-secondary)', boxShadow: '0 6px 20px rgba(0,0,0,0.15)', zIndex: 5 }}>
+                      {help}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

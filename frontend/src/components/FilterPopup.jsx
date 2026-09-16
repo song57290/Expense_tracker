@@ -61,7 +61,10 @@ export default function FilterPopup({ sections, triggerStyle }) {
                   {sec.type === 'grid'
                     ? <GridSection options={sec.options} value={sec.value} onChange={sec.onChange} marginBottom={isLast ? 0 : 18} />
                     : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: showDir ? 8 : (isLast ? 0 : 18) }}>
+                      // 옵션이 2개뿐인 정렬(예: 기본순/잔액순)까지 3칸으로 고정하면
+                      // 오른쪽에 빈 칸이 남아 어색해 보인다 — 실제 옵션 수만큼(최대
+                      // 3칸)만 나눠서 항상 꽉 차게 채운다.
+                      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(3, sec.options.length)}, 1fr)`, gap: 6, marginBottom: showDir ? 8 : (isLast ? 0 : 18) }}>
                         {sec.options.map(([val, label]) => (
                           <button key={val} onClick={() => sec.onChange(val)} style={rowBtnStyle(sec.value === val)}>{label}</button>
                         ))}

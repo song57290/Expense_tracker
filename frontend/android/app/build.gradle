@@ -41,10 +41,8 @@ android {
                 signingConfig signingConfigs.release
             }
         }
-        // Android Studio의 기본 Run(▶) 빌드 — applicationId를 다르게 줘서 별도 앱으로
-        // 취급되게 해, 실제 쓰는 가계부 앱(com.gaegyebu.app)을 안 건드리고 나란히 설치해
-        // 테스트할 수 있게 한다. 데이터도 완전히 분리돼(로그인/거래 내역 없음) 새로
-        // 로그인해서 테스트 계정으로 확인해야 함.
+        // applicationId를 다르게 줘서 별도 앱으로 취급
+        // 데이터도 완전히 분리돼(로그인/거래 내역 없음) 새로 로그인해서 테스트 계정으로 확인하기 위함
         debug {
             applicationIdSuffix ".test"
             versionNameSuffix "-test"

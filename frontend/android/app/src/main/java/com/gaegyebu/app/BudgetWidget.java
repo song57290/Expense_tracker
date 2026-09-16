@@ -84,10 +84,7 @@ public class BudgetWidget extends BaseWidget {
             views.setTextViewText(R.id.budget_remaining, remainText);
             views.setTextColor(R.id.budget_remaining, remainColor);
 
-            // minWidth/minHeight 110dp(2x2)는 선언일 뿐, 실제로 받는 픽셀 크기는
-            // 기기 화면·홈 화면 그리드 밀도에 따라 그보다 작을 수도, 클 수도 있다. 좁다/
-            // 넉넉하다 이분법 대신 실제 받은 크기 비율(scale)만큼 연속적으로 같이 늘고
-            // 줄이되, 위젯이 과도하게 크게 배치된 경우까지 글씨가 커지지 않도록 1.3f를 상한으로 둔다.
+            // 1.3f를 상한으로, 0.75f를 하한으로 해서 위젯 크기에 따라 글자 크기 조정
             int widthDp = grantedWidthDp(manager, widgetId, 110);
             int heightDp = grantedHeightDp(manager, widgetId, 110);
             float scale = Math.max(0.75f, Math.min(1.3f, Math.min(widthDp / 110f, heightDp / 110f)));
@@ -101,7 +98,7 @@ public class BudgetWidget extends BaseWidget {
                     dpToPx(context, 6 * scale), dpToPx(context, 6 * scale),
                     dpToPx(context, 6 * scale), dpToPx(context, 6 * scale));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // 연/월(budget_month)만 빼고 나머지(링·남음·업데이트)를 다 같이 살짝 아래로.
+                // 연/월(budget_month)만 빼고 나머지(링·남음·업데이트)를 다 같이 살짝 아래로 내림
                 views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_TOP, 11 * scale, TypedValue.COMPLEX_UNIT_DIP);
                 views.setViewLayoutMargin(R.id.budget_ring_frame, RemoteViews.MARGIN_BOTTOM, 2 * scale, TypedValue.COMPLEX_UNIT_DIP);
                 views.setViewLayoutMargin(R.id.budget_remaining, RemoteViews.MARGIN_TOP, 9 * scale, TypedValue.COMPLEX_UNIT_DIP);
@@ -135,8 +132,8 @@ public class BudgetWidget extends BaseWidget {
         Canvas canvas = new Canvas(bmp);
 
         float stroke = size * 0.13f;
-        // margin이 stroke/2보다 작아지면 선(stroke)이 비트맵 바깥으로 잘려 나가므로
-        // stroke/2를 하한으로 유지 — 이게 원이 캔버스를 최대한 꽉 채우는 한계치.
+        // margin이 stroke/2보다 작아지면 선(stroke)이 비트맵 바깥으로 잘려 나감
+        // stroke/2를 하한으로 유지
         float margin = stroke / 2f;
         RectF oval = new RectF(margin, margin, size - margin, size - margin);
 

@@ -32,10 +32,6 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_PENDING_APK_VERSION = "pending_apk_version";
     private static final String PREF_INSTALL_RETRY_COUNT = "install_retry_count";
     private static final long PENDING_DOWNLOAD_STALE_MS = 10 * 60 * 1000;
-    // onResume()마다 "설치 안 끝난 파일이 남아있으면 다시 설치 시도"하는 안전망이,
-    // 기기가 설치를 계속 막는 경우(자동 차단 등) 끝없이 설치 화면을 다시 띄우는
-    // 무한루프가 돼버렸다 — 몇 번 실패하면 그만 포기하고 pending 기록을 지워서
-    // 앱이라도 정상적으로 열리게 한다(업데이트는 나중에 사용자가 다시 누르면 됨).
     private static final int MAX_AUTO_INSTALL_RETRIES = 2;
     private BroadcastReceiver apkDownloadReceiver;
 
@@ -48,9 +44,7 @@ public class MainActivity extends BridgeActivity {
         refreshWidgets();
         storeWidgetNav(getIntent());
         setupDownloadListener();
-        // 기기의 "글자 크기(접근성)" 시스템 설정을 웹뷰가 그대로 따라가면 하단바
-        // 아이콘 같은 rem 단위 UI가 사람마다 다른 크기로 보인다 — 100%로 고정해
-        // 시스템 설정과 무관하게 항상 디자인 크기 그대로 렌더링되게 한다.
+        // 100%로 고정해 시스템 설정과 무관하게 항상 디자인 크기 그대로 렌더링
         getBridge().getWebView().getSettings().setTextZoom(100);
     }
 
@@ -88,7 +82,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    // 다운로드 전 설치 권한 선확인 — 권한 없으면 완료 브로드캐스트를 기다리지 않고
+    // 다운로드 전 설치 권한 선확인 → 권한 없으면 완료 브로드캐스트를 기다리지 않고
     // 버튼 클릭 즉시 허용 화면으로 이동, URL은 저장해뒀다가 복귀 후 다운로드 개시
     private void startApkDownload(String url) {
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
@@ -97,12 +91,10 @@ public class MainActivity extends BridgeActivity {
         String requestedVersion = versionParam(url);
         long startedAt = prefs.getLong(PREF_PENDING_APK_STARTED_AT, 0);
         boolean stale = pendingFile != null && System.currentTimeMillis() - startedAt > PENDING_DOWNLOAD_STALE_MS;
-        // 버전까지 같아야 재사용 — 아니면 예전 버전을 테스트하려고 받아둔(혹은 실패한)
-        // pending 기록이 새 버전 다운로드까지 막아버린다(최대 3분간 아무 반응 없이 멈춤)
+        // 버전까지 같아야 재사용 → (최대 3분간 아무 반응 없이 멈춤)
         boolean sameVersion = requestedVersion != null && requestedVersion.equals(pendingVersion);
         if (pendingFile != null && !stale && sameVersion) {
-            // 이미 받아뒀거나 받는 중인 파일이 있으면 새로 받지 않고 그걸로 이어간다 —
-            // 설정 화면 왕복 후 업데이트를 다시 눌러도 같은 파일을 두 번 받지 않도록
+            // 이미 받아뒀거나 받는 중인 파일이 있으면 새로 받지 않고 그걸로 이어서 설치
             Log.d("MainActivity", "startApkDownload: reusing pending download " + pendingFile);
             installDownloadedApk();
             return;
@@ -147,10 +139,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    // FLAG_ACTIVITY_NEW_TASK를 주면 안 됨 — MainActivity 자체가 이미 살아있는
-    // Activity라 그 task에 그대로 붙여야 뒤로가기로 자연스럽게 앱으로 복귀하며
-    // onResume()이 정상 호출된다. NEW_TASK를 주면 설정 화면이 별도 task로 떠서
-    // 뒤로가기가 앱이 아니라 홈 화면으로 빠지는 경우가 있었다.
+    // MainActivity 자체가 이미 살아있는 Activity라 그 task에 그대로 붙여야 뒤로가기로 자연스럽게 앱으로 복귀
     private void openInstallPermissionSettings() {
         try {
             Intent permIntent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -193,12 +182,8 @@ public class MainActivity extends BridgeActivity {
             prefs.edit().putInt(PREF_INSTALL_ATTEMPT_VERSION, currentVersionCode())
                     .putLong(PREF_INSTALL_ATTEMPT_AT, System.currentTimeMillis()).apply();
             startActivity(installIntent);
-            // 여기서 PREF_PENDING_APK_FILE 등을 바로 지우지 않는다 — 설치 인텐트를
-            // 띄웠다고 실제로 설치된 건 아니다(자동 차단 등으로 조용히 막힐 수 있음).
-            // 실제 성공 여부는 checkInstallOutcome()이 다음 onResume에서 버전 코드
-            // 변화로 확인한 뒤에만 지운다. 여기서 무조건 지워버리면, 설치가 막혀서
-            // 사용자가 보안 설정을 켜고 돌아왔을 때 파일은 이미 받아져 있는데도
-            // 기록만 사라져서 업데이트를 다시 누르면 처음부터 다시 받게 된다.
+
+            // 실제 성공 여부는 checkInstallOutcome()이 다음 onResume에서 버전 코드 변화로 확인한 뒤에 지움
         } catch (Exception e) {
             Log.e("MainActivity", "Failed to launch APK installer", e);
         }
@@ -225,13 +210,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    // 설치 인텐트를 띄운 뒤 앱으로 돌아왔는데 버전이 그대로면 삼성 자동 차단 등
-    // OS 차원의 설치 차단일 수도, 사용자가 설치 확인창에서 직접 취소한 것일 수도
-    // 있다 — 실제로 재봤더니 사용자가 빠르게 취소를 눌러도 조용히 차단된 것과
-    // 복귀 시간이 거의 똑같아서 시간으로는 구분이 안 됐다. 구분이 안 되는 이상
-    // 설정 화면으로 강제로 보내지 않는다 — 취소를 눌렀는데 원치 않는 화면으로
-    // 끌려가는 쪽이 더 나쁘다. 안내 메시지만 띄우고, 정말 차단된 사용자는 스스로
-    // 보안 설정을 찾아가게 한다.
+    // 설치 인텐트를 띄운 뒤 앱으로 돌아왔는데 버전이 그대로면 삼성 자동 차단 등으로 설치가 안 된 것으로 판단
     private boolean checkInstallOutcome() {
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
         if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return false;
@@ -241,10 +220,6 @@ public class MainActivity extends BridgeActivity {
             // 설치 성공 — 더 이상 필요 없는 다운로드 기록·파일 정리
             clearPendingDownload(prefs);
         } else {
-            // 설치가 안 된 것으로 보임 — 여기서 pending 기록을 남겨두면 바로 아래
-            // onResume의 재시도 로직이 설치창을 다시 띄워서, 취소를 눌러도 몇 번씩
-            // 다시 뜨는 것처럼 보인다(최대 재시도 횟수를 다 쓸 때까지). 취소든 차단
-            // 이든 한 번 시도로 끝내고, 다시 받고 싶으면 업데이트 버튼을 또 누르게 한다.
             Toast.makeText(this, "설치가 진행되지 않았어요.\n설치창에서 취소했거나, 보안 설정에서 '자동 차단'이 켜져 있을 수 있어요", Toast.LENGTH_LONG).show();
             clearPendingDownload(prefs);
         }
@@ -254,10 +229,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         super.onPause();
-        // 로그인 직후 앱을 바로 완전 종료하면(스와이프로 최근 앱 목록에서 제거 등)
-        // 로그인 세션 쿠키가 디스크에 채 기록되기 전에 프로세스가 죽어서, 다음에
-        // 앱을 열었을 때 자동 로그인이 켜져 있어도 로그인 화면이 다시 뜨는 문제가
-        // 있었다 — onPause 시점에 강제로 flush해 반드시 디스크에 남도록 한다.
+        // 로그인 화면이 다시 뜨는 문제 → onPause 시점에 강제로 flush
         try {
             android.webkit.CookieManager.getInstance().flush();
         } catch (Exception ignored) {}

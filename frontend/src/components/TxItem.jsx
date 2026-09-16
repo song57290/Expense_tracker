@@ -1,6 +1,6 @@
 import { fmt, bankColor } from '../utils.js'
 
-export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBalance = true, showTime = true, getCardColor = bankColor }) {
+export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBalance = true, showTime = true, getCardColor = bankColor, hideAmounts = false }) {
   const hasBadges = tx.exclude_perf || tx.exclude_stats || tx.has_receipt || tx.cashback > 0
   const sz = large
     ? { badge: '0.82rem', cat: '1rem', desc: '0.92rem', sep: '0.8rem', amt: '1.08rem' }
@@ -28,14 +28,16 @@ export default function TxItem({ tx, emojiMap = {}, large, onPhotoClick, showBal
         )}
       </div>
       <div className="text-end flex-shrink-0">
-        <div className={`fw-bold ${tx.type === 'income' ? 'text-success' : 'text-danger'}`} style={{ fontSize: sz.amt }}>
+        <div className={`fw-bold amt-mask ${tx.type === 'income' ? 'text-success' : 'text-danger'}${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: sz.amt }}>
           {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}원
         </div>
         {((showTime && tx.time) || (showBalance && tx.balance_after != null)) && (
           <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 1, opacity: 0.7 }}>
             {showTime && tx.time}
             {showTime && tx.time && showBalance && tx.balance_after != null && ' · '}
-            {showBalance && tx.balance_after != null && `잔고 ${fmt(tx.balance_after)}원`}
+            {showBalance && tx.balance_after != null && (
+              <span className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`}>{`잔고 ${fmt(tx.balance_after)}원`}</span>
+            )}
           </div>
         )}
       </div>

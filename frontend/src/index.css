@@ -322,6 +322,30 @@ body.sheet-open .top-fade { display: none !important; }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+/* amt-mask는 항상 붙여두고 amt-hidden으로 블러 유무만 토글한다 — transition이
+   amt-hidden 쪽에만 있으면 그 클래스가 빠지는 순간(블러 풀릴 때) 전환 선언 자체가
+   같이 사라져서 애니메이션 없이 뚝 끊기듯 원래대로 돌아갔다. */
+.amt-mask {
+  filter: blur(0px);
+  transition: filter 0.3s ease;
+}
+.amt-mask.amt-hidden {
+  filter: blur(6px);
+  user-select: none;
+}
+/* 접기/펼치기 카드 공통 애니메이션 — 화살표 회전 + 본문 max-height 전환.
+   설정/통계 탭에서 쓰던 걸 전역으로 옮겨 다른 탭에서도 바로 쓸 수 있게 함. */
+.s-arrow {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  color: var(--text-faint);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.s-collapse {
+  overflow: hidden;
+  transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1);
+}
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
