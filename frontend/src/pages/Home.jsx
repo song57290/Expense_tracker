@@ -92,7 +92,7 @@ export default function Home() {
   const [routineSheetDate, setRoutineSheetDate] = useState('')
   const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
   const [routineSheetError, setRoutineSheetError] = useState(false)
-  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
+  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false })
   const [amountDisplay, setAmountDisplay] = useState('')
   const [amountError, setAmountError] = useState(false)
   const [cardError, setCardError] = useState(false)
@@ -210,7 +210,7 @@ export default function Home() {
       setPendingReceiptFile(null)
       setReceiptPreviewUrl(null)
     }
-    setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
+    setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
     setAmountDisplay('')
     setTransferFrom('')
     setTransferTo('')
@@ -610,6 +610,17 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+              {form.card && (
+                <div className="col-12">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                    <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
+                    <div className="ios-toggle">
+                      <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
+                      <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
@@ -618,7 +629,7 @@ export default function Home() {
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn"
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false })) }}>취소</button>
+                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false, exclude_cashback: false })) }}>취소</button>
                 </div>
               </div>
             </form>

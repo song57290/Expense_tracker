@@ -8,6 +8,21 @@
     android:background="@color/config_bg"
     android:fitsSystemWindows="true">
 
+    <!-- 글자 크기 옵션이 추가되면서 화면이 작은 기기에서는 전체 내용이 화면보다
+         길어져 저장/취소 버튼이 화면 밖으로 밀려 아예 안 보이고 누를 수도 없던
+         문제가 있었다 — 스크롤 가능하게 감싸고, 저장/취소는 화면 하단에 고정된
+         채로 항상 보이게 바깥에 둔다. -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
     <!-- 제목 -->
     <TextView
         android:layout_width="match_parent"
@@ -423,11 +438,8 @@
 
     </LinearLayout>
 
-    <!-- 남는 공간 -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+    </LinearLayout>
+    </ScrollView>
 
     <!-- 저장 / 취소 -->
     <LinearLayout
