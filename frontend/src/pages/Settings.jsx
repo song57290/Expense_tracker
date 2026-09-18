@@ -966,10 +966,32 @@ export default function Settings() {
             </span>
           </div>
           {serverApkInfo?.url && (
-            <button type="button" onClick={() => { window.location.href = serverApkInfo.url }}
+            <button type="button" onClick={() => {
+              // 캐시 무효화 파라미터 없이 매번 같은 URL로 접근하면 WebView가
+              // 다운로드를 새로 시작하지 않는 문제가 있어 AppUpdateModal과
+              // 동일하게 버전/타임스탬프 쿼리를 붙여 매 클릭마다 새 URL로 만든다.
+              const u = new URL(serverApkInfo.url, window.location.origin)
+              if (serverApkInfo.version_code) u.searchParams.set('v', serverApkInfo.version_code)
+              u.searchParams.set('t', Date.now())
+              window.location.href = u.href
+            }}
               className="btn w-100 mt-2"
               style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', borderRadius: 10, border: 'none', padding: '9px 0' }}>
               최신 APK 다운로드
+            </button>
+          )}
+          {serverApkInfo?.url && Capacitor.isNativePlatform() && user?.is_admin && (
+            <button type="button" onClick={() => {
+              // v 파라미터를 안 보내면 MainActivity의 "이미 최신 버전이면 재설치
+              // 생략" 로직과 다운로드 재사용 로직이 둘 다 비활성화돼, 실제로 더 새
+              // 버전이 없어도 매번 처음부터 다운로드→설치 확인창까지 테스트할 수 있다.
+              const u = new URL(serverApkInfo.url, window.location.origin)
+              u.searchParams.set('t', Date.now())
+              window.location.href = u.href
+            }}
+              className="btn w-100 mt-2"
+              style={{ background: 'linear-gradient(135deg,#f0a978,#f0d878)', color: 'white', fontWeight: 700, fontSize: '0.85rem', borderRadius: 10, border: 'none', padding: '9px 0' }}>
+              🧪 업데이트 테스트 (버전 무시, 강제 재설치)
             </button>
           )}
         </div>

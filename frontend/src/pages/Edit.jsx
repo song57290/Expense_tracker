@@ -60,7 +60,7 @@ export default function Edit() {
   }
   function selectType(newType) {
     const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
-    setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false }))
+    setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false, exclude_cashback: false }))
     closeTypeSheet()
   }
 
@@ -68,7 +68,7 @@ export default function Edit() {
     api.get(`/api/transactions/${id}`).then(d => {
       setData(d)
       const desc = d.transaction.description || ''
-      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: desc, card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false, exclude_stats: d.transaction.exclude_stats || false })
+      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: desc, card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false, exclude_stats: d.transaction.exclude_stats || false, exclude_cashback: d.transaction.exclude_cashback || false })
       setAmountDisplay(Number(d.transaction.amount).toLocaleString('ko-KR'))
       if (d.transaction.category === '계좌 이체' && desc.includes(' → ')) {
         const [from, to] = desc.split(' → ')
@@ -227,6 +227,16 @@ export default function Edit() {
                 <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
               </div>
             </div>
+            {form.card && (
+              <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+                onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>🎁 캐시백 제외</label>
+                <div className="ios-toggle">
+                  <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
+                  <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+                </div>
+              </div>
+            )}
 
             {/* 사진 */}
             <div className="mb-4">

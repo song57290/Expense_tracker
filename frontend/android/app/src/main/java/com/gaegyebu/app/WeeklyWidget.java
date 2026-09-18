@@ -76,6 +76,8 @@ public class WeeklyWidget extends BaseWidget {
             // 위젯 설정 화면에서 사용자가 직접 고른 글자 크기(작게/보통/크게) — 자동 배율
             // 위에 추가로 곱해진다.
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
+            // 자동 배율에 '크게' 설정까지 곱해지면 라벨이 겹칠 만큼 커지므로 상한을 다시 건다.
+            scale = Math.min(scale, 1.3f);
 
             // 막대그래프는 고정 크기 비트맵을 fitXY로 늘려서 채우는데, 실제로 배정된
             // 폭:높이 비율이 그 고정 비율이랑 많이 다르면(특히 위젯이 넓게 배치된 경우)

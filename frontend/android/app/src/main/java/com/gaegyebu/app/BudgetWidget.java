@@ -89,6 +89,8 @@ public class BudgetWidget extends BaseWidget {
             int heightDp = grantedHeightDp(manager, widgetId, 110);
             float scale = Math.max(0.75f, Math.min(1.3f, Math.min(widthDp / 110f, heightDp / 110f)));
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
+            // 자동 배율에 '크게' 설정까지 곱해지면 라벨이 겹칠 만큼 커지므로 상한을 다시 건다.
+            scale = Math.min(scale, 1.3f);
 
             views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
             views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, 10f * scale);

@@ -29,7 +29,7 @@ public class WidgetTheme {
     }
 
     static float textScaleMultiplier(String pref) {
-        if (TEXT_SMALL.equals(pref)) return 0.85f;
+        if (TEXT_SMALL.equals(pref)) return 0.72f;
         if (TEXT_LARGE.equals(pref)) return 1.15f;
         return 1.0f;
     }

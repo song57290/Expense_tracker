@@ -139,7 +139,7 @@ export default function Calendar() {
   const [addVisible, setAddVisible] = useState(false)
   const [addTab, setAddTab] = useState('manual')
   const [homeData, setHomeData] = useState(null)
-  const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false })
+  const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false })
   const [addAmountDisplay, setAddAmountDisplay] = useState('')
   const [addAmountError, setAddAmountError] = useState(false)
   const [addCardError, setAddCardError] = useState(false)
@@ -156,7 +156,7 @@ export default function Calendar() {
     setAddDates(null)
     setAddOpen(true)
     setAddTab('manual')
-    setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
+    setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
     setAddAmountDisplay('')
     setAddAmountError(false)
     setAddCardError(false)
@@ -174,7 +174,7 @@ export default function Calendar() {
     setAddDates(dates)
     setAddOpen(true)
     setAddTab('manual')
-    setAddForm(f => ({ ...f, date: dates[0], type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false }))
+    setAddForm(f => ({ ...f, date: dates[0], type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
     setAddAmountDisplay('')
     setAddAmountError(false)
     setAddCardError(false)
@@ -451,7 +451,7 @@ export default function Calendar() {
                           transition: 'transform 0.26s cubic-bezier(0.25,0.46,0.45,0.94), background 0.26s',
                           boxShadow: addForm.type === 'expense' ? '0 2px 8px rgba(255,59,48,0.45)' : '0 2px 8px rgba(52,199,89,0.45)' }} />
                         {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-                          <button key={val} type="button" onClick={() => setAddForm(f => ({ ...f, type: val, category: '', exclude_perf: false, exclude_stats: false }))}
+                          <button key={val} type="button" onClick={() => setAddForm(f => ({ ...f, type: val, category: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))}
                             style={{ flex: 1, position: 'relative', zIndex: 1, borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', background: 'transparent',
                               color: addForm.type === val ? 'white' : 'var(--text-muted)', transition: 'color 0.26s' }}>
                             {label}
@@ -524,6 +524,17 @@ export default function Calendar() {
                         </div>
                       </div>
                     </div>
+                    {addForm.card && (
+                      <div className="col-12">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                          <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
+                          <div className="ios-toggle">
+                            <div className={`ios-track${addForm.exclude_cashback ? ' on' : ''}`} />
+                            <div className={`ios-dot${addForm.exclude_cashback ? ' on' : ''}`} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {!addDates && (
                       <div className="col-12">
                         <input type="file" id="cal-receipt-input" accept="image/*" ref={calReceiptInputRef} style={{ display: 'none' }}
