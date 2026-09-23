@@ -16,6 +16,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <intent-filter>
@@ -96,7 +97,7 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_today_info" />
 
-        </receiver>ㄴ
+        </receiver>
 
         <!-- 2x2 지출 추이 위젯 -->
         <receiver

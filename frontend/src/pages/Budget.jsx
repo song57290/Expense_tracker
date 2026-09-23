@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -302,10 +303,13 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   }
 
   if (!open) return null
-  return (
+  // Layout.jsx의 페이지 전환 컨테이너가 transform을 쓰는 애니메이션 요소라, 그
+  // 안에 그대로 두면 position:fixed가 화면이 아니라 그 조상 기준으로 동작해
+  // 키보드 리사이즈와 어긋난다 — document.body로 포털링해서 피한다.
+  return createPortal(
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h6 className="mb-0 fw-bold">자산 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
@@ -353,21 +357,27 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               <ImageCropper file={cropFile} onCancel={() => setCropFile(null)} onConfirm={onCropConfirm} />
             </>)}
 
-            {assetType === 'card' && cards.filter(c => !c.linked_account_id && !c.is_loan).length > 0 && (
-              <div className="mb-2">
-                <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>연결 계좌 (선택)</p>
-                <select value={linkedAccountId} onChange={e => setLinkedAccountId(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${linkedAccountId ? '#b088f9' : 'var(--border-input)'}`, fontSize: '0.9rem', background: 'var(--input-bg)', color: linkedAccountId ? '#b088f9' : 'var(--text-primary)', fontWeight: linkedAccountId ? 600 : 400, outline: 'none', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b088f9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 36, boxSizing: 'border-box' }}>
-                  <option value="">(연결 없음)</option>
-                  {cards.filter(c => !c.linked_account_id && !c.is_loan).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                {linkedAccountId && (
-                  <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>잔고는 선택한 계좌와 공유되며, 실적/목표는 이 카드에만 적용됩니다.</p>
-                )}
-              </div>
-            )}
+            {assetType === 'card' && cards.filter(c => !c.linked_account_id && !c.is_loan).length > 0 && (() => {
+              const linkable = cards.filter(c => !c.linked_account_id && !c.is_loan)
+              const NONE_LABEL = '연결 없음'
+              const linkedCard = linkable.find(c => String(c.id) === String(linkedAccountId))
+              return (
+                <div className="mb-2">
+                  <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>연결 계좌 (선택)</p>
+                  <CardPicker cards={[{ id: '__none__', name: NONE_LABEL }, ...linkable]}
+                    value={linkedCard ? linkedCard.name : NONE_LABEL}
+                    placeholder="연결 계좌 선택"
+                    onChange={name => {
+                      if (name === NONE_LABEL) { setLinkedAccountId(''); return }
+                      const c = linkable.find(c => c.name === name)
+                      setLinkedAccountId(c ? String(c.id) : '')
+                    }} />
+                  {linkedAccountId && (
+                    <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>잔고는 선택한 계좌와 공유되며, 실적/목표는 이 카드에만 적용됩니다.</p>
+                  )}
+                </div>
+              )
+            })()}
             <input type="text" className="form-control mb-2"
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : assetType === 'point' ? '포인트명 (예: 복지 포인트)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
@@ -469,14 +479,15 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
             )}
           </form>
         </div>
-        <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 0 calc(16px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
           <div className="d-flex gap-2">
             <button type="submit" form="add-card-form" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>추가하기</button>
             <button type="button" className="btn btn-outline-secondary flex-fill" onClick={onClose} style={{ borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>취소</button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -744,7 +755,8 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
   )
 }
 
-function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
+function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd, hideAmounts = false }) {
+  const am = `amt-mask${hideAmounts ? ' amt-hidden' : ''}`
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -882,7 +894,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.stype === '예금' ? '예치금액' : '월 납입액'}</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{fmt(item.amount)}원</div>
+            <div className={am} style={{ fontSize: '0.85rem', fontWeight: 600 }}>{fmt(item.amount)}원</div>
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isCheongYak ? '납입 회차' : '연 이율'}</div>
@@ -890,21 +902,21 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
           </div>
           <div className="text-center flex-fill">
             {isCheongYak
-              ? (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>총 납입액</div><div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.current_paid)}원</div></>)
-              : (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div><div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div></>)
+              ? (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>총 납입액</div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.current_paid)}원</div></>)
+              : (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div></>)
             }
           </div>
         </div>
         {item.stype === '적금' && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            <span>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
-            <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
+            <span className={am}>납입 {fmt(item.current_paid)} / {fmt(item.total_paid)}원</span>
+            <span className={am}>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
         {item.stype === '적금' && item.bonus_amount > 0 && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: '#0d6efd' }}>
-            <span>🎁 정부 지원금 {fmt(item.bonus_amount)}원/월</span>
-            <span>만기 지원금 합계 +{fmt(item.bonus_total)}원</span>
+            <span className={am}>🎁 정부 지원금 {fmt(item.bonus_amount)}원/월</span>
+            <span className={am}>만기 지원금 합계 +{fmt(item.bonus_total)}원</span>
           </div>
         )}
         {isCheongYak && !countEditOpen && (
@@ -915,7 +927,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
               <button onClick={e => { e.stopPropagation(); setCountEditVal(String(item.months_elapsed)); setCountEditOpen(true) }}
                 style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: 6, border: 'none', background: '#f0eaff', color: '#b088f9', fontWeight: 700, cursor: 'pointer', marginLeft: 2 }}>✏ 수정</button>
             </span>
-            <span>납입액 {fmt(item.current_paid)}원</span>
+            <span className={am}>납입액 {fmt(item.current_paid)}원</span>
           </div>
         )}
         {isCheongYak && countEditOpen && (
@@ -933,7 +945,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
         {item.stype === '예금' && (
           <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             <span>{item.months_total}개월 · {item.tax_type}</span>
-            <span>세후 이자 +{fmt(item.interest_after_tax)}원</span>
+            <span className={am}>세후 이자 +{fmt(item.interest_after_tax)}원</span>
           </div>
         )}
         {!isCheongYak && (
@@ -994,7 +1006,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
               : deposits.map(d => (
                 <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border-light)' }}>
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{d.date}</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#198754' }}>+{fmt(d.amount)}원</span>
+                  <span className={am} style={{ fontSize: '0.82rem', fontWeight: 700, color: '#198754' }}>+{fmt(d.amount)}원</span>
                   {d.memo && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.memo}</span>}
                   <button onClick={() => deleteDeposit(d.id)}
                     style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 6, border: 'none', background: '#fff0f0', color: '#dc3545', cursor: 'pointer' }}>삭제</button>
@@ -1002,7 +1014,7 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd }) {
               ))
             }
             {item.extra_deposit > 0 && (
-              <div style={{ fontSize: '0.78rem', color: '#198754', fontWeight: 600, marginTop: 6 }}>
+              <div className={am} style={{ fontSize: '0.78rem', color: '#198754', fontWeight: 600, marginTop: 6 }}>
                 추가 입금 합계: +{fmt(item.extra_deposit)}원
               </div>
             )}
@@ -1107,7 +1119,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   }
 
   if (!open) return null
-  return (
+  return createPortal(
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
@@ -1289,13 +1301,14 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
             </div>
           </form>
         </div>
-        <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 0 calc(16px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
           <button type="submit" form="savings-form" className="btn w-100" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>
             {editItem ? '수정하기' : '추가하기'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -1318,7 +1331,8 @@ function matchesInvFilter(item, filter) {
   return filter === 'all' || filter.includes(item.itype) || filter.includes(item.account_type)
 }
 
-function InvestmentItem({ item, onEdit, onDelete, dnd }) {
+function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
+  const am = `amt-mask${hideAmounts ? ' amt-hidden' : ''}`
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -1399,30 +1413,30 @@ function InvestmentItem({ item, onEdit, onDelete, dnd }) {
         <div className="d-flex mb-2" style={{ gap: 1 }}>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>매수금액</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(item.purchase_value)}원</div>
+            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(item.purchase_value)}원</div>
             {item.itype === '해외주식' && item.exchange_rate && (
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.avg_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+              <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.avg_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
           <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>평가금액</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
+            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
             {item.itype === '해외주식' && item.exchange_rate && (
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+              <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
           <div className="text-center flex-fill">
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>수익</div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isProfit ? '#198754' : '#dc3545' }}>
+            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 700, color: isProfit ? '#198754' : '#dc3545' }}>
               {isProfit ? '+' : ''}{fmt(item.profit)}원
             </div>
             {item.itype === '해외주식' && item.exchange_rate && (
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>({isProfit ? '+' : ''}${((item.current_price - item.avg_price) * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+              <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>({isProfit ? '+' : ''}${((item.current_price - item.avg_price) * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
         </div>
         <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-          <span>
+          <span className={am}>
             {item.itype === '해외주식'
               ? item.current_price
                 ? `평단가 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재가 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -1567,7 +1581,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const inp = { borderRadius: 10, border: '1.5px solid var(--border-light)', padding: '9px 12px', fontSize: '0.9rem', width: '100%', outline: 'none', background: 'var(--input-bg)', color: 'var(--text-primary)' }
   if (!open) return null
 
-  return (
+  return createPortal(
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
@@ -1684,13 +1698,14 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
             </div>
           </form>
         </div>
-        <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 0 calc(16px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
           <button type="submit" form="investment-form" className="btn w-100" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>
             {editItem ? '수정하기' : '추가하기'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -1735,8 +1750,14 @@ export default function Budget() {
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
   // 필터·정렬 선택이 탭 이동·앱 재실행 후에도 유지되도록 로컬 저장(서버 무관)
-  // hide_amounts는 홈 탭과 같은 키를 써서 한쪽에서 켜면 다른 쪽에도 이어진다
-  const [hideAmounts, setHideAmounts] = useLocalStorageState('hide_amounts', false)
+  // 잔고와 예·적금·투자를 따로 가릴 수 있게 필터 팝업과 같은 다중 선택 방식으로 저장
+  // ('all' = 둘 다, 배열 = 그 중 선택된 것만, [] = 아무 것도 안 가림)
+  const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_budget', [])
+  // 예전 버전엔 이 키에 단순 boolean(true/false)을 저장했다 — 그 값이 남아있는
+  // 기기에서도 배열 메서드 호출 중 죽지 않도록 항상 배열/'all'로 보정한다.
+  const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
+  const hideBalance = hiddenParts === 'all' || hiddenParts.includes('balance')
+  const hideInvest = hiddenParts === 'all' || hiddenParts.includes('invest')
   const [invFilter, setInvFilter] = useLocalStorageState('budget_inv_filter', 'all')
   const [cardSort, setCardSort] = useLocalStorageState('budget_card_sort', '기본')
   const [cardSortDir, setCardSortDir] = useLocalStorageState('budget_card_sort_dir', 'desc')
@@ -1946,6 +1967,17 @@ export default function Budget() {
       <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
         <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
         <div className="d-flex align-items-center gap-2">
+          <FilterPopup title="금액 가리기"
+            trigger={open => (
+              <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`}
+                onClick={open}
+                style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+            )}
+            sections={[{
+              label: '가릴 항목', type: 'grid',
+              options: [['balance', '은행별 잔고'], ['invest', '예·적금 · 투자']],
+              value: hiddenParts, onChange: setHiddenParts,
+            }]} />
           <FilterPopup sections={[{
             label: '정렬', options: [['기본', '기본순'], ['잔액순', '잔액순']],
             value: cardSort, onChange: setCardSort, dir: cardSortDir, onDirChange: setCardSortDir,
@@ -1995,11 +2027,11 @@ export default function Budget() {
             <SortableSection items={accountCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('account', o)}
               renderItem={(card, dnd) => (
                 <div key={card.id}>
-                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} hideAmounts={hideAmounts} />
+                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} hideAmounts={hideBalance} />
                   {(linkedByAccount[card.id] || []).map(lc => (
                     <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
                       <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
-                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} hideAmounts={hideAmounts} />
+                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} hideAmounts={hideBalance} />
                     </div>
                   ))}
                 </div>
@@ -2012,7 +2044,7 @@ export default function Budget() {
                 </div>
                 <SortableSection items={pointCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('point', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} hideAmounts={hideAmounts} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} hideAmounts={hideBalance} />
                   )} />
               </>
             )}
@@ -2024,7 +2056,7 @@ export default function Budget() {
                 </div>
                 <SortableSection items={loanCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('loan', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} dnd={dnd} hideAmounts={hideAmounts} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onRepayChange={load} accountCards={allNormalCards} dnd={dnd} hideAmounts={hideBalance} />
                   )} />
               </>
             )}
@@ -2048,9 +2080,6 @@ export default function Budget() {
             <div className="card-body py-3">
               <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 10 }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9' }}>자산별 잔고 종합</span>
-                <i className={`bi ${hideAmounts ? 'bi-eye-slash' : 'bi-eye'}`}
-                  onClick={() => setHideAmounts(v => !v)}
-                  style={{ fontSize: '1rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
               </div>
               <div className="d-flex gap-2">
                 {[
@@ -2060,7 +2089,7 @@ export default function Budget() {
                 ].map(({ label, val, color }) => (
                   <div key={label} style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                    <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{fmt(val)}원</div>
+                    <div className={`amt-mask${hideBalance ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{fmt(val)}원</div>
                   </div>
                 ))}
               </div>
@@ -2073,7 +2102,7 @@ export default function Budget() {
                   ].map(({ label, val, color }) => (
                     <div key={label} style={{ flex: 1, background: 'var(--bg-danger-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                       <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                      <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
+                      <div className={`amt-mask${hideBalance ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color }}>{label === '총 부채' ? '-' : ''}{fmt(val)}원</div>
                     </div>
                   ))}
                 </div>
@@ -2184,7 +2213,7 @@ export default function Budget() {
                 <SavingsItem key={item.id} item={item}
                   onEdit={() => openSavingsEdit(item)}
                   onDelete={() => setConfirmSavings(item)}
-                  onDepositChange={load} dnd={dnd} />
+                  onDepositChange={load} dnd={dnd} hideAmounts={hideInvest} />
               )} />
           </>
         )
@@ -2204,21 +2233,21 @@ export default function Budget() {
               <div className="d-flex gap-2 mb-2">
                 <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>예금 원금</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(depositTotal)}원</div>
+                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(depositTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>적금/청약 월 납입액</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(installTotal)}원</div>
+                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(installTotal)}원</div>
                 </div>
               </div>
               <div className="d-flex gap-2">
                 <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>예상이자 (세후)</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
+                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예상만기금액 (세후)</div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
+                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
                 </div>
               </div>
             </div>
@@ -2304,14 +2333,14 @@ export default function Budget() {
               renderItem={(item, dnd) => (
                 <InvestmentItem key={item.id} item={item}
                   onEdit={() => openInvEdit(item)}
-                  onDelete={() => setConfirmInv(item)} dnd={dnd} />
+                  onDelete={() => setConfirmInv(item)} dnd={dnd} hideAmounts={hideInvest} />
               )} />
           )}
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
             <div className="card-body py-3">
               <div className="d-flex justify-content-between align-items-center">
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{invFilter === 'all' ? '총 평가금액' : '선택 평가금액'}</span>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(filteredInv.reduce((s, i) => s + i.current_value, 0))}원</span>
+                <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(filteredInv.reduce((s, i) => s + i.current_value, 0))}원</span>
               </div>
               {(() => {
                 const totalPurch = filteredInv.reduce((s, i) => s + i.purchase_value, 0)
@@ -2321,7 +2350,7 @@ export default function Budget() {
                 return (
                   <div className="d-flex justify-content-between align-items-center mt-1">
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{invFilter === 'all' ? '총 수익' : '선택 수익'}</span>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: profit >= 0 ? '#198754' : '#dc3545' }}>
+                    <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '0.95rem', color: profit >= 0 ? '#198754' : '#dc3545' }}>
                       {profit >= 0 ? '+' : ''}{fmt(profit)}원 ({profit >= 0 ? '+' : ''}{pct}%)
                     </span>
                   </div>
@@ -2358,7 +2387,7 @@ export default function Budget() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트 전환</p>
             <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
-              {convertCard.name}에 남은 {fmt(convertCard.balance)}원을 전환하면, 다음 초기화 때 사라지지 않고 초기화 금액에 그대로 더해져 쌓여요.
+              {convertCard.name}에 남은 <span className={`amt-mask${hideBalance ? ' amt-hidden' : ''}`}>{fmt(convertCard.balance)}원</span>을 전환하면, 다음 초기화 때 사라지지 않고 초기화 금액에 그대로 더해져 쌓여요.
             </p>
             <div className="d-flex gap-2">
               <button autoFocus className="btn flex-fill" disabled={convertLoading} onClick={handleConvert}
@@ -2395,7 +2424,7 @@ export default function Budget() {
         </div>
       )}
 
-      {editSheetOpen && (
+      {editSheetOpen && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: editSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeEdit()}>
           <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: editSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
@@ -2539,14 +2568,15 @@ export default function Budget() {
                 )}
               </form>
             </div>
-            <div style={{ padding: '12px 0 48px', flexShrink: 0 }}>
+            <div style={{ padding: '12px 0 calc(16px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
               <div className="d-flex gap-2">
                 <button type="submit" form="edit-card-form" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>저장</button>
                 <button type="button" className="btn btn-outline-secondary flex-fill" onClick={closeEdit} style={{ borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>취소</button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

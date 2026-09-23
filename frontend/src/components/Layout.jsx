@@ -11,6 +11,7 @@ export default function Layout({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [topFade, setTopFade] = useState(false)
   const [botFade, setBotFade] = useState(true)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [dragX, setDragX] = useState(0)
   const [animDir, setAnimDir] = useState(null)
   const location = useLocation()
@@ -31,6 +32,19 @@ export default function Layout({ user, onLogout }) {
     onScroll()
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll) }
   }, [location.pathname])
+
+  // 키보드가 뜬 채로 입력 중이면 하단 페이드가 시트 안 저장 버튼 등을 가린다 —
+  // 텍스트 입력 요소에 포커스가 있는 동안은 하단 페이드만 꺼둔다.
+  useEffect(() => {
+    const isTextInput = el => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+    const onFocusIn = e => { if (isTextInput(e.target)) setKeyboardOpen(true) }
+    const onFocusOut = e => { if (isTextInput(e.target)) setKeyboardOpen(false) }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn); document.removeEventListener('focusout', onFocusOut)
+    }
+  }, [])
 
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
 
@@ -102,7 +116,7 @@ export default function Layout({ user, onLogout }) {
   return (
     <>
       <div className="top-fade d-lg-none" style={{ opacity: topFade ? 1 : 0 }} />
-      <div className="bot-fade d-lg-none" style={{ opacity: botFade ? 1 : 0 }} />
+      <div className="bot-fade d-lg-none" style={{ opacity: botFade && !keyboardOpen ? 1 : 0 }} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} onLogout={onLogout} />
       <div ref={pageRef} className="page-wrap">
         {!isSubPage && <Navbar onMenuClick={() => setSidebarOpen(true)} nickname={user?.nickname} />}
@@ -114,7 +128,10 @@ export default function Layout({ user, onLogout }) {
           className={`container-fluid px-3 px-lg-4 ${animDir ? `route-slide-${animDir}` : 'route-anim'}`}
           onAnimationEnd={() => setAnimDir(null)}
           style={{
-            minHeight: 'calc(100dvh - 170px)',
+            // 짧은 페이지도 화면을 채우도록 두는 최소 높이인데, 키보드가 떠서
+            // 화면이 줄어든 동안엔 이게 저장 버튼 아래로 불필요한 빈 공간을
+            // 만든다 — 입력 중일 때는 실제 내용 높이만큼만 차지하게 푼다.
+            minHeight: keyboardOpen ? 0 : 'calc(100dvh - 170px)',
             transform: dragX ? `translateX(${dragX}px)` : undefined,
             transition: dragX ? 'none' : 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)',
           }}

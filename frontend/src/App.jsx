@@ -221,7 +221,7 @@ export default function App() {
   }
 
   if (user === undefined) {
-    return <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }} />
+    return <div style={{ minHeight: '100dvh', background: 'var(--bg-page)' }} />
   }
 
   return (
@@ -236,7 +236,7 @@ export default function App() {
               <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>📢 공지사항 · {noticePopup.created_at}</div>
               <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'white' }}>{noticePopup.title}</div>
             </div>
-            <div style={{ padding: '16px 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '40vh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+            <div style={{ padding: '16px 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.7, maxHeight: '40dvh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
               {noticePopup.content}
             </div>
             <div style={{ padding: '0 20px 20px', display: 'flex', gap: 8 }}>

@@ -302,7 +302,7 @@ export default function Edit() {
             <button onClick={() => setPhotoViewer(false)}
               style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
             <img src={receiptUrl} alt="사진 보기"
-              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78dvh', objectFit: 'contain' }} />
           </div>
         </div>
       )}
