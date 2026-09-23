@@ -12,6 +12,118 @@ const fmt = n => Number(n || 0).toLocaleString()
 // 줬다. 마지막으로 받은 값을 모듈 스코프에 캐시해두고 재마운트 시 바로 보여준다.
 let _salaryCache = null
 
+const sheetInputStyle = { padding: '9px 12px', borderRadius: 10, border: '1.5px solid var(--border-input)', fontSize: '0.9rem', background: 'var(--bg-elevated)', width: '100%', color: 'var(--text-primary)' }
+
+// 예전엔 "+ 추가"/"수정" 버튼을 누르면 페이지 안에 폼이 인라인으로 펼쳐지는
+// 방식이었는데, 그러면 키보드가 떠도 화면 하단에 고정되는 장치가 전혀 없어
+// 저장 버튼이 화면 위쪽 아무 데나 있을 수 있었다 — 캘린더·예산 탭 시트처럼
+// createPortal + dvh 바텀시트로 바꿔서 항상 키보드 바로 위에 붙게 한다.
+function FixedExpenseSheet({ open, visible, onClose, onSaved, editItem, categories, cards }) {
+  const [name, setName] = useState('')
+  const [amount, setAmount] = useState('')
+  const [dayOfMonth, setDayOfMonth] = useState('')
+  const [category, setCategory] = useState('')
+  const [autoRegister, setAutoRegister] = useState(false)
+  const [autoSilent, setAutoSilent] = useState(false)
+  const [txType, setTxType] = useState('expense')
+  const [txCard, setTxCard] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    if (editItem) {
+      setName(editItem.name || '')
+      setAmount(editItem.amount ?? '')
+      setDayOfMonth(editItem.day_of_month ?? '')
+      setCategory(editItem.category || '')
+      setAutoRegister(editItem.auto_register || false)
+      setAutoSilent(editItem.auto_silent || false)
+      setTxType(editItem.tx_type || 'expense')
+      setTxCard(editItem.tx_card || '')
+    } else {
+      setName(''); setAmount(''); setDayOfMonth(''); setCategory('')
+      setAutoRegister(false); setAutoSilent(false); setTxType('expense'); setTxCard('')
+    }
+  }, [editItem, open])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const payload = {
+      name, amount: Number(amount) || 0, day_of_month: Number(dayOfMonth) || null,
+      category, auto_register: autoRegister, auto_silent: autoSilent, tx_type: txType, tx_card: txCard,
+    }
+    if (editItem) await api.put(`/api/salary/fixed/${editItem.id}`, payload)
+    else await api.post('/api/salary/fixed', payload)
+    onSaved(); onClose()
+  }
+
+  if (!open) return null
+  return createPortal(
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: visible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '80dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', padding: '20px 16px 0', transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="mb-0 fw-bold">{editItem ? '고정 지출 수정' : '고정 지출 추가'}</h6>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+        </div>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
+          <form id="fixed-expense-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input placeholder="항목명 (예: 월세, 넷플릭스)" value={name}
+              onChange={e => setName(e.target.value)} required style={sheetInputStyle} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="number" placeholder="금액" value={amount}
+                onChange={e => setAmount(e.target.value)} required style={{ ...sheetInputStyle, flex: 2 }} />
+              <input type="number" placeholder="결제일" value={dayOfMonth}
+                onChange={e => setDayOfMonth(e.target.value)} style={{ ...sheetInputStyle, flex: 1 }} />
+            </div>
+            <CategoryPicker
+              cats={categories.map(c => [c.name, c.icon])}
+              value={category}
+              onChange={setCategory}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={autoRegister} onChange={e => { setAutoRegister(e.target.checked); if (!e.target.checked) setAutoSilent(false) }} />
+              지정일에 자동 거래 등록
+            </label>
+            {autoRegister && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 9, padding: 2, gap: 2 }}>
+                  {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
+                    <button key={val} type="button"
+                      onClick={() => setTxType(val)}
+                      style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', fontSize: '0.82rem', fontWeight: txType === val ? 700 : 500, cursor: 'pointer', background: txType === val ? 'var(--bg-card)' : 'transparent', color: txType === val ? '#b088f9' : 'var(--text-muted)', boxShadow: txType === val ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 0.18s' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <CardPicker
+                  cards={cards}
+                  value={txCard}
+                  onChange={setTxCard}
+                  placeholder="카드/계좌 선택"
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px 10px', borderRadius: 9, background: autoSilent ? 'rgba(176,136,249,0.1)' : 'var(--bg-elevated)', border: `1.5px solid ${autoSilent ? '#b088f9' : 'var(--border-light)'}` }}>
+                  <input type="checkbox" checked={autoSilent} onChange={e => setAutoSilent(e.target.checked)} />
+                  <div>
+                    <div style={{ fontWeight: 600, color: autoSilent ? '#b088f9' : 'var(--text-primary)' }}>확인 없이 자동 등록</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>팝업 없이 지정일에 자동으로 등록</div>
+                  </div>
+                </label>
+              </div>
+            )}
+          </form>
+        </div>
+        <div style={{ padding: '12px 0 16px', flexShrink: 0 }}>
+          <div className="d-flex gap-2">
+            <button type="submit" form="fixed-expense-form" className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>{editItem ? '수정하기' : '추가하기'}</button>
+            <button type="button" className="btn btn-outline-secondary flex-fill" onClick={onClose} style={{ borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>취소</button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 export default function Salary() {
   const [salary, setSalary] = useState(() => _salaryCache?.salary ?? { amount: 0, pay_day: '' })
   const [allocations, setAllocations] = useState(() => _salaryCache?.allocations ?? [])
@@ -25,12 +137,25 @@ export default function Salary() {
   const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
   const [salaryAmountDisplay, setSalaryAmountDisplay] = useState('')
 
-  const [fixedForm, setFixedForm] = useState({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, auto_silent: false, tx_type: 'expense', tx_card: '' })
   const [limitInputs, setLimitInputs] = useState({})
   const [summaryHelpOpen, setSummaryHelpOpen] = useState(null)
-  const [fixedFormOpen, setFixedFormOpen] = useState(false)
-  const [editFixed, setEditFixed] = useState(null)
-  const [editFixedForm, setEditFixedForm] = useState({})
+  const [fixedSheetOpen, setFixedSheetOpen] = useState(false)
+  const [fixedSheetVisible, setFixedSheetVisible] = useState(false)
+  const [editFixedItem, setEditFixedItem] = useState(null)
+  function openFixedAdd() {
+    setEditFixedItem(null)
+    setFixedSheetOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setFixedSheetVisible(true)))
+  }
+  function openFixedEdit(item) {
+    setEditFixedItem(item)
+    setFixedSheetOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setFixedSheetVisible(true)))
+  }
+  function closeFixedSheet() {
+    setFixedSheetVisible(false)
+    setTimeout(() => setFixedSheetOpen(false), 300)
+  }
   const [cards, setCards] = useState(() => _salaryCache?.cards ?? [])
   const [wonInputs, setWonInputs] = useState({})
   const [selectedCats, setSelectedCats] = useState([])
@@ -91,6 +216,16 @@ export default function Salary() {
 
   const TAB_ORDER = ['plan', 'fixed', 'compare']
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
+  const [planEditOpen, setPlanEditOpen] = useState(false)
+  const [planEditVisible, setPlanEditVisible] = useState(false)
+  function openPlanEdit() {
+    setPlanEditOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setPlanEditVisible(true)))
+  }
+  function closePlanEdit() {
+    setPlanEditVisible(false)
+    setTimeout(() => setPlanEditOpen(false), 300)
+  }
   const tabIdx = TAB_ORDER.indexOf(tab)
   const [compareOnlyPlanned, setCompareOnlyPlanned] = useState(false)
 
@@ -250,40 +385,8 @@ export default function Salary() {
     load()
   }
 
-  async function addFixed(e) {
-    e.preventDefault()
-    await api.post('/api/salary/fixed', {
-      name: fixedForm.name,
-      amount: Number(fixedForm.amount) || 0,
-      day_of_month: Number(fixedForm.day_of_month) || null,
-      category: fixedForm.category,
-      auto_register: fixedForm.auto_register,
-      auto_silent: fixedForm.auto_silent,
-      tx_type: fixedForm.tx_type,
-      tx_card: fixedForm.tx_card,
-    })
-    setFixedForm({ name: '', amount: '', day_of_month: '', category: '', auto_register: false, auto_silent: false, tx_type: 'expense', tx_card: '' })
-    setFixedFormOpen(false)
-    load()
-  }
-
   async function deleteFixed(id) {
     await api.delete(`/api/salary/fixed/${id}`)
-    load()
-  }
-
-  async function saveEditFixed() {
-    await api.put(`/api/salary/fixed/${editFixed}`, {
-      name: editFixedForm.name,
-      amount: Number(editFixedForm.amount) || 0,
-      day_of_month: Number(editFixedForm.day_of_month) || null,
-      category: editFixedForm.category,
-      auto_register: editFixedForm.auto_register,
-      auto_silent: editFixedForm.auto_silent || false,
-      tx_type: editFixedForm.tx_type || 'expense',
-      tx_card: editFixedForm.tx_card || '',
-    })
-    setEditFixed(null)
     load()
   }
 
@@ -402,7 +505,7 @@ export default function Salary() {
           background: 'var(--bg-card)', borderRadius: 9,
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           transform: `translateX(${tabIdx * 100}%)`,
-          transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+          transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease',
           pointerEvents: 'none',
         }} />
         {[['plan', '📊 예산 배분'], ['fixed', '📌 고정 지출'], ['compare', '📈 비교']].map(([key, label]) => (
@@ -418,18 +521,26 @@ export default function Salary() {
 
       {/* 탭 콘텐츠 슬라이더 */}
       <div style={{ overflowX: 'clip', height: sliderHeight ? sliderHeight + 'px' : 'auto', transition: 'height 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', transform: `translateX(${-tabIdx * 100}%)`, transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)', willChange: 'transform' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', transform: `translateX(${-tabIdx * 100}%)`, transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease', willChange: 'transform' }}>
 
       {/* 예산 배분 탭 */}
       <div ref={planTabRef} style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
-            {salaryAmt > 0 && (
-              <div style={{ fontSize: '0.75rem', color: totalAllocWon > salaryAmt ? '#ff3b30' : 'var(--text-muted)' }}>
-                {fmt(totalAllocWon)}원 / {fmt(salaryAmt)}원
-              </div>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {salaryAmt > 0 && (
+                <div style={{ fontSize: '0.75rem', color: totalAllocWon > salaryAmt ? '#ff3b30' : 'var(--text-muted)' }}>
+                  {fmt(totalAllocWon)}원 / {fmt(salaryAmt)}원
+                </div>
+              )}
+              {salaryAmt > 0 && (
+                <button onClick={openPlanEdit}
+                  style={{ background: '#f0eaff', border: 'none', borderRadius: 10, padding: '5px 12px', color: '#b088f9', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  편집
+                </button>
+              )}
+            </div>
           </div>
 
           {!salaryAmt && (
@@ -439,91 +550,32 @@ export default function Salary() {
           )}
 
           {salaryAmt > 0 && (
-            <>
-              {/* 선택된 카테고리 목록 */}
-              <div
-                ref={catListRef}
-                onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
-                onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
-                style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: selectedCats.length ? 14 : 0 }}
-              >
-                {selectedCats.map((catName, i) => {
+            selectedCats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-faint)', fontSize: '0.85rem' }}>
+                편집을 눌러 카테고리를 추가해 주세요.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {selectedCats.map(catName => {
                   const cat = categories.find(c => c.name === catName)
                   if (!cat) return null
                   const wonStr = wonInputs[catName] || ''
                   const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
                   const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
-                  const isDragging = dragIdx === i
-                  const showLineAbove = dragIdx >= 0 && dragOverIdx === i && dragFrom.current > i
-                  const showLineBelow = dragIdx >= 0 && dragOverIdx === i && dragFrom.current < i
                   return (
                     <div key={catName}>
-                      {showLineAbove && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
-                      <div data-drag-row style={{ opacity: isDragging ? 0 : 1, transition: 'opacity 0.1s' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span
-                              onMouseDown={e => handleDragStart(e, i)}
-                              onTouchStart={e => handleDragStart(e, i)}
-                              style={{ cursor: 'grab', color: 'var(--text-faint)', fontSize: '1.05rem', padding: '0 4px', touchAction: 'none', userSelect: 'none', lineHeight: 1 }}>⠿</span>
-                            <button onClick={() => removeCat(catName)}
-                              style={{ background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
-                            <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {won > 0 && salaryAmt > 0 && (
-                              <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct.toFixed(1)}%</span>
-                            )}
-                            <div style={{ position: 'relative', width: 120 }}>
-                              <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
-                                onChange={e => handleWonInput(catName, e.target.value, e.target)}
-                                style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', textAlign: 'right', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
-                              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ height: 4, background: 'var(--bg-accent)', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>월 한도</span>
-                          <div style={{ position: 'relative', flex: 1 }}>
-                            <input type="text" inputMode="numeric"
-                              value={limitInputs[catName] ? Number(limitInputs[catName]).toLocaleString('ko-KR') : ''}
-                              placeholder="없음"
-                              onChange={e => {
-                                const digits = e.target.value.replace(/[^0-9]/g, '')
-                                restoreCaretAfterFormat(e.target, digits ? Number(digits).toLocaleString('ko-KR') : '')
-                                setLimitInputs(prev => ({ ...prev, [catName]: digits }))
-                              }}
-                              style={{ width: '100%', padding: '3px 26px 3px 8px', borderRadius: 7, border: '1.5px solid var(--border-light)', fontSize: '0.78rem', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
-                            <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.68rem', pointerEvents: 'none' }}>원</span>
-                          </div>
-                        </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(won)}원</span>
                       </div>
-                      {showLineBelow && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
+                      <div style={{ height: 4, background: 'var(--bg-accent)', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
+                      </div>
                     </div>
                   )
                 })}
               </div>
-
-              {/* 카테고리 추가 드롭다운 */}
-              {categories.filter(c => !selectedCats.includes(c.name)).length > 0 && (
-                <CategoryPicker
-                  cats={categories.filter(c => !selectedCats.includes(c.name)).map(c => [c.name, c.icon])}
-                  multi
-                  onSave={addCats}
-                  placeholder="+ 카테고리 추가"
-                />
-              )}
-
-              {selectedCats.length > 0 && (
-                <button onClick={async () => { await saveAllocations(allocations); await saveLimits() }}
-                  style={{ width: '100%', marginTop: 14, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-                  저장
-                </button>
-              )}
-            </>
+            )
           )}
         </div>
       </div>
@@ -533,146 +585,40 @@ export default function Salary() {
         <div style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>고정 지출 <span style={{ color: '#b088f9' }}>{fmt(fixedTotal)}원</span></div>
-              <button onClick={() => setFixedFormOpen(o => !o)}
+              <button onClick={openFixedAdd}
                 style={{ background: '#f0eaff', border: 'none', borderRadius: 10, padding: '7px 14px', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
                 + 추가
               </button>
             </div>
 
-            {fixedFormOpen && (
-              <form onSubmit={addFixed} style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input placeholder="항목명 (예: 월세, 넷플릭스)" value={fixedForm.name}
-                  onChange={e => setFixedForm(f => ({ ...f, name: e.target.value }))} required style={inputStyle} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="number" placeholder="금액" value={fixedForm.amount}
-                    onChange={e => setFixedForm(f => ({ ...f, amount: e.target.value }))} required style={{ ...inputStyle, flex: 2 }} />
-                  <input type="number" placeholder="결제일" value={fixedForm.day_of_month}
-                    onChange={e => setFixedForm(f => ({ ...f, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
-                </div>
-                <CategoryPicker
-                  cats={categories.map(c => [c.name, c.icon])}
-                  value={fixedForm.category}
-                  onChange={name => setFixedForm(f => ({ ...f, category: name }))}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={fixedForm.auto_register} onChange={e => setFixedForm(f => ({ ...f, auto_register: e.target.checked, auto_silent: false }))} />
-                  지정일에 자동 거래 등록
-                </label>
-                {fixedForm.auto_register && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 9, padding: 2, gap: 2 }}>
-                      {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-                        <button key={val} type="button"
-                          onClick={() => setFixedForm(f => ({ ...f, tx_type: val }))}
-                          style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', fontSize: '0.82rem', fontWeight: fixedForm.tx_type === val ? 700 : 500, cursor: 'pointer', background: fixedForm.tx_type === val ? 'var(--bg-card)' : 'transparent', color: fixedForm.tx_type === val ? '#b088f9' : 'var(--text-muted)', boxShadow: fixedForm.tx_type === val ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 0.18s' }}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    <CardPicker
-                      cards={cards}
-                      value={fixedForm.tx_card}
-                      onChange={name => setFixedForm(f => ({ ...f, tx_card: name }))}
-                      placeholder="카드/계좌 선택"
-                    />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px 10px', borderRadius: 9, background: fixedForm.auto_silent ? 'rgba(176,136,249,0.1)' : 'var(--bg-elevated)', border: `1.5px solid ${fixedForm.auto_silent ? '#b088f9' : 'var(--border-light)'}` }}>
-                      <input type="checkbox" checked={fixedForm.auto_silent} onChange={e => setFixedForm(f => ({ ...f, auto_silent: e.target.checked }))} />
-                      <div>
-                        <div style={{ fontWeight: 600, color: fixedForm.auto_silent ? '#b088f9' : 'var(--text-primary)' }}>확인 없이 자동 등록</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>팝업 없이 지정일에 자동으로 등록</div>
-                      </div>
-                    </label>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="submit" style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>저장</button>
-                  <button type="button" onClick={() => setFixedFormOpen(false)} style={{ padding: '9px 16px', borderRadius: 10, border: '1.5px solid var(--border-input)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer' }}>취소</button>
-                </div>
-              </form>
-            )}
-
-            {fixed.length === 0 && !fixedFormOpen && (
+            {fixed.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '24px 0', fontSize: '0.88rem' }}>등록된 고정 지출이 없습니다</div>
             )}
 
             {fixed.map(f => (
-              <div key={f.id}>
-                {editFixed === f.id ? (
-                  <div style={{ background: 'var(--bg-elevated)', borderRadius: 12, padding: 12, marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <input placeholder="항목명" value={editFixedForm.name}
-                      onChange={e => setEditFixedForm(x => ({ ...x, name: e.target.value }))} style={inputStyle} />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input type="number" placeholder="금액" value={editFixedForm.amount}
-                        onChange={e => setEditFixedForm(x => ({ ...x, amount: e.target.value }))} style={{ ...inputStyle, flex: 2 }} />
-                      <input type="number" placeholder="결제일" value={editFixedForm.day_of_month || ''}
-                        onChange={e => setEditFixedForm(x => ({ ...x, day_of_month: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
-                    </div>
-                    <CategoryPicker
-                      cats={categories.map(c => [c.name, c.icon])}
-                      value={editFixedForm.category || ''}
-                      onChange={name => setEditFixedForm(x => ({ ...x, category: name }))}
-                    />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!editFixedForm.auto_register} onChange={e => setEditFixedForm(x => ({ ...x, auto_register: e.target.checked, auto_silent: false }))} />
-                      지정일에 자동 거래 등록
-                    </label>
-                    {editFixedForm.auto_register && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 9, padding: 2, gap: 2 }}>
-                          {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-                            <button key={val} type="button"
-                              onClick={() => setEditFixedForm(x => ({ ...x, tx_type: val }))}
-                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', fontSize: '0.82rem', fontWeight: (editFixedForm.tx_type || 'expense') === val ? 700 : 500, cursor: 'pointer', background: (editFixedForm.tx_type || 'expense') === val ? 'var(--bg-card)' : 'transparent', color: (editFixedForm.tx_type || 'expense') === val ? '#b088f9' : 'var(--text-muted)', boxShadow: (editFixedForm.tx_type || 'expense') === val ? '0 1px 4px rgba(0,0,0,0.12)' : 'none', transition: 'all 0.18s' }}>
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        <CardPicker
-                          cards={cards}
-                          value={editFixedForm.tx_card || ''}
-                          onChange={name => setEditFixedForm(x => ({ ...x, tx_card: name }))}
-                          placeholder="카드/계좌 선택"
-                        />
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: 'var(--text-secondary)', cursor: 'pointer', padding: '6px 10px', borderRadius: 9, background: editFixedForm.auto_silent ? 'rgba(176,136,249,0.1)' : 'var(--bg-elevated)', border: `1.5px solid ${editFixedForm.auto_silent ? '#b088f9' : 'var(--border-light)'}` }}>
-                          <input type="checkbox" checked={!!editFixedForm.auto_silent} onChange={e => setEditFixedForm(x => ({ ...x, auto_silent: e.target.checked }))} />
-                          <div>
-                            <div style={{ fontWeight: 600, color: editFixedForm.auto_silent ? '#b088f9' : 'var(--text-primary)' }}>확인 없이 자동 등록</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>팝업 없이 지정일에 자동으로 등록</div>
-                          </div>
-                        </label>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={saveEditFixed} style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>저장</button>
-                      <button onClick={() => setEditFixed(null)} style={{ padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--border-input)', background: 'var(--bg-card)', color: 'var(--text-muted)', cursor: 'pointer' }}>취소</button>
-                    </div>
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{f.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                    {f.category && <span style={{ marginRight: 8 }}>{f.category}</span>}
+                    {f.day_of_month && <span style={{ marginRight: 6 }}>매월 {f.day_of_month}일</span>}
+                    {f.item_type === 'savings'
+                      ? <span style={{ fontSize: '0.68rem', background: '#e8fdf0', color: '#198754', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>{f.stype} 자동이체</span>
+                      : f.auto_register && (
+                        <>
+                          <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>자동등록</span>
+                          {f.auto_silent && <span style={{ fontSize: '0.68rem', background: 'rgba(176,136,249,0.12)', color: '#b088f9', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동</span>}
+                        </>
+                      )}
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{f.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                        {f.category && <span style={{ marginRight: 8 }}>{f.category}</span>}
-                        {f.day_of_month && <span style={{ marginRight: 6 }}>매월 {f.day_of_month}일</span>}
-                        {f.item_type === 'savings'
-                          ? <span style={{ fontSize: '0.68rem', background: '#e8fdf0', color: '#198754', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>{f.stype} 자동이체</span>
-                          : f.auto_register && (
-                            <>
-                              <span style={{ fontSize: '0.68rem', background: '#e8f4fd', color: '#0d6efd', borderRadius: 6, padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>자동등록</span>
-                              {f.auto_silent && <span style={{ fontSize: '0.68rem', background: 'rgba(176,136,249,0.12)', color: '#b088f9', borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>자동</span>}
-                            </>
-                          )}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginRight: 8 }}>{fmt(f.amount)}원</div>
-                    {f.item_type !== 'savings' && <>
-                      <button onClick={() => { setEditFixed(f.id); setEditFixedForm({ name: f.name, amount: f.amount, day_of_month: f.day_of_month, category: f.category, auto_register: f.auto_register, auto_silent: f.auto_silent || false, tx_type: f.tx_type || 'expense', tx_card: f.tx_card || '' }) }}
-                        style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
-                      <button onClick={() => deleteFixed(f.id)}
-                        style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
-                    </>}
-                  </div>
-                )}
+                </div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginRight: 8 }}>{fmt(f.amount)}원</div>
+                {f.item_type !== 'savings' && <>
+                  <button onClick={() => openFixedEdit(f)}
+                    style={{ background: '#f0eaff', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#b088f9', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>수정</button>
+                  <button onClick={() => deleteFixed(f.id)}
+                    style={{ background: '#fff0f0', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#ff3b30', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>삭제</button>
+                </>}
               </div>
             ))}
           </div>
@@ -689,7 +635,7 @@ export default function Salary() {
                 background: 'linear-gradient(135deg,#b088f9,#7baff0)',
                 borderRadius: 14,
                 transform: `translateX(${compareOnlyPlanned ? 100 : 0}%)`,
-                transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+                transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease',
                 pointerEvents: 'none',
               }} />
               {[['전체', false], ['계획만', true]].map(([label, val]) => (
@@ -811,6 +757,104 @@ export default function Salary() {
         </div>
       </div>
     </div>
+
+    <FixedExpenseSheet open={fixedSheetOpen} visible={fixedSheetVisible} onClose={closeFixedSheet}
+      onSaved={load} editItem={editFixedItem} categories={categories} cards={cards} />
+
+    {planEditOpen && createPortal(
+      <div onClick={e => e.target === e.currentTarget && closePlanEdit()}
+        style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: planEditVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '80dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: planEditVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
+          <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span className="fw-bold" style={{ fontSize: '1rem' }}>카테고리별 예산 편집</span>
+            <button onClick={closePlanEdit} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+          </div>
+          <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 20px', flex: 1 }}>
+            <div
+              ref={catListRef}
+              onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
+              onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
+              style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: selectedCats.length ? 14 : 0 }}
+            >
+              {selectedCats.map((catName, i) => {
+                const cat = categories.find(c => c.name === catName)
+                if (!cat) return null
+                const wonStr = wonInputs[catName] || ''
+                const won = parseInt((wonStr || '').replace(/,/g, '')) || 0
+                const pct = salaryAmt > 0 ? won / salaryAmt * 100 : 0
+                const isDragging = dragIdx === i
+                const showLineAbove = dragIdx >= 0 && dragOverIdx === i && dragFrom.current > i
+                const showLineBelow = dragIdx >= 0 && dragOverIdx === i && dragFrom.current < i
+                return (
+                  <div key={catName}>
+                    {showLineAbove && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
+                    <div data-drag-row style={{ opacity: isDragging ? 0 : 1, transition: 'opacity 0.1s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span
+                            onMouseDown={e => handleDragStart(e, i)}
+                            onTouchStart={e => handleDragStart(e, i)}
+                            style={{ cursor: 'grab', color: 'var(--text-faint)', fontSize: '1.05rem', padding: '0 4px', touchAction: 'none', userSelect: 'none', lineHeight: 1 }}>⠿</span>
+                          <button onClick={() => removeCat(catName)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: '1rem', lineHeight: 1, padding: '0 2px', cursor: 'pointer' }}>×</button>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{cat.icon} {cat.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {won > 0 && salaryAmt > 0 && (
+                            <span style={{ fontSize: '0.75rem', color: '#b088f9', fontWeight: 600, whiteSpace: 'nowrap' }}>{pct.toFixed(1)}%</span>
+                          )}
+                          <div style={{ position: 'relative', width: 120 }}>
+                            <input type="text" inputMode="numeric" value={wonStr} placeholder="0"
+                              onChange={e => handleWonInput(catName, e.target.value, e.target)}
+                              style={{ width: '100%', padding: '5px 28px 5px 10px', borderRadius: 8, border: '1.5px solid var(--border-input)', fontSize: '0.88rem', textAlign: 'right', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
+                            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.78rem', pointerEvents: 'none' }}>원</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--bg-accent)', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 100 ? '#ff3b30' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4, transition: 'width 0.2s' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>월 한도</span>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <input type="text" inputMode="numeric"
+                            value={limitInputs[catName] ? Number(limitInputs[catName]).toLocaleString('ko-KR') : ''}
+                            placeholder="없음"
+                            onChange={e => {
+                              const digits = e.target.value.replace(/[^0-9]/g, '')
+                              restoreCaretAfterFormat(e.target, digits ? Number(digits).toLocaleString('ko-KR') : '')
+                              setLimitInputs(prev => ({ ...prev, [catName]: digits }))
+                            }}
+                            style={{ width: '100%', padding: '3px 26px 3px 8px', borderRadius: 7, border: '1.5px solid var(--border-light)', fontSize: '0.78rem', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} />
+                          <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)', fontSize: '0.68rem', pointerEvents: 'none' }}>원</span>
+                        </div>
+                      </div>
+                    </div>
+                    {showLineBelow && <div style={{ height: 2, background: '#b088f9', borderRadius: 2, margin: '2px 0' }} />}
+                  </div>
+                )
+              })}
+            </div>
+
+            {categories.filter(c => !selectedCats.includes(c.name)).length > 0 && (
+              <CategoryPicker
+                cats={categories.filter(c => !selectedCats.includes(c.name)).map(c => [c.name, c.icon])}
+                multi
+                onSave={addCats}
+                placeholder="+ 카테고리 추가"
+              />
+            )}
+          </div>
+          <div style={{ padding: '12px 20px 16px', borderTop: '1px solid var(--border-light)', flexShrink: 0 }}>
+            <button onClick={async () => { await saveAllocations(allocations); await saveLimits(); closePlanEdit() }}
+              style={{ width: '100%', padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+              저장
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
 
     {dragIdx >= 0 && dragContainerRect.current && createPortal(
       <div style={{ position: 'fixed', top: dragY - dragOffset.current, left: dragContainerRect.current.left, width: dragContainerRect.current.width, zIndex: 9999, pointerEvents: 'none', padding: '0 2px' }}>

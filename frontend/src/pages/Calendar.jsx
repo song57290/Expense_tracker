@@ -413,7 +413,7 @@ export default function Calendar() {
         <div onClick={e => e.target === e.currentTarget && closeAdd()}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: addVisible ? 1 : 0, transition: 'opacity 0.22s' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{addDates ? `${addDates.length}개 날짜에 내역 추가` : `${fmtDate(addForm.date)} 내역 추가`}</span>
               <button onClick={closeAdd} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
@@ -639,7 +639,7 @@ export default function Calendar() {
       {selected && createPortal(
         <div onClick={e => e.target === e.currentTarget && (setSelectedVisible(false), setTimeout(() => setSelected(null), 300))}
           style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: selectedVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
