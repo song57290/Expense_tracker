@@ -629,17 +629,24 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              {form.card && (
-                <div className="col-12">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
-                    <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
-                    <div className="ios-toggle">
-                      <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
-                      <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+              {(() => {
+                const selectedCard = data.card_list.find(c => c.name === form.card)
+                const cashbackMatch = selectedCard && (
+                  (form.type === 'expense' && selectedCard.cashback_type === 'payment') ||
+                  (form.type === 'income' && selectedCard.cashback_type === 'charge')
+                )
+                return cashbackMatch && (
+                  <div className="col-12">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                      <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
+                      <div className="ios-toggle">
+                        <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
+                        <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
               <div className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기

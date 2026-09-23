@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from functools import wraps
 
 from sqlalchemy import func
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -292,6 +292,7 @@ with app.app_context():
         'ALTER TABLE savings ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE investment ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE investment ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE "transaction" ADD COLUMN exclude_cashback BOOLEAN NOT NULL DEFAULT 0',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -330,9 +331,9 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 64
-    _apk_version_name = 'ver 2.80'
-    _apk_build_date = '2026-09-10'
+    _apk_version_code = 127
+    _apk_version_name = 'ver 2.92'
+    _apk_build_date = '2026-09-18'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
                               'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
@@ -406,7 +407,7 @@ def api_me():
     if not user:
         session.pop('user_id', None)
         return jsonify({'user': None})
-    return jsonify({'user': {'id': user.id, 'email': user.email, 'nickname': user.nickname}})
+    return jsonify({'user': {'id': user.id, 'email': user.email, 'nickname': user.nickname, 'is_admin': user.email == ADMIN_EMAIL}})
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
@@ -423,7 +424,7 @@ def api_register():
     db.session.add(user)
     db.session.commit()
     _seed_user_categories(user.id)
-    session.permanent = True
+    session.permanent = bool(data.get('remember', True))
     session['user_id'] = user.id
     return jsonify({'ok': True, 'email': user.email, 'nickname': user.nickname})
 
@@ -435,7 +436,7 @@ def api_login():
     user = User.query.filter_by(email=email).first()
     if not user or not user.check_password(password):
         return jsonify({'error': '이메일 또는 비밀번호가 올바르지 않습니다'}), 401
-    session.permanent = True
+    session.permanent = bool(data.get('remember', True))
     session['user_id'] = user.id
     return jsonify({'ok': True, 'email': user.email, 'nickname': user.nickname})
 
@@ -553,8 +554,8 @@ def _net_amount(tx):
     cashback = tx.cashback or 0
     return tx.amount - cashback if tx.type == 'expense' else tx.amount + cashback
 
-def _compute_cashback(uid, card_name, tx_type, amount):
-    if not card_name or tx_type not in ('income', 'expense'):
+def _compute_cashback(uid, card_name, tx_type, amount, exclude=False):
+    if exclude or not card_name or tx_type not in ('income', 'expense'):
         return 0
     card = Card.query.filter_by(user_id=uid, name=card_name).first()
     if not card or not card.cashback_type or not card.cashback_rate:
@@ -994,7 +995,7 @@ def api_home():
         'remaining': budget_amount - expense_total,
         'card_stats': card_stats,
         'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
-                       'has_custom_icon': bool(c.has_custom_icon)} for c in cards],
+                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or ''} for c in cards],
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'emoji_map': emoji_map,
@@ -1026,14 +1027,16 @@ def api_add_transaction():
         card = desc.split(' → ')[0].strip() or None
     now_time = datetime.now(_KST).strftime('%H:%M')
     amount = int(data['amount'])
+    exclude_cashback = bool(data.get('exclude_cashback', False))
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
         description=desc, amount=amount,
         card=card,
         exclude_perf=bool(data.get('exclude_perf', False)),
         exclude_stats=bool(data.get('exclude_stats', False)),
+        exclude_cashback=exclude_cashback,
         time=now_time,
-        cashback=_compute_cashback(uid, card, data['type'], amount),
+        cashback=_compute_cashback(uid, card, data['type'], amount, exclude_cashback),
         user_id=uid,
     )
     db.session.add(tx)
@@ -1082,11 +1085,13 @@ def api_transaction(tx_id):
         tx.description = data.get('description', tx.description)
         tx.amount = int(data.get('amount', tx.amount))
         tx.card = data.get('card') or None
-        tx.cashback = _compute_cashback(uid, tx.card, tx.type, tx.amount)
         if 'exclude_perf' in data:
             tx.exclude_perf = bool(data['exclude_perf'])
         if 'exclude_stats' in data:
             tx.exclude_stats = bool(data['exclude_stats'])
+        if 'exclude_cashback' in data:
+            tx.exclude_cashback = bool(data['exclude_cashback'])
+        tx.cashback = _compute_cashback(uid, tx.card, tx.type, tx.amount, tx.exclude_cashback)
 
         # 계좌 이체는 지출/수입 두 건이 한 쌍으로 생성되는데, 한쪽 날짜만 바꾸면
         # 두 건의 날짜가 어긋나 버리므로 짝이 되는 거래도 같이 옮겨준다.
@@ -1109,11 +1114,12 @@ def api_transaction(tx_id):
         'transaction': {'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                         'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
+                        'exclude_cashback': bool(getattr(tx, 'exclude_cashback', False)),
                         'has_receipt': bool(getattr(tx, 'has_receipt', False)), 'cashback': tx.cashback or 0},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
-                       'has_custom_icon': bool(c.has_custom_icon)} for c in Card.query.filter_by(user_id=uid).all()],
+                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or ''} for c in Card.query.filter_by(user_id=uid).all()],
         'excl_cat_names': [c.name for c in expense_cats if c.exclude_perf],
         'excl_stat_cat_names': [c.name for c in (expense_cats + income_cats) if c.exclude_stats],
     })
@@ -2557,9 +2563,10 @@ def api_salary():
         fixed = FixedExpense.query.filter_by(user_id=uid).all()
         current_month = datetime.now(_KST).strftime('%Y-%m')
         txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.date.like(f'{current_month}%')).all()
+        excl_stat_cats_salary = {c.name for c in Category.query.filter_by(user_id=uid).all() if c.exclude_stats}
         actual = {}
         for tx in txs:
-            if tx.type == 'expense':
+            if tx.type == 'expense' and _is_stats_tx(tx, excl_stat_cats_salary):
                 actual[tx.category] = actual.get(tx.category, 0) + tx.amount
         fixed_list = [{'id': f.id, 'name': f.name, 'amount': f.amount, 'day_of_month': f.day_of_month,
                         'category': f.category, 'auto_register': bool(f.auto_register),
@@ -2598,10 +2605,23 @@ def api_salary():
 def api_salary_allocations():
     uid = session['user_id']
     data = request.get_json()
-    BudgetAllocation.query.filter_by(user_id=uid).delete()
-    for a in data:
-        if a.get('percent', 0) > 0:
-            db.session.add(BudgetAllocation(user_id=uid, category_name=a['category_name'], percent=a['percent']))
+    # 예전엔 이 유저의 배분 행을 전부 지우고 percent>0인 것만 다시 만들었는데,
+    # 그러면 그때마다 카테고리별 monthly_limit(월 한도)이 통째로 날아가고, 방금
+    # 추가만 해두고 금액을 아직 안 넣은(percent=0) 카테고리도 저장 즉시 사라졌다
+    # — 보낸 이름만 percent를 갱신/생성하고, 안 보낸 기존 행은 percent만 0으로
+    # 내리되 한도가 남아있으면 행 자체는 보존한다(한도까지 비어야 정리 삭제).
+    sent = {a['category_name']: (a.get('percent', 0) or 0) for a in data}
+    existing = {a.category_name: a for a in BudgetAllocation.query.filter_by(user_id=uid).all()}
+    for name, pct in sent.items():
+        if name in existing:
+            existing[name].percent = pct
+        else:
+            db.session.add(BudgetAllocation(user_id=uid, category_name=name, percent=pct))
+    for name, alloc in existing.items():
+        if name not in sent:
+            alloc.percent = 0
+            if not alloc.monthly_limit:
+                db.session.delete(alloc)
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -4006,6 +4026,51 @@ def api_search():
         'has_receipt': bool(getattr(tx, 'has_receipt', False)),
     } for tx in txs])
 
+# ─── 무드(기분) 기록 ──────────────────────────────────────────────────────────
+@app.route('/api/mood')
+@login_required
+def api_mood_list():
+    uid = session['user_id']
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+
+    query = Mood.query.filter_by(user_id=uid)
+    if date_from:
+        query = query.filter(Mood.date >= date_from)
+    if date_to:
+        query = query.filter(Mood.date <= date_to)
+
+    moods = query.order_by(Mood.date.desc()).limit(400).all()
+    return jsonify([{
+        'id': m.id, 'date': m.date, 'score': m.score, 'memo': m.memo or '',
+    } for m in moods])
+
+@app.route('/api/mood', methods=['POST'])
+@login_required
+def api_mood_upsert():
+    uid = session['user_id']
+    data = request.json or {}
+    date = data.get('date', '')
+    score = data.get('score')
+    memo = (data.get('memo') or '').strip()[:200]
+
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', date):
+        return jsonify({'error': '날짜 형식이 올바르지 않습니다'}), 400
+    if not isinstance(score, int) or score < 1 or score > 5:
+        return jsonify({'error': '점수는 1~5 사이여야 합니다'}), 400
+
+    now = datetime.now()
+    mood = Mood.query.filter_by(user_id=uid, date=date).first()
+    if mood:
+        mood.score = score
+        mood.memo = memo
+        mood.updated_at = now
+    else:
+        mood = Mood(user_id=uid, date=date, score=score, memo=memo, created_at=now, updated_at=now)
+        db.session.add(mood)
+    db.session.commit()
+    return jsonify({'ok': True, 'date': date, 'score': score, 'memo': memo})
+
 # ─── 영수증 첨부 ──────────────────────────────────────────────────────────────
 @app.route('/api/transactions/<int:tid>/receipt', methods=['GET', 'POST', 'DELETE'])
 @login_required
@@ -4182,13 +4247,16 @@ def api_restore():
 def api_budget_limits():
     uid = session['user_id']
     data = request.json or {}
-    for cat_name, limit in data.items():
+    limits = data.get('limits', {})
+    for cat_name, limit in limits.items():
         alloc = BudgetAllocation.query.filter_by(user_id=uid, category_name=cat_name).first()
         if alloc:
             alloc.monthly_limit = int(limit) if limit else None
-        else:
+            if not alloc.monthly_limit and not alloc.percent:
+                db.session.delete(alloc)
+        elif limit:
             db.session.add(BudgetAllocation(user_id=uid, category_name=cat_name,
-                                            percent=0, monthly_limit=int(limit) if limit else None))
+                                            percent=0, monthly_limit=int(limit)))
     db.session.commit()
     return jsonify({'ok': True})
 
