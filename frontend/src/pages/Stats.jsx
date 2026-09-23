@@ -69,6 +69,15 @@ export default function Stats() {
   const [portfolioOpen, setPortfolioOpen] = useLocalStorageState('stats_portfolio_open', true)
   const [cmpOpen, setCmpOpen] = useLocalStorageState('stats_cmp_open', true)
   const [cmpHelpOpen, setCmpHelpOpen] = useState(false)
+  // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
+  const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_stats', [])
+  // 예전 버전엔 이 키에 단순 boolean을 저장했다 — 남아있어도 안 죽게 보정
+  const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
+  const hideCat = hiddenParts === 'all' || hiddenParts.includes('cat')
+  const hideBar = hiddenParts === 'all' || hiddenParts.includes('bar')
+  const hideAsset = hiddenParts === 'all' || hiddenParts.includes('asset')
+  const hidePortfolio = hiddenParts === 'all' || hiddenParts.includes('portfolio')
+  const hideCmp = hiddenParts === 'all' || hiddenParts.includes('cmp')
   const [assetDetail, setAssetDetail] = useState(false)
   const [assetVisible, setAssetVisible] = useState(false)
   const [trendFrom, setTrendFrom] = useState(() => defaultTrendRange().from)
@@ -263,7 +272,22 @@ export default function Stats() {
       {/* 카테고리별 지출 헤더 */}
       <div className="d-flex justify-content-between align-items-center mb-3 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
         <span className="fw-bold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{fmtMonth(month)} 카테고리별 지출</span>
-        <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span onClick={e => e.stopPropagation()}>
+            <FilterPopup title="금액 가리기"
+              trigger={open => (
+                <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`}
+                  onClick={open}
+                  style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+              )}
+              sections={[{
+                label: '가릴 항목', type: 'grid',
+                options: [['cat', '카테고리별 지출'], ['bar', '월별 추이'], ['asset', '자산 구성'], ['portfolio', '총 자산 추이'], ['cmp', '전월 대비 카테고리']],
+                value: hiddenParts, onChange: setHiddenParts,
+              }]} />
+          </span>
+          <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+        </div>
       </div>
       <div className="s-collapse" style={{ maxHeight: catOpen ? '3000px' : '0' }}>
         <div className="row mb-4 align-items-stretch">
@@ -332,7 +356,7 @@ export default function Stats() {
                             <div style={{ width: 12, height: 12, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
                             <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{c.icon || data.emoji_map[c.name] || '📦'} {c.name}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(c.amount)}원</span>
+                              <span className={`amt-mask${hideCat ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(c.amount)}원</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                             </div>
                           </div>
@@ -441,7 +465,7 @@ export default function Stats() {
                     ].map(({ label, val, color, bg }) => (
                       <div key={label} style={{ flex: 1, background: bg, borderRadius: 12, padding: '10px 12px' }}>
                         <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color }}>{(val / 10000).toFixed(0)}만원</div>
+                        <div className={`amt-mask${hideBar ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color }}>{(val / 10000).toFixed(0)}만원</div>
                       </div>
                     ))}
                   </div>
@@ -480,7 +504,7 @@ export default function Stats() {
                   ctx.fillStyle = isDark ? '#f0eeff' : '#333'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'middle'
-                  const netLabel = fmt(netTotal) + '원'
+                  const netLabel = hidePortfolio ? '●●●●●●' : fmt(netTotal) + '원'
                   // 천단위 콤마로 풀어 쓰면 억/만원 축약 표기보다 훨씬 길어져 도넛
                   // 구멍 밖으로 넘칠 수 있다 — 구멍 크기 대비 실측 너비를 재서
                   // 넘치면 폰트를 줄여 항상 안에 들어오게 맞춘다.
@@ -540,7 +564,7 @@ export default function Stats() {
                                 <div style={{ width: 12, height: 12, borderRadius: 3, background: PF_COLORS[i % PF_COLORS.length], flexShrink: 0 }} />
                                 <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
+                                  <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                 </div>
                               </div>
@@ -561,7 +585,7 @@ export default function Stats() {
                                     <div style={{ width: 12, height: 12, borderRadius: 3, background: '#ff6b6b', flexShrink: 0 }} />
                                     <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
+                                      <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
                                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                     </div>
                                   </div>
@@ -661,11 +685,11 @@ export default function Stats() {
                 <div className="d-flex gap-3 mb-2">
                   <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 12, padding: '10px 14px' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 3 }}>현재 순자산</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#b088f9' }}>{fmt(latest)}원</div>
+                    <div className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#b088f9' }}>{fmt(latest)}원</div>
                   </div>
                   <div style={{ flex: 1, background: diff >= 0 ? '#f0faf4' : '#fff0f0', borderRadius: 12, padding: '10px 14px' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 3 }}>전월 대비</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: diff >= 0 ? '#198754' : '#dc3545' }}>
+                    <div className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`} style={{ fontSize: '1.1rem', fontWeight: 700, color: diff >= 0 ? '#198754' : '#dc3545' }}>
                       {diff >= 0 ? '+' : ''}{fmt(diff)}원
                     </div>
                   </div>
@@ -689,7 +713,7 @@ export default function Stats() {
                           borderRadius: 8, padding: '4px 10px',
                           fontSize: '0.74rem', fontWeight: 600,
                           color: c.diff > 0 ? '#198754' : '#dc3545',
-                        }}>
+                        }} className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`}>
                           {c.label} {c.diff > 0 ? '+' : ''}{fmt(c.diff)}원
                         </div>
                       ))}
@@ -788,11 +812,12 @@ export default function Stats() {
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
                                     <div>
-                                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{fmt(t.assets)}원</div>
+                                      <div className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{fmt(t.assets)}원</div>
                                     </div>
                                     {chg !== null && (
                                       <div
                                         onClick={bdChanges.length > 0 ? () => setBdOpen(o => ({ ...o, [t.month]: !o[t.month] })) : undefined}
+                                        className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`}
                                         style={{
                                           fontSize: '0.72rem', fontWeight: 600, marginTop: 3,
                                           color: chg >= 0 ? '#198754' : '#dc3545',
@@ -809,7 +834,7 @@ export default function Stats() {
                                 {bdOpen[t.month] && bdChanges.length > 0 && (
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
                                     {bdChanges.map(c => (
-                                      <span key={c.label} style={{
+                                      <span key={c.label} className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`} style={{
                                         fontSize: '0.68rem', fontWeight: 600,
                                         color: c.diff > 0 ? '#198754' : '#dc3545',
                                         background: c.diff > 0 ? '#f0faf4' : '#fff0f0',
@@ -882,7 +907,7 @@ export default function Stats() {
                     <div key={item.name}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{item.icon} {item.name}</span>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759' }}>
+                        <span className={`amt-mask${hideCmp ? ' amt-hidden' : ''}`} style={{ fontSize: '0.78rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759' }}>
                           {isUp ? '▲' : '▼'} {fmt(absDiff)}원
                         </span>
                       </div>
@@ -892,14 +917,14 @@ export default function Stats() {
                           <div style={{ flex: 1, height: 8, background: 'var(--bg-section)', borderRadius: 4, overflow: 'hidden' }}>
                             <div style={{ width: `${(item.previous / maxVal * 100).toFixed(1)}%`, height: '100%', background: 'rgba(176,136,249,0.45)', borderRadius: 4, transition: 'width 0.3s' }} />
                           </div>
-                          <span style={{ width: 64, fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>{fmt(item.previous)}</span>
+                          <span className={`amt-mask${hideCmp ? ' amt-hidden' : ''}`} style={{ width: 64, fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>{fmt(item.previous)}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ width: 36, fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0 }}>이번</span>
                           <div style={{ flex: 1, height: 8, background: 'var(--bg-section)', borderRadius: 4, overflow: 'hidden' }}>
                             <div style={{ width: `${(item.current / maxVal * 100).toFixed(1)}%`, height: '100%', background: isUp ? 'rgba(255,59,48,0.55)' : 'rgba(52,199,89,0.55)', borderRadius: 4, transition: 'width 0.3s' }} />
                           </div>
-                          <span style={{ width: 64, fontSize: '0.72rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759', textAlign: 'right', flexShrink: 0 }}>{fmt(item.current)}</span>
+                          <span className={`amt-mask${hideCmp ? ' amt-hidden' : ''}`} style={{ width: 64, fontSize: '0.72rem', fontWeight: 700, color: isUp ? '#dc3545' : '#34c759', textAlign: 'right', flexShrink: 0 }}>{fmt(item.current)}</span>
                         </div>
                       </div>
                     </div>

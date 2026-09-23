@@ -145,7 +145,7 @@ export default function UpdateNoticeModal() {
           borderRadius: '20px 20px 0 0',
           width: '100%',
           maxWidth: 540,
-          maxHeight: '88vh',
+          maxHeight: '88dvh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',

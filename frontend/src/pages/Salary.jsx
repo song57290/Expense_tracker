@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import api from '../api.js'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
-import { restoreCaretAfterFormat } from '../utils.js'
+import { restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 
 const fmt = n => Number(n || 0).toLocaleString()
 
@@ -19,6 +19,7 @@ export default function Salary() {
   const [actual, setActual] = useState(() => _salaryCache?.actual ?? {})
   const [categories, setCategories] = useState(() => _salaryCache?.categories ?? [])
   const [loaded, setLoaded] = useState(!!_salaryCache)
+  const [hideAmounts, setHideAmounts] = useLocalStorageState('hide_amounts_salary', false)
 
   const [salaryEdit, setSalaryEdit] = useState(false)
   const [salaryForm, setSalaryForm] = useState({ amount: '', pay_day: '' })
@@ -92,6 +93,23 @@ export default function Salary() {
   const [tab, setTab] = useState('plan') // 'plan' | 'fixed' | 'compare'
   const tabIdx = TAB_ORDER.indexOf(tab)
   const [compareOnlyPlanned, setCompareOnlyPlanned] = useState(false)
+
+  // 3개 탭을 translateX로 슬라이드하는 구조라 셋 다 같은 flex 행에 나란히 놓여있어,
+  // 컨테이너 높이가 가장 긴 탭(주로 "비교") 기준으로 고정돼 짧은 탭을 볼 때 아래에
+  // 빈 공간이 크게 남았다 — 지금 보이는 탭의 실제 높이를 재서 컨테이너에 적용한다.
+  const planTabRef = useRef(null)
+  const fixedTabRef = useRef(null)
+  const compareTabRef = useRef(null)
+  const [sliderHeight, setSliderHeight] = useState(null)
+  useEffect(() => {
+    const refs = { plan: planTabRef, fixed: fixedTabRef, compare: compareTabRef }
+    const el = refs[tab]?.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setSliderHeight(el.offsetHeight))
+    ro.observe(el)
+    setSliderHeight(el.offsetHeight)
+    return () => ro.disconnect()
+  }, [tab])
 
   useEffect(() => {
     load()
@@ -316,8 +334,13 @@ export default function Salary() {
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: salaryEdit ? 14 : 0 }}>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>이번 달 월급</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800, background: 'linear-gradient(90deg,#b088f9,#7baff0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              이번 달 월급
+              <i className={`bi ${hideAmounts ? 'bi-eye-slash' : 'bi-eye'}`}
+                onClick={() => setHideAmounts(v => !v)}
+                style={{ fontSize: '0.95rem', cursor: 'pointer' }} />
+            </div>
+            <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '1.5rem', fontWeight: 800, background: 'linear-gradient(90deg,#b088f9,#7baff0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {fmt(salaryAmt)}원
             </div>
             {salary.pay_day && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>매월 {salary.pay_day}일 지급</div>}
@@ -394,11 +417,11 @@ export default function Salary() {
       </div>
 
       {/* 탭 콘텐츠 슬라이더 */}
-      <div style={{ overflowX: 'clip' }}>
+      <div style={{ overflowX: 'clip', height: sliderHeight ? sliderHeight + 'px' : 'auto', transition: 'height 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', transform: `translateX(${-tabIdx * 100}%)`, transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)', willChange: 'transform' }}>
 
       {/* 예산 배분 탭 */}
-      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+      <div ref={planTabRef} style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>카테고리별 예산</div>
@@ -506,7 +529,7 @@ export default function Salary() {
       </div>
 
       {/* 고정 지출 탭 */}
-      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+      <div ref={fixedTabRef} style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
         <div style={cardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>고정 지출 <span style={{ color: '#b088f9' }}>{fmt(fixedTotal)}원</span></div>
@@ -656,7 +679,7 @@ export default function Salary() {
       </div>
 
       {/* 실적 비교 탭 */}
-      <div style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+      <div ref={compareTabRef} style={{ minWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{monthLabel} 실제 지출 vs 계획</div>
             <div style={{ position: 'relative', display: 'flex', background: '#f0eaff', borderRadius: 16, padding: 2 }}>

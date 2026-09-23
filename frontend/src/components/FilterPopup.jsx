@@ -21,7 +21,7 @@ import { createPortal } from 'react-dom'
 //   dir?: 'asc' | 'desc',        // 'row' sections only — shows an asc/desc toggle once
 //   onDirChange?: (dir) => void, // value !== options[0][0]
 // }]
-export default function FilterPopup({ sections, triggerStyle }) {
+export default function FilterPopup({ sections, triggerStyle, trigger, title = '필터' }) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
 
@@ -38,17 +38,19 @@ export default function FilterPopup({ sections, triggerStyle }) {
 
   return (
     <>
-      <button onClick={openSheet}
-        style={triggerStyle ? triggerStyle(isActive) : defaultTriggerStyle(isActive)}>
-        <i className="bi bi-funnel" style={{ fontSize: '0.72rem' }} />
-        필터
-      </button>
+      {trigger ? trigger(openSheet, isActive) : (
+        <button onClick={openSheet}
+          style={triggerStyle ? triggerStyle(isActive) : defaultTriggerStyle(isActive)}>
+          <i className="bi bi-funnel" style={{ fontSize: '0.72rem' }} />
+          필터
+        </button>
+      )}
       {open && createPortal(
         <div onClick={e => e.target === e.currentTarget && closeSheet()}
           style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 5000, alignItems: 'center', justifyContent: 'center', padding: '0 24px', opacity: visible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '20px', width: '100%', maxWidth: 320, maxHeight: '80dvh', overflowY: 'auto', overscrollBehavior: 'contain', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: visible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <span className="fw-bold" style={{ fontSize: '1rem' }}>필터</span>
+              <span className="fw-bold" style={{ fontSize: '1rem' }}>{title}</span>
               <button onClick={closeSheet}
                 style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
@@ -108,7 +110,7 @@ function GridSection({ options, value, onChange, marginBottom }) {
         <i className={`bi ${allChecked ? 'bi-check-square-fill' : 'bi-square'}`} />
         전체
       </button>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, options.length)}, 1fr)`, gap: 6, marginTop: 6 }}>
         {options.map(([val, label, color, bg]) => {
           const checked = isAll || selected.includes(val)
           return (

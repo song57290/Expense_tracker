@@ -12,6 +12,7 @@ import TxListFilter from '../components/TxListFilter.jsx'
 import { syncWidget } from '../widgetSync.js'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import FilterPopup from '../components/FilterPopup.jsx'
 
 import TransferPicker from '../components/TransferPicker.jsx'
 import SwipeItem from '../components/SwipeItem.jsx'
@@ -53,7 +54,15 @@ export default function Home() {
   const [filter, setFilter] = useState('all')
   const [sortAsc, setSortAsc] = useState(false)
   const [showBalance, setShowBalance] = useState(true)
-  const [hideAmounts, setHideAmounts] = useLocalStorageState('hide_amounts', false)
+  // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
+  // ('all' = 전부, 배열 = 그 중 선택된 것만, [] = 아무 것도 안 가림)
+  const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_home', [])
+  // 예전 버전엔 이 키에 단순 boolean을 저장했다 — 남아있어도 안 죽게 보정
+  const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
+  const hideSummary = hiddenParts === 'all' || hiddenParts.includes('summary')
+  const hideCardStat = hiddenParts === 'all' || hiddenParts.includes('cardstat')
+  const hideCategory = hiddenParts === 'all' || hiddenParts.includes('category')
+  const hideTx = hiddenParts === 'all' || hiddenParts.includes('tx')
   const [showTime, setShowTime] = useState(true)
   // 접기/펼치기 상태도 탭 이동·앱 재실행 후에 유지되도록 로컬 저장
   const [summaryOpen, setSummaryOpen] = useLocalStorageState('home_summary_open', true)
@@ -356,9 +365,19 @@ export default function Home() {
       <div className="d-flex justify-content-between align-items-center mb-2 px-1" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSummaryOpen(o => !o)}>
         <span className="text-muted fw-semibold" style={{ fontSize: '1rem' }}>이번 달 요약</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <i className={`bi ${hideAmounts ? 'bi-eye-slash' : 'bi-eye'}`}
-            onClick={e => { e.stopPropagation(); setHideAmounts(v => !v) }}
-            style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+          <span onClick={e => e.stopPropagation()}>
+            <FilterPopup title="금액 가리기"
+              trigger={open => (
+                <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`}
+                  onClick={open}
+                  style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+              )}
+              sections={[{
+                label: '가릴 항목', type: 'grid',
+                options: [['summary', '이번 달 요약'], ['cardstat', '카드 실적'], ['category', '카테고리별 지출'], ['tx', '내역 목록']],
+                value: hiddenParts, onChange: setHiddenParts,
+              }]} />
+          </span>
           <span className="s-arrow" style={{ transform: summaryOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         </div>
       </div>
@@ -371,7 +390,7 @@ export default function Home() {
             ].map(({ label, color, amt }) => (
               <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
-                <div className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
+                <div className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
               </div>
             ))}
           </div>
@@ -384,7 +403,7 @@ export default function Home() {
                 </div>
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: budgetPct >= 100 ? '#ff3b30' : budgetPct >= 80 ? '#ff9f0a' : '#b088f9', flexShrink: 0 }}>{budgetPct}%</span>
                 <button onClick={() => { setBudgetInput(data.budget_amount.toLocaleString('ko-KR')); setBudgetDialog(true) }}
-                  className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`}
+                  className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}>
                   {fmt(data.budget_amount)}원 ✎
                 </button>
@@ -425,7 +444,7 @@ export default function Home() {
                             {logo && <img src={logo} style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
                             {cs.name}
                           </span>
-                          <span className={`text-nowrap amt-mask${hideAmounts ? ' amt-hidden' : ''}`}>{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
+                          <span className={`text-nowrap amt-mask${hideCardStat ? ' amt-hidden' : ''}`}>{fmt(cs.spent)}원 / {fmt(cs.target)}원</span>
                         </div>
                         <div className="progress" style={{ cursor: 'pointer', position: 'relative', height: 22 }}
                           onClick={() => { if (!wasLongPress.current) openCardSheet(cs.name); wasLongPress.current = false }}>
@@ -468,7 +487,7 @@ export default function Home() {
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span className={`text-muted amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
+                      <span className={`text-muted amt-mask${hideCategory ? ' amt-hidden' : ''}`} style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
                     </div>
                   </div>
@@ -667,7 +686,7 @@ export default function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
                     <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-                    <span className={`amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    <span className={`amt-mask${hideTx ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0) >= 0
                         ? `+${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`
                         : `${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`}
@@ -677,7 +696,7 @@ export default function Home() {
                     {byDate[date].map((tx, i) => (
                       <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
                         <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideAmounts} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                         </div>
                       </SwipeItem>
                     ))}
@@ -696,7 +715,7 @@ export default function Home() {
         <div onClick={e => e.target === e.currentTarget && closeRoutineSheet()}
           style={{ position: 'fixed', inset: 0, background: `rgba(0,0,0,${routineSheetVisible ? 0.45 : 0})`, zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', transition: 'background 0.3s ease' }}>
           <div onTouchStart={routineSheetTouchStart} onTouchMove={routineSheetTouchMove} onTouchEnd={routineSheetTouchEnd}
-            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '80vh', display: 'flex', flexDirection: 'column', transform: routineSheetVisible ? `translateY(${routineSheetDrag}px)` : 'translateY(100%)', transition: routineSheetDrag > 0 ? 'none' : 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '80dvh', display: 'flex', flexDirection: 'column', transform: routineSheetVisible ? `translateY(${routineSheetDrag}px)` : 'translateY(100%)', transition: routineSheetDrag > 0 ? 'none' : 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)', boxShadow: '0 -4px 32px rgba(0,0,0,0.13)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', cursor: 'grab' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
             </div>
@@ -809,7 +828,7 @@ export default function Home() {
       {cardSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3000, alignItems: 'flex-end', justifyContent: 'center', opacity: cardSheetVisible ? 1 : 0, transition: 'opacity 0.28s ease' }}
           onClick={e => e.target === e.currentTarget && closeCardSheet()}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72vh', overflowY: 'auto', overscrollBehavior: 'contain', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72dvh', overflowY: 'auto', overscrollBehavior: 'contain', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
               <div className="d-flex align-items-center gap-2">
@@ -845,7 +864,7 @@ export default function Home() {
       {/* 가져오기 모달 */}
       {importOpen && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90dvh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
             <div className="modal-header p-3">
               <h5 className="modal-title mb-0">내역 가져오기</h5>
               <button className="btn-close" onClick={() => { setImportOpen(false); setImportTab('text') }} />
@@ -970,7 +989,7 @@ export default function Home() {
             <button onClick={() => setPhotoViewerTxId(null)}
               style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
             <img src={`/api/transactions/${photoViewerTxId}/receipt`} alt="사진 보기"
-              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78dvh', objectFit: 'contain' }} />
           </div>
         </div>
       )}

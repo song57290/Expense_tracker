@@ -5,9 +5,10 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import api from '../api.js'
-import { fmt, fmtMonth, fmtDate, bankColor, useCardColorMap, restoreCaretAfterFormat } from '../utils.js'
+import { fmt, fmtMonth, fmtDate, bankColor, useCardColorMap, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 import TxItem from '../components/TxItem.jsx'
 import TxListFilter from '../components/TxListFilter.jsx'
+import FilterPopup from '../components/FilterPopup.jsx'
 import { syncWidget } from '../widgetSync.js'
 import SwipeItem from '../components/SwipeItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
@@ -56,6 +57,12 @@ export default function Calendar() {
   const [txSortAsc, setTxSortAsc] = useState(true)
   const [showBalance, setShowBalance] = useState(true)
   const [showTime, setShowTime] = useState(true)
+  // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
+  const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_calendar', [])
+  // 예전 버전엔 이 키에 단순 boolean을 저장했다 — 남아있어도 안 죽게 보정
+  const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
+  const hideSummary = hiddenParts === 'all' || hiddenParts.includes('summary')
+  const hideTx = hiddenParts === 'all' || hiddenParts.includes('tx')
   const [cardFilter, setCardFilter] = useState('all')
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
@@ -406,7 +413,7 @@ export default function Calendar() {
         <div onClick={e => e.target === e.currentTarget && closeAdd()}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: addVisible ? 1 : 0, transition: 'opacity 0.22s' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 540, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 40px rgba(0,0,0,0.18)', transform: addVisible ? 'translateY(0)' : 'translateY(40px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{addDates ? `${addDates.length}개 날짜에 내역 추가` : `${fmtDate(addForm.date)} 내역 추가`}</span>
               <button onClick={closeAdd} style={{ background: 'var(--bg-section)', border: 'none', width: 28, height: 28, borderRadius: 14, fontSize: '1.05rem', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
@@ -632,7 +639,7 @@ export default function Calendar() {
       {selected && createPortal(
         <div onClick={e => e.target === e.currentTarget && (setSelectedVisible(false), setTimeout(() => setSelected(null), 300))}
           style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: selectedVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -652,14 +659,14 @@ export default function Calendar() {
                   onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                   onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                   onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                  <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                  <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                 </div>
               ))}
             </div>
             {selDay && selDay.length > 0 && (
               <div style={{ padding: '10px 20px 16px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
-                <span>수입 <strong style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
-                <span>지출 <strong style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
+                <span>수입 <strong className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ color: '#34c759' }}>{fmt(selDay.filter(t => t.type === 'income' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
+                <span>지출 <strong className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ color: '#ff3b30' }}>{fmt(selDay.filter(t => t.type === 'expense' && !t.exclude_stats).reduce((s, t) => s + t.amount, 0))}원</strong></span>
               </div>
             )}
           </div>
@@ -672,15 +679,15 @@ export default function Calendar() {
           <div className="d-flex justify-content-around">
             <div className="text-center">
               <div style={{ fontSize: '0.95rem', color: '#34c759', fontWeight: 600 }}>수입</div>
-              <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total)}원</div>
+              <div className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total)}원</div>
             </div>
             <div className="text-center">
               <div style={{ fontSize: '0.95rem', color: '#ff3b30', fontWeight: 600 }}>지출</div>
-              <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.expense_total)}원</div>
+              <div className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.expense_total)}원</div>
             </div>
             <div className="text-center">
               <div style={{ fontSize: '0.95rem', color: '#007aff', fontWeight: 600 }}>총계</div>
-              <div style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total - data.expense_total)}원</div>
+              <div className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '1rem' }}>{fmt(data.income_total - data.expense_total)}원</div>
             </div>
           </div>
         </div>
@@ -717,6 +724,17 @@ export default function Calendar() {
             <div className="d-flex justify-content-between align-items-center mb-2">
               <h3 className="mb-0 fw-bold">내역 목록</h3>
               <div className="d-flex align-items-center gap-2">
+                <FilterPopup title="금액 가리기"
+                  trigger={open => (
+                    <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`}
+                      onClick={open}
+                      style={{ fontSize: '1.05rem', color: 'var(--text-muted)', cursor: 'pointer' }} />
+                  )}
+                  sections={[{
+                    label: '가릴 항목', type: 'grid',
+                    options: [['summary', '요약'], ['tx', '내역']],
+                    value: hiddenParts, onChange: setHiddenParts,
+                  }]} />
                 <TxListFilter sortAsc={txSortAsc} onSortChange={setTxSortAsc} showBalance={showBalance} onShowBalanceChange={setShowBalance} showTime={showTime} onShowTimeChange={setShowTime}
                   cards={allCards} cardFilter={cardFilter} onCardFilterChange={setCardFilter} />
                 <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={txFilter} onChange={setTxFilter} />
@@ -729,7 +747,7 @@ export default function Calendar() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
                   <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
                   <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  <span className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                     {(() => { const s = byDate[date].filter(t => !t.exclude_stats).reduce((a, t) => t.type === 'income' ? a + t.amount : a - t.amount, 0); return `${s >= 0 ? '+' : ''}${fmt(s)}원` })()}
                   </span>
                 </div>
@@ -741,7 +759,7 @@ export default function Calendar() {
                         onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
                         onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
                         onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
                       </div>
                     </SwipeItem>
                   ))}
@@ -797,7 +815,7 @@ export default function Calendar() {
             <button onClick={() => setPhotoViewerTxId(null)}
               style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
             <img src={`/api/transactions/${photoViewerTxId}/receipt`} alt="사진 보기"
-              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain' }} />
+              style={{ display: 'block', maxWidth: '92vw', maxHeight: '78dvh', objectFit: 'contain' }} />
           </div>
         </div>,
         document.body
