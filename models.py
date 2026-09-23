@@ -31,6 +31,7 @@ class Transaction(db.Model):
     time = db.Column(db.String(5), nullable=True)
     has_receipt = db.Column(db.Boolean, nullable=False, default=False)
     cashback = db.Column(db.Integer, nullable=False, default=0)
+    exclude_cashback = db.Column(db.Boolean, nullable=False, default=False)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -197,3 +198,13 @@ class RoutineItem(db.Model):
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)
     description = db.Column(db.String(200), nullable=True, default='')
+
+class Mood(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    memo = db.Column(db.String(200), nullable=True, default='')
+    created_at = db.Column(db.DateTime, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'date', name='uq_mood_user_date'),)

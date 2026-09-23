@@ -531,17 +531,24 @@ export default function Calendar() {
                         </div>
                       </div>
                     </div>
-                    {addForm.card && (
-                      <div className="col-12">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
-                          <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
-                          <div className="ios-toggle">
-                            <div className={`ios-track${addForm.exclude_cashback ? ' on' : ''}`} />
-                            <div className={`ios-dot${addForm.exclude_cashback ? ' on' : ''}`} />
+                    {(() => {
+                      const selectedCard = (homeData?.card_list || []).find(c => c.name === addForm.card)
+                      const cashbackMatch = selectedCard && (
+                        (addForm.type === 'expense' && selectedCard.cashback_type === 'payment') ||
+                        (addForm.type === 'income' && selectedCard.cashback_type === 'charge')
+                      )
+                      return cashbackMatch && (
+                        <div className="col-12">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                            <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
+                            <div className="ios-toggle">
+                              <div className={`ios-track${addForm.exclude_cashback ? ' on' : ''}`} />
+                              <div className={`ios-dot${addForm.exclude_cashback ? ' on' : ''}`} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
                     {!addDates && (
                       <div className="col-12">
                         <input type="file" id="cal-receipt-input" accept="image/*" ref={calReceiptInputRef} style={{ display: 'none' }}

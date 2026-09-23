@@ -227,16 +227,23 @@ export default function Edit() {
                 <div className={`ios-dot${form.exclude_stats ? ' on' : ''}`} />
               </div>
             </div>
-            {form.card && (
-              <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
-                onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
-                <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>🎁 캐시백 제외</label>
-                <div className="ios-toggle">
-                  <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
-                  <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+            {(() => {
+              const selectedCard = data.card_list.find(c => c.name === form.card)
+              const cashbackMatch = selectedCard && (
+                (form.type === 'expense' && selectedCard.cashback_type === 'payment') ||
+                (form.type === 'income' && selectedCard.cashback_type === 'charge')
+              )
+              return cashbackMatch && (
+                <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+                  onClick={() => setForm(f => ({ ...f, exclude_cashback: !f.exclude_cashback }))}>
+                  <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>🎁 캐시백 제외</label>
+                  <div className="ios-toggle">
+                    <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
+                    <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* 사진 */}
             <div className="mb-4">
