@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Chart as ChartJS, ArcElement, Tooltip,
@@ -15,27 +15,33 @@ import FilterPopup from '../components/FilterPopup.jsx'
 
 ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler, ChartDataLabels)
 
-const PIE_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF']
-
-const centerTextPlugin = {
-  id: 'centerText',
-  afterDraw(chart) {
-    const { ctx, chartArea: { width, height, left, top } } = chart
-    const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0)
-    const cx = left + width / 2, cy = top + height / 2
-    const isDark = document.documentElement.dataset.theme === 'dark' || window.matchMedia?.('(prefers-color-scheme: dark)').matches
-    ctx.save()
-    ctx.font = 'bold 26px sans-serif'
-    ctx.fillStyle = isDark ? '#f0eeff' : '#333'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(total.toLocaleString() + '원', cx, cy - 12)
-    ctx.font = '13px sans-serif'
-    ctx.fillStyle = isDark ? '#9590a8' : '#888'
-    ctx.fillText('총 사용 금액', cx, cy + 16)
-    ctx.restore()
+// 조각을 하나 선택했을 때 나머지 조각들의 바깥 반지름을 살짝 줄여, 선택된 조각이
+// (hoverOffset으로 튀어나온 것과 더불어) 상대적으로 더 도드라져 보이게 한다.
+// Chart.js는 이런 "나머지 축소" 효과를 기본 제공하지 않아서, beforeDraw에서 매
+// 프레임 각 조각(ArcElement)의 outerRadius를 직접 조정한다 — 선택 해제 상태일
+// 때의 "원래" 반지름을 WeakMap에 기억해뒀다가, 그 값을 기준으로만 줄여서 프레임을
+// 거듭해도 반지름이 계속 줄어드는(누적) 일이 없게 한다.
+const _cleanOuterRadii = new WeakMap()
+const shrinkInactivePlugin = {
+  id: 'shrinkInactive',
+  beforeDraw(chart) {
+    const meta = chart.getDatasetMeta(0)
+    if (!meta?.data?.length) return
+    const active = chart.getActiveElements()
+    if (!active.length) {
+      meta.data.forEach(arc => _cleanOuterRadii.set(arc, arc.outerRadius))
+      return
+    }
+    const activeIndex = active[0].index
+    meta.data.forEach((arc, i) => {
+      if (!_cleanOuterRadii.has(arc)) _cleanOuterRadii.set(arc, arc.outerRadius)
+      const base = _cleanOuterRadii.get(arc)
+      arc.outerRadius = i === activeIndex ? base : Math.max(arc.innerRadius + 6, base - 10)
+    })
   },
 }
+
+const PIE_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF']
 
 function nowYM() {
   const d = new Date()
@@ -68,7 +74,22 @@ export default function Stats() {
   const [assetOpen, setAssetOpen] = useLocalStorageState('stats_asset_open', true)
   const [portfolioOpen, setPortfolioOpen] = useLocalStorageState('stats_portfolio_open', true)
   const [cmpOpen, setCmpOpen] = useLocalStorageState('stats_cmp_open', true)
+  // 접기 애니메이션이 실제 내용 높이 대신 고정 3000px까지 움직이면 대부분의 시간을
+  // 눈에 안 보이는 구간에서 흘려보내다 뒤늦게 움직여 느리게 느껴진다 — 실제 높이를
+  // ref로 재서 애니메이션 전 구간이 항상 보이게 한다.
+  const catCollapseRef = useRef(null)
+  const barCollapseRef = useRef(null)
+  const portfolioCollapseRef = useRef(null)
+  const assetCollapseRef = useRef(null)
+  const cmpCollapseRef = useRef(null)
   const [cmpHelpOpen, setCmpHelpOpen] = useState(false)
+  // Chart.js 내장 캔버스 툴팁은 위치·정렬·그리기 순서를 전부 내부적으로 계산해서
+  // 우리가 캔버스에 직접 그리는 가운데 텍스트와 계속 충돌했다(z-order, 정렬 등
+  // 여러 방식으로 고쳐봐도 근본적으로 안 잡힘) — 아예 내장 툴팁을 끄고, 탭한
+  // 좌표를 직접 받아 일반 DOM(div)으로 툴팁을 그린다. DOM은 캔버스 위에 항상
+  // 정상적으로 얹히므로 겹침 문제 자체가 구조적으로 발생하지 않는다.
+  const [catTip, setCatTip] = useState(null)
+  const [pfTip, setPfTip] = useState(null)
   // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
   const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_stats', [])
   // 예전 버전엔 이 키에 단순 boolean을 저장했다 — 남아있어도 안 죽게 보정
@@ -78,6 +99,32 @@ export default function Stats() {
   const hideAsset = hiddenParts === 'all' || hiddenParts.includes('asset')
   const hidePortfolio = hiddenParts === 'all' || hiddenParts.includes('portfolio')
   const hideCmp = hiddenParts === 'all' || hiddenParts.includes('cmp')
+  // 카테고리별 지출 도넛 가운데 "총 사용 금액"은 캔버스에 직접 그려서 CSS 마스킹
+  // 클래스를 못 쓴다 — 자산 구성 도넛(pfCenter)과 같은 방식으로 hideCat일 때
+  // 숫자 대신 ●●●●●●을 그리도록 컴포넌트 안에서 다시 정의한다.
+  const catCenter = {
+    id: 'catCenter',
+    // 로컬(plugins prop) 플러그인은 전역 등록된 Tooltip보다 나중에 그려져(=화면상
+    // 위에 얹힘) 가운데 텍스트가 툴팁 박스를 덮어써 버리고 있었다 — z를 Tooltip
+    // 기본값(0)보다 낮춰서 항상 툴팁보다 먼저(아래에) 그려지도록 강제한다.
+    z: -1,
+    afterDraw(chart) {
+      const { ctx, chartArea: { width, height, left, top } } = chart
+      const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0)
+      const cx = left + width / 2, cy = top + height / 2
+      const isDark = document.documentElement.dataset.theme === 'dark' || window.matchMedia?.('(prefers-color-scheme: dark)').matches
+      ctx.save()
+      ctx.font = 'bold 26px sans-serif'
+      ctx.fillStyle = isDark ? '#f0eeff' : '#333'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(hideCat ? '●●●●●●' : total.toLocaleString() + '원', cx, cy - 12)
+      ctx.font = '13px sans-serif'
+      ctx.fillStyle = isDark ? '#9590a8' : '#888'
+      ctx.fillText('총 사용 금액', cx, cy + 16)
+      ctx.restore()
+    },
+  }
   const [assetDetail, setAssetDetail] = useState(false)
   const [assetVisible, setAssetVisible] = useState(false)
   const [trendFrom, setTrendFrom] = useState(() => defaultTrendRange().from)
@@ -289,18 +336,47 @@ export default function Stats() {
           <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         </div>
       </div>
-      <div className="s-collapse" style={{ maxHeight: catOpen ? '3000px' : '0' }}>
+      <div ref={catCollapseRef} className="s-collapse" style={{ maxHeight: catOpen ? (catCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
         <div className="row mb-4 align-items-stretch">
           {/* 도넛 차트 */}
           <div className="col-md-6 mb-3 mb-md-0">
             <div className="card h-100">
               <div className="card-body d-flex flex-column align-items-center justify-content-center">
                 {expData.length > 0 ? (
-                  <>
+                  <div style={{ width: '100%' }}>
+                    {/* react-chartjs-2는 plugins 배열이 매 렌더마다 새 객체여도 캔버스를
+                        다시 그려주지 않는다 — hideCat이 바뀌어도 예전에 그려둔 ●●●●●●
+                        가 그대로 남아있던 원인. key를 hideCat에 묶어 토글될 때마다
+                        차트를 통째로 다시 만들도록 강제한다. */}
                     <Doughnut
-                      data={{ labels: expLabels, datasets: [{ data: expData, backgroundColor: PIE_COLORS }] }}
-                      plugins={[centerTextPlugin]}
+                      key={`cat-${hideCat}`}
+                      data={{ labels: expLabels, datasets: [{ data: expData, backgroundColor: PIE_COLORS, hoverOffset: 8 }] }}
+                      plugins={[catCenter, shrinkInactivePlugin]}
                       options={{
+                        // hoverOffset만큼 조각이 바깥으로 튀어나올 자리를 미리 확보해두지
+                        // 않으면, 캔버스가 원래 원 크기에 딱 맞춰져 있어 튀어나온 부분이
+                        // 오른쪽/아래쪽 캔버스 경계에서 잘려 보인다.
+                        layout: { padding: 10 },
+                        // <Doughnut>의 top-level onClick/onHover prop은 react-chartjs-2가
+                        // 인식하는 prop이 아니라서 그냥 무시된다 — Chart.js 옵션 안에 직접
+                        // 넣어야(onHover) 실제로 호출된다. 이게 이전에 금액 툴팁이 아예
+                        // 안 뜨던 진짜 원인이었음(튀어나오기·진하게 표시는 이 옵션과 무관한
+                        // Chart.js 내부 처리라 그것만 멀쩡했던 것).
+                        // 탭한 위치 근처에 뜨는 방식은 카드/접기 영역 경계에서 계속 잘려서,
+                        // 아예 차트 아래 고정된 자리에 표시하는 방식으로 바꿨다 — 어떤
+                        // 조각을 눌러도 항상 같은 곳에 뜨니 잘릴 일이 없다.
+                        onHover: (event, elements) => {
+                          if (!elements.length) { setCatTip(null); return }
+                          const idx = elements[0].index
+                          const total = expData.reduce((a, b) => a + b, 0)
+                          const c = cats[idx]
+                          setCatTip({
+                            icon: c?.icon || data.emoji_map[expLabels[idx]] || '📦',
+                            label: expLabels[idx],
+                            color: PIE_COLORS[idx % PIE_COLORS.length],
+                            amount: `${fmt(expData[idx])}원 (${(expData[idx] / total * 100).toFixed(1)}%)`,
+                          })
+                        },
                         plugins: {
                           legend: { display: false },
                           datalabels: {
@@ -315,23 +391,28 @@ export default function Stats() {
                             color: '#fff',
                             font: { weight: 'bold', size: 12 },
                           },
-                          tooltip: {
-                            backgroundColor: 'rgba(30,30,30,0.92)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            padding: 10,
-                            callbacks: {
-                              title: () => [],
-                              label: ctx => {
-                                const total = ctx.dataset.data.reduce((a, b) => a + b, 0)
-                                return `${fmt(ctx.parsed)}원 (${(ctx.parsed / total * 100).toFixed(1)}%)`
-                              }
-                            }
-                          },
+                          // 내장 캔버스 툴팁은 우리 가운데 텍스트와 그리기 순서·위치가 계속
+                          // 충돌해서(z-order, 정렬 등 여러 방식으로도 근본적으로 안 잡힘)
+                          // 아예 끄고, 아래 고정 위치 표시줄로 대신한다.
+                          tooltip: { enabled: false },
                         },
                       }}
                     />
-                  </>
+                    <div style={{
+                      marginTop: 12, minHeight: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '6px 12px', borderRadius: 8, background: catTip ? 'var(--bg-accent)' : 'transparent',
+                    }}>
+                      {catTip ? (
+                        <>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: catTip.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{catTip.icon} {catTip.label}</span>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{catTip.amount}</span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-faint)' }}>조각을 탭하면 금액을 확인할 수 있어요</span>
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <p className="text-muted text-center py-4">지출 내역이 없습니다.</p>
                 )}
@@ -396,7 +477,7 @@ export default function Stats() {
             </div>
             <span className="s-arrow" style={{ transform: barOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          <div className="s-collapse" style={{ maxHeight: barOpen ? '3000px' : '0' }}>
+          <div ref={barCollapseRef} className="s-collapse" style={{ maxHeight: barOpen ? (barCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
               <button onClick={() => openPicker('barFrom')} style={pickerBtnStyle}>
                 {barFrom.slice(0,4)}년 {parseInt(barFrom.slice(5))}월
@@ -483,7 +564,7 @@ export default function Stats() {
               <h5 className="card-title mb-0">자산 구성</h5>
               <span className="s-arrow" style={{ transform: portfolioOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            <div className="s-collapse" style={{ maxHeight: portfolioOpen ? '3000px' : '0' }}>
+            <div ref={portfolioCollapseRef} className="s-collapse" style={{ maxHeight: portfolioOpen ? (portfolioCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
               const PF_COLORS = ['#b088f9', '#7baff0', '#4BC0C0', '#FF6384', '#FF9F40', '#FFCE56', '#9966FF', '#C9CBCF']
               const allItems = [...(data.portfolio_breakdown || [])]
@@ -496,6 +577,7 @@ export default function Stats() {
               const values = assetItems.map(i => i.value)
               const pfCenter = {
                 id: 'pfCenter',
+                z: -1,
                 afterDraw(chart) {
                   const { ctx, chartArea: { width, height, left, top } } = chart
                   const cx = left + width / 2, cy = top + height / 2
@@ -527,9 +609,22 @@ export default function Stats() {
                 <div className="mt-3">
                   <div style={{ maxWidth: 360, margin: '0 auto 16px' }}>
                     <Doughnut
-                      data={{ labels, datasets: [{ data: values, backgroundColor: PF_COLORS, borderWidth: 2, hoverOffset: 6 }] }}
-                      plugins={[pfCenter]}
+                      key={`pf-${hidePortfolio}`}
+                      data={{ labels, datasets: [{ data: values, backgroundColor: PF_COLORS, borderWidth: 2, hoverOffset: 8 }] }}
+                      plugins={[pfCenter, shrinkInactivePlugin]}
                       options={{
+                        layout: { padding: 10 },
+                        // <Doughnut>의 top-level onHover prop은 react-chartjs-2가 인식하는
+                        // prop이 아니라서 무시된다 — Chart.js 옵션 안에 넣어야 실제로 호출됨.
+                        onHover: (event, elements) => {
+                          if (!elements.length) { setPfTip(null); return }
+                          const idx = elements[0].index
+                          setPfTip({
+                            label: labels[idx],
+                            color: PF_COLORS[idx % PF_COLORS.length],
+                            amount: `${fmt(values[idx])}원 (${assetTotal ? (values[idx] / assetTotal * 100).toFixed(1) : 0}%)`,
+                          })
+                        },
                         plugins: {
                           legend: { display: false },
                           datalabels: {
@@ -538,19 +633,27 @@ export default function Stats() {
                             color: '#fff',
                             font: { weight: 'bold', size: 12 },
                           },
-                          tooltip: {
-                            backgroundColor: 'rgba(30,30,30,0.92)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            padding: 10,
-                            callbacks: {
-                              title: () => [],
-                              label: ctx => `${fmt(ctx.parsed)}원 (${assetTotal ? (ctx.parsed / assetTotal * 100).toFixed(1) : 0}%)`
-                            }
-                          }
+                          // 카테고리별 지출 도넛과 같은 이유로 내장 툴팁은 끄고 아래 고정
+                          // 위치 표시줄로 대신한다(탭 위치 근처에 띄우면 카드/접기 영역
+                          // 경계에서 계속 잘렸음).
+                          tooltip: { enabled: false },
                         }
                       }}
                     />
+                    <div style={{
+                      marginTop: 12, minHeight: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '6px 12px', borderRadius: 8, background: pfTip ? 'var(--bg-accent)' : 'transparent',
+                    }}>
+                      {pfTip ? (
+                        <>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: pfTip.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pfTip.label}</span>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{pfTip.amount}</span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-faint)' }}>조각을 탭하면 금액을 확인할 수 있어요</span>
+                      )}
+                    </div>
                   </div>
                   {(() => {
                     const toSection = label => ['예금','적금','청약'].includes(label) ? 'savings' : ['국내주식','해외주식','펀드','ETF','리츠'].includes(label) ? 'investment' : 'cards'
@@ -615,7 +718,7 @@ export default function Stats() {
             <h5 className="card-title mb-0">총 자산 추이</h5>
             <span className="s-arrow" style={{ transform: assetOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          <div className="s-collapse" style={{ maxHeight: assetOpen ? '3000px' : '0' }}>
+          <div ref={assetCollapseRef} className="s-collapse" style={{ maxHeight: assetOpen ? (assetCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
               <button onClick={() => openPicker('trendFrom')} style={pickerBtnStyle}>
                 {trendFrom.slice(0,4)}년 {parseInt(trendFrom.slice(5))}월
@@ -766,7 +869,7 @@ export default function Stats() {
                           ].map(s => (
                             <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: '10px 10px' }}>
                               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 3 }}>{s.label}</div>
-                              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: s.color }}>{s.val}</div>
+                              <div className={`amt-mask${hideAsset ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color: s.color }}>{s.val}</div>
                             </div>
                           ))}
                         </div>
@@ -894,7 +997,7 @@ export default function Stats() {
                   <span className="s-arrow" onClick={() => setCmpOpen(o => !o)} style={{ transform: cmpOpen ? 'rotate(180deg)' : 'rotate(0deg)', cursor: 'pointer' }}>▼</span>
                 </div>
               </div>
-              <div className="s-collapse" style={{ maxHeight: cmpOpen ? '3000px' : '0' }}>
+              <div ref={cmpCollapseRef} className="s-collapse" style={{ maxHeight: cmpOpen ? (cmpCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 10 }}>
                 {data.prev_month ? `${parseInt(data.prev_month.slice(5))}월 → ${parseInt(month.slice(5))}월 지출 변화` : ''}
               </div>
