@@ -70,6 +70,15 @@ export default function Home() {
   const [catOpen, setCatOpen] = useLocalStorageState('home_cat_open', true)
   const [addOpen, setAddOpen] = useLocalStorageState('home_add_open', true)
   const [txOpen, setTxOpen] = useLocalStorageState('home_tx_open', true)
+  // 접기 애니메이션이 실제 내용 높이 대신 넉넉히 잡은 고정값(3000px 등)까지 움직이면,
+  // 진짜 내용은 훨씬 짧은데도 0.32s 중 대부분을 눈에 안 보이는 구간에서 허비하다가
+  // 뒤늦게 움직이기 시작해 "반응이 느리다"는 느낌을 준다 — 각 섹션의 실제 높이를
+  // ref로 재서 애니메이션 전 구간이 실제로 보이게 한다.
+  const summaryCollapseRef = useRef(null)
+  const cardStatCollapseRef = useRef(null)
+  const catCollapseRef = useRef(null)
+  const addCollapseRef = useRef(null)
+  const txCollapseRef = useRef(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState('text')
   const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
@@ -393,7 +402,7 @@ export default function Home() {
           <span className="s-arrow" style={{ transform: summaryOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         </div>
       </div>
-      <div className="s-collapse" style={{ maxHeight: summaryOpen ? '3000px' : '0' }}>
+      <div ref={summaryCollapseRef} className="s-collapse" style={{ maxHeight: summaryOpen ? (summaryCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: '수입', color: '#34c759', amt: `+${fmt(data.income_total)}원` },
@@ -437,7 +446,7 @@ export default function Home() {
               <h5 className="card-title mb-0">카드 실적</h5>
               <span className="s-arrow" style={{ transform: cardStatOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            <div className="s-collapse" style={{ maxHeight: cardStatOpen ? '3000px' : '0' }}>
+            <div ref={cardStatCollapseRef} className="s-collapse" style={{ maxHeight: cardStatOpen ? (cardStatCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
               const visibleStats = data.card_stats.filter(cs => !cs.is_loan && !hiddenCards.has(cs.name))
               const hiddenStats = data.card_stats.filter(cs => !cs.is_loan && hiddenCards.has(cs.name))
@@ -490,7 +499,7 @@ export default function Home() {
               <h5 className="card-title mb-0">카테고리별 지출 <span className="text-muted fw-normal" style={{ fontSize: '0.78rem' }}></span></h5>
               <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
-            <div className="s-collapse" style={{ maxHeight: catOpen ? '3000px' : '0' }}>
+            <div ref={catCollapseRef} className="s-collapse" style={{ maxHeight: catOpen ? (catCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
               const catEntries = Object.entries(data.category_totals).sort(([, a], [, b]) => b - a)
               const maxAmt = catEntries[0]?.[1] || 1
@@ -522,7 +531,7 @@ export default function Home() {
             <h5 className="card-title mb-0">내역 추가</h5>
             <span className="s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          <div className="s-collapse" style={{ maxHeight: addOpen ? '3000px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
+          <div ref={addCollapseRef} className="s-collapse" style={{ maxHeight: addOpen ? (addCollapseRef.current?.scrollHeight || 3000) + 'px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
             onTransitionEnd={e => { if (e.propertyName === 'max-height' && addOpen) setAddCollapseSettled(true) }}>
           {data.routines?.length > 0 && (
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 10, marginBottom: 2 }}>
@@ -693,7 +702,7 @@ export default function Home() {
               <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
             </div>
           </div>
-          <div className="s-collapse" style={{ maxHeight: txOpen ? '20000px' : '0' }}>
+          <div ref={txCollapseRef} className="s-collapse" style={{ maxHeight: txOpen ? (txCollapseRef.current?.scrollHeight || 20000) + 'px' : '0' }}>
           {(
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>
