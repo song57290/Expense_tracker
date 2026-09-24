@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom'
 //   type: 'row' | 'grid',        // 'row' = single-select, few equal-width options (2-3).
 //                                 // 'grid' = multi-select checkboxes, laid out as a lone
 //                                 // "전체" row followed by the real options in 3 columns.
-//   options: [value, label, color?, bg?][],
+//   options: [value, label, color?, bg?, logo?][],  // logo: image URL shown before the label (grid only)
 //   value:
 //     - 'row' sections:  a single selected value; options[0] is the "default/off" value.
 //     - 'grid' sections: either the string 'all' (every option selected) or an array of
@@ -95,6 +95,7 @@ function GridSection({ options, value, onChange, marginBottom }) {
   const isAll = value === 'all'
   const selected = isAll ? options.map(o => o[0]) : value
   const allChecked = isAll || (options.length > 0 && selected.length === options.length)
+  const hasLogo = options.some(o => o[4])
 
   function toggleAll() {
     onChange(allChecked ? [] : 'all')
@@ -110,12 +111,16 @@ function GridSection({ options, value, onChange, marginBottom }) {
         <i className={`bi ${allChecked ? 'bi-check-square-fill' : 'bi-square'}`} />
         전체
       </button>
+      {/* 로고가 있는 섹션(은행/카드)은 라벨 길이에 따라 전체 블록이 가운데
+          정렬되면서 로고 위치까지 칩마다 들쭉날쭉해 보인다 — 로고가 하나라도
+          있으면 왼쪽 정렬로 바꿔 아이콘 자리를 고정하고 글자만 뒤따르게 한다. */}
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, options.length)}, 1fr)`, gap: 6, marginTop: 6 }}>
-        {options.map(([val, label, color, bg]) => {
+        {options.map(([val, label, color, bg, logo]) => {
           const checked = isAll || selected.includes(val)
           return (
-            <button key={val} onClick={() => toggleOne(val)} style={chipStyle(checked, color || '#b088f9', bg || 'rgba(176,136,249,0.12)')}>
+            <button key={val} onClick={() => toggleOne(val)} style={chipStyle(checked, color || '#b088f9', bg || 'rgba(176,136,249,0.12)', hasLogo ? 'flex-start' : 'center')}>
               <i className={`bi ${checked ? 'bi-check-circle-fill' : 'bi-circle'}`} style={{ fontSize: '0.72rem', flexShrink: 0 }} />
+              {logo && <img src={logo} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
             </button>
           )
@@ -152,13 +157,13 @@ function allRowStyle(active) {
   }
 }
 
-function chipStyle(active, color, bg) {
+function chipStyle(active, color, bg, justify = 'center') {
   return {
     padding: '6px 10px', borderRadius: 20, fontSize: '0.8rem', fontWeight: active ? 700 : 400,
     border: `1.5px solid ${active ? color : 'var(--border-light)'}`,
     background: active ? bg : 'transparent',
     color: active ? color : 'var(--text-muted)', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+    display: 'flex', alignItems: 'center', justifyContent: justify, gap: 4,
     minWidth: 0, // grid items default to min-width:auto — without this the label can't shrink/ellipsis and just gets clipped
   }
 }

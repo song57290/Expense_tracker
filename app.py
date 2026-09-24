@@ -152,6 +152,10 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0"))
             if 'description' not in ri_cols:
                 conn.execute(text("ALTER TABLE routine_item ADD COLUMN description VARCHAR(200) DEFAULT ''"))
+            if 'card' not in ri_cols:
+                conn.execute(text("ALTER TABLE routine_item ADD COLUMN card VARCHAR(50) DEFAULT ''"))
+            if 'exclude_cashback' not in ri_cols:
+                conn.execute(text("ALTER TABLE routine_item ADD COLUMN exclude_cashback BOOLEAN NOT NULL DEFAULT 0"))
             conn.commit()
     except Exception:
         pass
@@ -3006,7 +3010,8 @@ def _routine_items(uid):
         by_routine.setdefault(it.routine_id, []).append({
             'id': it.id, 'category': it.category, 'cat_type': it.cat_type,
             'exclude_card_perf': bool(it.exclude_card_perf), 'exclude_stats': bool(it.exclude_stats),
-            'description': it.description or '',
+            'description': it.description or '', 'card': it.card or '',
+            'exclude_cashback': bool(it.exclude_cashback),
         })
     return by_routine
 
@@ -3029,6 +3034,8 @@ def api_routines():
                                            exclude_card_perf=bool(it.get('exclude_card_perf', False)),
                                            exclude_stats=bool(it.get('exclude_stats', False)),
                                            description=it.get('description', '') or '',
+                                           card=it.get('card', '') or '',
+                                           exclude_cashback=bool(it.get('exclude_cashback', False)),
                                            position=i))
         db.session.commit()
         return jsonify({'ok': True, 'id': r.id})
@@ -3083,6 +3090,8 @@ def api_routine(rid):
                                            exclude_card_perf=bool(it.get('exclude_card_perf', False)),
                                            exclude_stats=bool(it.get('exclude_stats', False)),
                                            description=it.get('description', '') or '',
+                                           card=it.get('card', '') or '',
+                                           exclude_cashback=bool(it.get('exclude_cashback', False)),
                                            position=i))
     db.session.commit()
     return jsonify({'ok': True})
@@ -4154,7 +4163,8 @@ def api_backup():
                          'quantity': i.quantity, 'avg_price': i.avg_price,
                          'account_type': i.account_type, 'memo': i.memo or ''} for i in investments],
         'routines': [{'name': r.name, 'icon': r.icon or '', 'card': r.card or '',
-                      'items': [{'category': ri.category, 'cat_type': ri.cat_type} for ri in routine_items if ri.routine_id == r.id]}
+                      'items': [{'category': ri.category, 'cat_type': ri.cat_type, 'card': ri.card or '',
+                                 'exclude_cashback': bool(ri.exclude_cashback)} for ri in routine_items if ri.routine_id == r.id]}
                      for r in routines],
         'budget_allocations': [{'category_name': a.category_name, 'percent': a.percent,
                                  'monthly_limit': a.monthly_limit} for a in allocs],
@@ -4222,7 +4232,9 @@ def api_restore():
         db.session.flush()
         for it in r.get('items', []):
             db.session.add(RoutineItem(routine_id=ro.id, user_id=uid,
-                                       category=it['category'], cat_type=it.get('cat_type', 'expense')))
+                                       category=it['category'], cat_type=it.get('cat_type', 'expense'),
+                                       card=it.get('card', '') or '',
+                                       exclude_cashback=bool(it.get('exclude_cashback', False))))
     for a in data.get('budget_allocations', []):
         db.session.add(BudgetAllocation(user_id=uid, category_name=a['category_name'],
                                         percent=a.get('percent', 0), monthly_limit=a.get('monthly_limit')))

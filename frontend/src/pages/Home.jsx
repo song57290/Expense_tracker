@@ -105,6 +105,17 @@ export default function Home() {
   const [amountDisplay, setAmountDisplay] = useState('')
   const [amountError, setAmountError] = useState(false)
   const [cardError, setCardError] = useState(false)
+  // .s-collapse는 접힌 상태를 실제로 숨기려고 overflow:hidden을 쓰는데, 펼쳐진
+  // 채로 계속 두면 안에 있는 입력창 포커스 링까지 옆으로 잘린다 — 펼침 애니메이션이
+  // 끝난 뒤에만 overflow를 풀어주고, 닫히거나 다시 열리는 동안은 hidden으로 되돌려
+  // 접기 애니메이션이 그대로 보이게 한다.
+  const [addCollapseSettled, setAddCollapseSettled] = useState(addOpen)
+  useEffect(() => { if (!addOpen) setAddCollapseSettled(false) }, [addOpen])
+  // 내역 추가 카드는 캘린더/월급 탭처럼 팝업이 아니라 페이지에 항상 펼쳐진
+  // 인라인 폼이라, 키보드가 뜰 때 입력창을 뷰포트 하단에 붙일 구조적인
+  // 방법이 없다 — 포커스된 동안만 폼 아래에 여백을 더해 키보드에 바짝
+  // 붙어 보이지 않게 한다.
+  const [addFormFocused, setAddFormFocused] = useState(false)
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
   const navigate = useNavigate()
@@ -292,7 +303,7 @@ export default function Home() {
   function openRoutineSheet(r) {
     setRoutineSheet(r)
     setRoutineSheetDate(today())
-    setRoutineSheetAmounts((r.items || []).map(item => ({ amount: '', description: item.description || '', card: r.card || '' })))
+    setRoutineSheetAmounts((r.items || []).map(item => ({ amount: '', description: item.description || '', card: item.card || r.card || '', exclude_cashback: !!item.exclude_cashback })))
     requestAnimationFrame(() => requestAnimationFrame(() => setRoutineSheetVisible(true)))
   }
   function closeRoutineSheet() {
@@ -319,7 +330,7 @@ export default function Home() {
     const toSave = (routineSheet.items || [])
       .map((item, i) => {
         const raw = (routineSheetAmounts[i]?.amount || '').replace(/,/g, '')
-        return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '', card: routineSheetAmounts[i]?.card || '' }
+        return { ...item, amount: parseInt(raw) || 0, description: routineSheetAmounts[i]?.description || '', card: routineSheetAmounts[i]?.card || '', exclude_cashback: !!routineSheetAmounts[i]?.exclude_cashback }
       })
       .filter(item => item.amount > 0)
     if (!toSave.length) { setRoutineSheetError(true); return }
@@ -332,6 +343,7 @@ export default function Home() {
           card: item.card,
           exclude_perf: !!item.exclude_card_perf,
           exclude_stats: !!item.exclude_stats,
+          exclude_cashback: !!item.exclude_cashback,
         })
       }
       closeRoutineSheet()
@@ -510,7 +522,8 @@ export default function Home() {
             <h5 className="card-title mb-0">내역 추가</h5>
             <span className="s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          <div className="s-collapse" style={{ maxHeight: addOpen ? '3000px' : '0' }}>
+          <div className="s-collapse" style={{ maxHeight: addOpen ? '3000px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
+            onTransitionEnd={e => { if (e.propertyName === 'max-height' && addOpen) setAddCollapseSettled(true) }}>
           {data.routines?.length > 0 && (
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 10, marginBottom: 2 }}>
               {data.routines.map(r => (
@@ -521,7 +534,9 @@ export default function Home() {
               ))}
             </div>
           )}
-            <form onSubmit={handleAdd} className="row g-2 mt-1">
+            <form onSubmit={handleAdd} className="row g-2 mt-1"
+              onFocus={() => setAddFormFocused(true)}
+              onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setAddFormFocused(false) }}>
               <div className="col-6 col-lg-2">
                 <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
               </div>
@@ -659,6 +674,7 @@ export default function Home() {
                 </div>
               </div>
             </form>
+            {addFormFocused && <div style={{ height: 110, transition: 'height 0.2s ease' }} />}
           </div>
         </div>
       </div>
@@ -780,6 +796,23 @@ export default function Home() {
                         onChange={name => setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, card: name } : x))}
                       />
                     </div>
+                    {(() => {
+                      const selectedCard = data.card_list.find(c => c.name === routineSheetAmounts[i]?.card)
+                      const cashbackMatch = selectedCard && (
+                        (item.cat_type === 'expense' && selectedCard.cashback_type === 'payment') ||
+                        (item.cat_type === 'income' && selectedCard.cashback_type === 'charge')
+                      )
+                      return cashbackMatch && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 2px 0', cursor: 'pointer' }}
+                          onClick={() => setRoutineSheetAmounts(a => a.map((x, j) => j === i ? { ...x, exclude_cashback: !x.exclude_cashback } : x))}>
+                          <label style={{ flex: 1, fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>🎁 캐시백 제외</label>
+                          <div className="ios-toggle">
+                            <div className={`ios-track${routineSheetAmounts[i]?.exclude_cashback ? ' on' : ''}`} />
+                            <div className={`ios-dot${routineSheetAmounts[i]?.exclude_cashback ? ' on' : ''}`} />
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}

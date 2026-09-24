@@ -14,7 +14,7 @@ export default function Routines() {
   const [routineCats, setRoutineCats] = useState([])
   const [routineCards, setRoutineCards] = useState([])
   const [routineFormOpen, setRoutineFormOpen] = useState(false)
-  const [routineForm, setRoutineForm] = useState({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] })
+  const [routineForm, setRoutineForm] = useState({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] })
   const [routineError, setRoutineError] = useState('')
   const [editRoutineId, setEditRoutineId] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
@@ -35,7 +35,7 @@ export default function Routines() {
 
   function openEditRoutine(r) {
     setEditRoutineId(r.id)
-    setRoutineForm({ name: r.name, icon: r.icon || '', card: r.card || '', items: r.items?.length ? r.items.map(it => ({ category: it.category, cat_type: it.cat_type, exclude_card_perf: !!it.exclude_card_perf, exclude_stats: !!it.exclude_stats, description: it.description || '' })) : [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] })
+    setRoutineForm({ name: r.name, icon: r.icon || '', card: r.card || '', items: r.items?.length ? r.items.map(it => ({ category: it.category, cat_type: it.cat_type, exclude_card_perf: !!it.exclude_card_perf, exclude_stats: !!it.exclude_stats, description: it.description || '', card: it.card || '', exclude_cashback: !!it.exclude_cashback })) : [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] })
     setRoutineError('')
     setRoutineFormOpen(true)
   }
@@ -50,7 +50,7 @@ export default function Routines() {
       } else {
         await api.post('/api/routines', routineForm)
       }
-      setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] })
+      setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] })
       setRoutineError('')
       setEditRoutineId(null)
       setRoutineFormOpen(false)
@@ -164,8 +164,26 @@ export default function Routines() {
               <input placeholder="기본 설명 (선택, 예: 김밥천국)" value={item.description || ''}
                 onChange={e => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, description: e.target.value } : it) }))}
                 className="form-control" style={{ borderRadius: 8, fontSize: '0.8rem', padding: '6px 10px', marginBottom: 4 }} />
-              {/* 실적·통계 제외 토글 */}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <div style={{ position: 'relative', marginBottom: 4 }}>
+                <CardPicker
+                  cards={routineCards.filter(c => !c.is_loan)}
+                  value={item.card}
+                  onChange={name => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, card: name } : it) }))}
+                  placeholder="카드 (비우면 기본 카드)"
+                />
+                {item.card && (
+                  <button type="button" onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, card: '' } : it) }))}
+                    style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '0 4px', zIndex: 1 }}>
+                    ✕
+                  </button>
+                )}
+              </div>
+              {/* 실적·통계·캐시백 제외 토글 — 캐시백 제외는 이 항목에 실제로 쓰일
+                  카드(항목 지정 카드, 없으면 기본 카드)에 해당 거래 유형과 맞는
+                  캐시백이 등록돼 있을 때만 보여준다(등록 안 된 카드면 애초에 캐시백이
+                  안 붙으니 "제외"할 게 없음) — 매장에 따라 캐시백이 적용 안 될 걸
+                  알고 있으면 루틴에 미리 꺼둘 수 있음. */}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 {[['exclude_card_perf', '카드 실적 제외'], ['exclude_stats', '통계 제외']].map(([key, label]) => (
                   <button key={key} type="button"
                     onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, [key]: !it[key] } : it) }))}
@@ -175,12 +193,28 @@ export default function Routines() {
                     {item[key] ? '✓ ' : ''}{label}
                   </button>
                 ))}
+                {(() => {
+                  const effectiveCard = routineCards.find(c => c.name === (item.card || routineForm.card))
+                  const cashbackMatch = effectiveCard && (
+                    (item.cat_type === 'expense' && effectiveCard.cashback_type === 'payment') ||
+                    (item.cat_type === 'income' && effectiveCard.cashback_type === 'charge')
+                  )
+                  return cashbackMatch && (
+                    <button type="button"
+                      onClick={() => setRoutineForm(f => ({ ...f, items: f.items.map((it, i) => i === idx ? { ...it, exclude_cashback: !it.exclude_cashback } : it) }))}
+                      style={{ padding: '3px 9px', borderRadius: 20, border: `1.5px solid ${item.exclude_cashback ? '#b088f9' : 'var(--border-light)'}`,
+                        background: item.exclude_cashback ? 'rgba(176,136,249,0.12)' : 'transparent',
+                        color: item.exclude_cashback ? '#b088f9' : 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {item.exclude_cashback ? '✓ ' : ''}🎁 캐시백 제외
+                    </button>
+                  )
+                })()}
               </div>
             </div>
           ))}
 
           <button type="button"
-            onClick={() => setRoutineForm(f => ({ ...f, items: [...f.items, { category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] }))}
+            onClick={() => setRoutineForm(f => ({ ...f, items: [...f.items, { category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] }))}
             style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1.5px dashed rgba(176,136,249,0.5)', background: 'transparent', color: '#b088f9', fontSize: '0.82rem', cursor: 'pointer', marginBottom: 4 }}>
             + 카테고리 추가
           </button>
@@ -197,10 +231,12 @@ export default function Routines() {
           )}
           {!['category', 'server'].includes(routineError) && <div style={{ height: 4 }} />}
 
-          {/* 카드 선택 — 바 버튼과 그 위에 얹은 X 버튼이 따로 눌림 효과를 받으면
-              서로 어긋나 보여서, 감싸는 래퍼를 눌림 상태에 따라 통째로 살짝
+          {/* 기본 카드 — 항목별로 따로 지정하지 않으면 이 카드가 쓰인다.
+              바 버튼과 그 위에 얹은 X 버튼이 따로 눌림 효과를 받으면 서로
+              어긋나 보여서, 감싸는 래퍼를 눌림 상태에 따라 통째로 살짝
               줄이는 방식으로 둘을 함께 움직이게 한다 (안쪽 버튼 자체 눌림 효과는
               no-press-scale로 꺼서 중복 축소를 막음). */}
+          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>기본 카드</div>
           <div className="no-press-scale"
             onMouseDown={() => setCardPickerPressed(true)}
             onMouseUp={() => setCardPickerPressed(false)}
@@ -226,12 +262,12 @@ export default function Routines() {
             <button onClick={saveRoutine} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
               {editRoutineId ? '수정 완료' : '저장'}
             </button>
-            <button onClick={() => { setRoutineFormOpen(false); setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] }); setRoutineError('') }}
+            <button onClick={() => { setRoutineFormOpen(false); setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] }); setRoutineError('') }}
               style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'none', fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text-muted)' }}>취소</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => { setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '' }] }); setRoutineError(''); setRoutineFormOpen(true) }}
+        <button onClick={() => { setEditRoutineId(null); setRoutineForm({ name: '', icon: '', card: '', items: [{ category: '', cat_type: 'expense', exclude_card_perf: false, exclude_stats: false, description: '', card: '', exclude_cashback: false }] }); setRoutineError(''); setRoutineFormOpen(true) }}
           style={{ width: '100%', padding: '11px 0', borderRadius: 12, border: '1.5px dashed #b088f9', background: 'transparent', color: '#b088f9', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
           + 루틴 추가
         </button>
