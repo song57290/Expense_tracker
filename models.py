@@ -198,6 +198,8 @@ class RoutineItem(db.Model):
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
     position = db.Column(db.Integer, nullable=False, default=0)
     description = db.Column(db.String(200), nullable=True, default='')
+    card = db.Column(db.String(50), nullable=True, default='')
+    exclude_cashback = db.Column(db.Boolean, nullable=False, default=False)
 
 class Mood(db.Model):
     id = db.Column(db.Integer, primary_key=True)

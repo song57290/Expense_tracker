@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import FilterPopup from './FilterPopup.jsx'
-import { bankColor, getCustomIconColor } from '../utils.js'
+import { bankColor, getCustomIconColor, cardLogo } from '../utils.js'
 
 // cards: [{ name, id, has_custom_icon }]
 export default function TxListFilter({
@@ -31,7 +31,7 @@ export default function TxListFilter({
       options: cards.map(c => {
         const custom = c.has_custom_icon ? customColors[c.id] : null
         const color = custom || bankColor(c.name).background
-        return [c.name, c.name, color, `${color}22`]
+        return [c.name, c.name, color, `${color}22`, cardLogo(c)]
       }),
       value: cardFilter, onChange: onCardFilterChange,
     })
