@@ -41,11 +41,20 @@ function pushToWidget(d) {
   const weekTotal = weekDaily.reduce((s, v) => s + v, 0)
   const weekAvg = Math.round(weekTotal / (mondayOffset + 1))
 
+  // 저축 목표 위젯은 목표를 하나만 보여줄 수 있으므로(다른 위젯들도 인스턴스별
+  // 선택 없이 하나의 값만 보여줌), 목록 맨 앞(사용자가 정렬한 순서상 첫 번째) 목표를 대표로 쓴다.
+  const goal = (d.savings_goals || [])[0]
+  const goalName = goal?.name || ''
+  const goalTarget = String(goal?.target_amount ?? 0)
+  const goalCurrent = String(goal?.current_amount ?? 0)
+  const goalTargetDate = goal?.target_date || ''
+
   WidgetData.update({
     income, expense, balance, month, month_key: monthKey, updated, budget,
     today_total: todayTotal, today_date: todayDate, today_key: todayStr, today_cats: todayCats,
     week_daily: weekDaily.join(','), week_today_index: String(mondayOffset),
     week_total: String(weekTotal), week_avg: String(weekAvg), week_income: String(weekIncome),
+    goal_name: goalName, goal_target: goalTarget, goal_current: goalCurrent, goal_target_date: goalTargetDate,
   }).catch(e => console.error('[Widget] update failed:', e))
 }
 

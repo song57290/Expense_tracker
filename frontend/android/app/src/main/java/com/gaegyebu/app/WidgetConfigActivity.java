@@ -45,6 +45,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
     // updatePreview()에서 곱해져 들어간다.
     private float previewScale = 1.0f;
     private String selectedTextSize = WidgetTheme.TEXT_MEDIUM;
+    private String selectedRingSize = WidgetTheme.RING_MEDIUM;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,6 +78,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         selectedTheme = WidgetTheme.getTheme(prefs, appWidgetId);
         selectedTextSize = WidgetTheme.getTextSizePref(prefs, appWidgetId);
+        selectedRingSize = WidgetTheme.getRingSizePref(prefs, appWidgetId);
         prefsMonth = prefs.getString("month", "--월");
         prefsUpdated = prefs.getString("updated", "");
 
@@ -84,8 +86,13 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         WidgetTheme.applyWindowTheme(this);
 
+        // 그래프 크기 옵션은 링 그래프가 있는 위젯(예산·저축 목표)에서만 의미가 있다.
+        boolean showRingSize = widgetClass.contains("Budget") || widgetClass.contains("Goal");
+        findViewById(R.id.ring_size_section).setVisibility(showRingSize ? View.VISIBLE : View.GONE);
+
         updateThemeChecks();
         updateTextSizeChecks();
+        updateRingSizeChecks();
         updatePreview();
 
         findViewById(R.id.opt_transparent).setOnClickListener(v -> {
@@ -130,6 +137,24 @@ public class WidgetConfigActivity extends AppCompatActivity {
             updatePreview();
         });
 
+        findViewById(R.id.opt_ring_small).setOnClickListener(v -> {
+            selectedRingSize = WidgetTheme.RING_SMALL;
+            updateRingSizeChecks();
+            updatePreview();
+        });
+
+        findViewById(R.id.opt_ring_medium).setOnClickListener(v -> {
+            selectedRingSize = WidgetTheme.RING_MEDIUM;
+            updateRingSizeChecks();
+            updatePreview();
+        });
+
+        findViewById(R.id.opt_ring_large).setOnClickListener(v -> {
+            selectedRingSize = WidgetTheme.RING_LARGE;
+            updateRingSizeChecks();
+            updatePreview();
+        });
+
         findViewById(R.id.btn_cancel).setOnClickListener(v -> finish());
         findViewById(R.id.btn_save).setOnClickListener(v -> save());
     }
@@ -146,6 +171,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
         boolean isToday = widgetClass.contains("Today");
         boolean isPace = widgetClass.contains("Pace");
         boolean isWeekly = widgetClass.contains("Weekly");
+        boolean isGoal = widgetClass.contains("Goal");
 
         int layoutRes = isBudget
                 ? R.layout.widget_budget
@@ -155,6 +181,8 @@ public class WidgetConfigActivity extends AppCompatActivity {
                 ? R.layout.widget_pace
                 : isWeekly
                 ? R.layout.widget_weekly
+                : isGoal
+                ? R.layout.widget_goal
                 : R.layout.widget_compact;
 
         View wv = LayoutInflater.from(this).inflate(layoutRes, container, false);
@@ -182,6 +210,10 @@ public class WidgetConfigActivity extends AppCompatActivity {
             contH = (int) (240 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
             wH = (int) (240 * dp);
+        } else if (isGoal) {
+            contH = (int) (240 * dp);
+            wW = (int) (240 * dp);
+            wH = (int) (240 * dp);
         } else {
             contH = (int) (170 * dp);
             wW = FrameLayout.LayoutParams.MATCH_PARENT;
@@ -204,6 +236,8 @@ public class WidgetConfigActivity extends AppCompatActivity {
                 ? R.id.widget_pace_root
                 : isWeekly
                 ? R.id.widget_weekly_root
+                : isGoal
+                ? R.id.widget_goal_root
                 : R.id.widget_compact_root;
 
         View root = wv.findViewById(rootId);
@@ -222,6 +256,8 @@ public class WidgetConfigActivity extends AppCompatActivity {
             setupPacePreview(wv, dark, expenseLong);
         } else if (isWeekly) {
             setupWeeklyPreview(wv, dark);
+        } else if (isGoal) {
+            setupGoalPreview(wv, dark);
         } else {
             setupCompactPreview(wv, dark);
         }
@@ -374,6 +410,9 @@ public class WidgetConfigActivity extends AppCompatActivity {
 
         float density = getResources().getDisplayMetrics().density;
 
+        int ringPad = (int) (WidgetTheme.ringPaddingDp(selectedRingSize) * density);
+        ringView.setPadding(ringPad, ringPad, ringPad, ringPad);
+
         // 연/월(budget_month)만 빼고 나머지(링·남음·업데이트)를 다 같이 살짝 아래로.
         View ringFrame = wv.findViewById(R.id.budget_ring_frame);
         ViewGroup.MarginLayoutParams ringFrameLp = (ViewGroup.MarginLayoutParams) ringFrame.getLayoutParams();
@@ -406,6 +445,63 @@ public class WidgetConfigActivity extends AppCompatActivity {
         remaining.setLayoutParams(remainingLp);
 
         TextView updated = wv.findViewById(R.id.budget_updated);
+        updated.setTextColor(WidgetTheme.hint(dark));
+        updated.setText(prefsUpdated);
+        updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 6.5f * previewScale);
+        ViewGroup.MarginLayoutParams updatedLp = (ViewGroup.MarginLayoutParams) updated.getLayoutParams();
+        updatedLp.topMargin = (int) (4 * previewScale * density);
+        updated.setLayoutParams(updatedLp);
+    }
+
+    private static final String PREVIEW_GOAL_NAME = "제주도 여행";
+    private static final long PREVIEW_GOAL_TARGET = 1000000;
+    private static final long PREVIEW_GOAL_CURRENT = 720000;
+    private static final int PREVIEW_GOAL_DAYS_LEFT = 40;
+
+    private void setupGoalPreview(View wv, boolean dark) {
+        float pct = (float) PREVIEW_GOAL_CURRENT / PREVIEW_GOAL_TARGET;
+        int pctInt = Math.round(pct * 100);
+        int ringColor = pct >= 1f ? WidgetTheme.income(dark) : (dark ? 0xFFB088F9 : 0xFF6832C0);
+
+        TextView name = wv.findViewById(R.id.goal_name);
+        name.setTextColor(WidgetTheme.primary(dark));
+        name.setText(PREVIEW_GOAL_NAME);
+        name.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f * previewScale);
+
+        View usageLabel = wv.findViewById(R.id.goal_usage_label);
+        if (usageLabel != null) usageLabel.setVisibility(View.GONE);
+
+        Bitmap ring = GoalWidget.createRingBitmap(
+                this, 300, pct, ringColor, pctInt, dark, PREVIEW_GOAL_DAYS_LEFT
+        );
+
+        ImageView ringView = wv.findViewById(R.id.goal_ring);
+        ringView.setImageBitmap(ring);
+
+        float density = getResources().getDisplayMetrics().density;
+
+        int ringPad = (int) (WidgetTheme.ringPaddingDp(selectedRingSize) * density);
+        ringView.setPadding(ringPad, ringPad, ringPad, ringPad);
+
+        View ringFrame = wv.findViewById(R.id.goal_ring_frame);
+        ViewGroup.MarginLayoutParams ringFrameLp = (ViewGroup.MarginLayoutParams) ringFrame.getLayoutParams();
+        ringFrameLp.topMargin = (int) (11 * previewScale * density);
+        ringFrameLp.bottomMargin = (int) (2 * previewScale * density);
+        ringFrame.setLayoutParams(ringFrameLp);
+
+        View goalRoot = wv.findViewById(R.id.widget_goal_root);
+        int rootPad = (int) (6 * previewScale * density);
+        goalRoot.setPadding(rootPad, rootPad, rootPad, rootPad);
+
+        TextView progress = wv.findViewById(R.id.goal_progress);
+        progress.setTextColor(ringColor);
+        progress.setText(fmt(PREVIEW_GOAL_CURRENT) + " / " + fmt(PREVIEW_GOAL_TARGET) + "원");
+        progress.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10f * previewScale);
+        ViewGroup.MarginLayoutParams progressLp = (ViewGroup.MarginLayoutParams) progress.getLayoutParams();
+        progressLp.topMargin = (int) (9 * previewScale * density);
+        progress.setLayoutParams(progressLp);
+
+        TextView updated = wv.findViewById(R.id.goal_updated);
         updated.setTextColor(WidgetTheme.hint(dark));
         updated.setText(prefsUpdated);
         updated.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 6.5f * previewScale);
@@ -603,6 +699,17 @@ public class WidgetConfigActivity extends AppCompatActivity {
         }
     }
 
+    private void updateRingSizeChecks() {
+        int[] ids = {R.id.check_ring_small, R.id.check_ring_medium, R.id.check_ring_large};
+        String[] values = {WidgetTheme.RING_SMALL, WidgetTheme.RING_MEDIUM, WidgetTheme.RING_LARGE};
+
+        for (int i = 0; i < ids.length; i++) {
+            findViewById(ids[i]).setVisibility(
+                    values[i].equals(selectedRingSize) ? View.VISIBLE : View.GONE
+            );
+        }
+    }
+
     private void save() {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
                 .edit()
@@ -613,6 +720,10 @@ public class WidgetConfigActivity extends AppCompatActivity {
                 .putString(
                         WidgetTheme.TEXTSIZE_PREF_KEY + appWidgetId,
                         selectedTextSize
+                )
+                .putString(
+                        WidgetTheme.RINGSIZE_PREF_KEY + appWidgetId,
+                        selectedRingSize
                 )
                 .apply();
 
@@ -632,6 +743,8 @@ public class WidgetConfigActivity extends AppCompatActivity {
                 PaceWidget.updateWidget(this, manager, appWidgetId);
             } else if (className.contains("Weekly")) {
                 WeeklyWidget.updateWidget(this, manager, appWidgetId);
+            } else if (className.contains("Goal")) {
+                GoalWidget.updateWidget(this, manager, appWidgetId);
             }
         } catch (Exception e) {
             CompactWidget.updateAll(this);
@@ -639,6 +752,7 @@ public class WidgetConfigActivity extends AppCompatActivity {
             TodayWidget.updateAll(this);
             PaceWidget.updateAll(this);
             WeeklyWidget.updateAll(this);
+            GoalWidget.updateAll(this);
         }
 
         Intent result = new Intent();

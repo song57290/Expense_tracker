@@ -63,7 +63,7 @@ public class PaceWidget extends BaseWidget {
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
             // 자동 배율(최대 1.3)에 '크게' 설정(1.15)까지 곱해지면 1.5배 가까이 커져
             // 라벨이 겹치므로, 곱한 뒤에도 다시 상한을 건다.
-            scale = Math.min(scale, 1.3f);
+            scale = Math.min(scale, 1.45f);
 
             views.setTextViewTextSize(R.id.pace_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
             views.setTextViewTextSize(R.id.pace_daily, TypedValue.COMPLEX_UNIT_DIP, 26f * scale);

@@ -21,23 +21,57 @@ ChartJS.register(ArcElement, Tooltip, CategoryScale, LinearScale, BarElement, Li
 // 프레임 각 조각(ArcElement)의 outerRadius를 직접 조정한다 — 선택 해제 상태일
 // 때의 "원래" 반지름을 WeakMap에 기억해뒀다가, 그 값을 기준으로만 줄여서 프레임을
 // 거듭해도 반지름이 계속 줄어드는(누적) 일이 없게 한다.
+// target으로 순간이동시키지 않고 currentRadii에 저장해둔 현재값에서 목표값 쪽으로
+// 매 프레임 조금씩(lerp) 움직이며, 다 도달할 때까지 requestAnimationFrame으로 다시
+// draw를 걸어줘서 — 반지름이 "뚝" 바뀌지 않고 부드럽게 커지고 작아지게 한다.
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16), g = parseInt(h.substring(2, 4), 16), b = parseInt(h.substring(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
 const _cleanOuterRadii = new WeakMap()
+const _currentRadii = new WeakMap()
+const _cleanColors = new WeakMap()
+const _currentAlphas = new WeakMap()
 const shrinkInactivePlugin = {
   id: 'shrinkInactive',
   beforeDraw(chart) {
     const meta = chart.getDatasetMeta(0)
     if (!meta?.data?.length) return
     const active = chart.getActiveElements()
-    if (!active.length) {
-      meta.data.forEach(arc => _cleanOuterRadii.set(arc, arc.outerRadius))
-      return
-    }
-    const activeIndex = active[0].index
+    const activeIndex = active.length ? active[0].index : -1
+    let stillAnimating = false
     meta.data.forEach((arc, i) => {
       if (!_cleanOuterRadii.has(arc)) _cleanOuterRadii.set(arc, arc.outerRadius)
       const base = _cleanOuterRadii.get(arc)
-      arc.outerRadius = i === activeIndex ? base : Math.max(arc.innerRadius + 6, base - 10)
+      const target = !active.length ? base : (i === activeIndex ? base : Math.max(arc.innerRadius + 6, base - 10))
+      const current = _currentRadii.has(arc) ? _currentRadii.get(arc) : base
+      const next = current + (target - current) * 0.18
+      const settled = Math.abs(target - next) < 0.4
+      const finalVal = settled ? target : next
+      _currentRadii.set(arc, finalVal)
+      arc.outerRadius = finalVal
+      if (!settled) stillAnimating = true
+
+      // 선택 안 된 조각은 반지름만 줄이는 대신 색도 같이 톤 다운시켜서(살짝
+      // 투명하게) 선택된 조각이 더 도드라져 보이게 한다 — 반지름과 같은 lerp
+      // 방식으로 alpha를 부드럽게 옮긴다.
+      if (!_cleanColors.has(arc)) _cleanColors.set(arc, arc.options.backgroundColor)
+      const cleanColor = _cleanColors.get(arc)
+      const targetAlpha = !active.length ? 1 : (i === activeIndex ? 1 : 0.32)
+      const curAlpha = _currentAlphas.has(arc) ? _currentAlphas.get(arc) : 1
+      const nextAlpha = curAlpha + (targetAlpha - curAlpha) * 0.18
+      const alphaSettled = Math.abs(targetAlpha - nextAlpha) < 0.01
+      const finalAlpha = alphaSettled ? targetAlpha : nextAlpha
+      _currentAlphas.set(arc, finalAlpha)
+      arc.options.backgroundColor = finalAlpha >= 0.999 ? cleanColor : hexToRgba(cleanColor, finalAlpha)
+      if (!alphaSettled) stillAnimating = true
     })
+    // chart.draw()를 직접 부르는 대신 chart.render()로 다음 프레임을 요청한다 —
+    // render()가 Chart.js 자체 애니메이션 루프에 편입되는 공식 경로라 draw()를
+    // 직접 반복 호출하는 것보다 더 안정적으로 실제 프레임이 그려진다.
+    if (stillAnimating) requestAnimationFrame(() => chart.render())
   },
 }
 
@@ -350,6 +384,13 @@ export default function Stats() {
                         차트를 통째로 다시 만들도록 강제한다. */}
                     <Doughnut
                       key={`cat-${hideCat}`}
+                      // React 상태(catTip)가 바뀔 때마다 옵션 객체가 새로 만들어지고
+                      // react-chartjs-2가 그때마다 chart.update()를 부르는데, 이게 진입
+                      // 애니메이션 도중이면 그 스윕 자체가 늘어져 보이던 진짜 원인이었다
+                      // — updateMode="none"으로 그 update() 자체는 애니메이션 없이(스윕과
+                      // 무관하게) 조용히 적용되게 해서, 탭은 언제나 즉시 반응하면서도
+                      // 진입 애니메이션엔 전혀 영향을 안 주게 한다.
+                      updateMode="none"
                       data={{ labels: expLabels, datasets: [{ data: expData, backgroundColor: PIE_COLORS, hoverOffset: 8 }] }}
                       plugins={[catCenter, shrinkInactivePlugin]}
                       options={{
@@ -357,6 +398,17 @@ export default function Stats() {
                         // 않으면, 캔버스가 원래 원 크기에 딱 맞춰져 있어 튀어나온 부분이
                         // 오른쪽/아래쪽 캔버스 경계에서 잘려 보인다.
                         layout: { padding: 10 },
+                        // hoverOffset(조각 튀어나오기)이 부드럽게 커지도록 활성 상태
+                        // 전환에도 애니메이션 시간을 준다 — 진입 애니메이션과의 간섭은
+                        // updateMode="none"이 따로 막아주므로 0으로 죽일 필요가 없어졌다.
+                        transitions: { active: { animation: { duration: 220, easing: 'easeOutQuart' } } },
+                        // 진입(스윕) 애니메이션이 끝나는 시점을 차트 인스턴스에 표시해둔다 —
+                        // shrinkInactivePlugin이 이 값을 보고, 진입 애니메이션이 끝나기 전엔
+                        // 아무 것도 안 하도록(자기가 매 프레임 걸던 render() 요청까지 포함해서)
+                        // 완전히 쉬게 만든다. 이게 진짜 원인이었다: 우리 플러그인이 진입
+                        // 애니메이션 도중 반복 요청하던 render()가 Chart.js 자체 진입
+                        // 애니메이션 루프와 겹치면서 그 진입 애니메이션 자체를 늘어지게 했다.
+                        animation: { onComplete: ctx => { ctx.chart.$entranceDone = true } },
                         // <Doughnut>의 top-level onClick/onHover prop은 react-chartjs-2가
                         // 인식하는 prop이 아니라서 그냥 무시된다 — Chart.js 옵션 안에 직접
                         // 넣어야(onHover) 실제로 호출된다. 이게 이전에 금액 툴팁이 아예
@@ -403,11 +455,11 @@ export default function Stats() {
                       padding: '6px 12px', borderRadius: 8, background: catTip ? 'var(--bg-accent)' : 'transparent',
                     }}>
                       {catTip ? (
-                        <>
+                        <div key={catTip.label} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'growIn 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
                           <span style={{ width: 10, height: 10, borderRadius: 3, background: catTip.color, flexShrink: 0 }} />
                           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{catTip.icon} {catTip.label}</span>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{catTip.amount}</span>
-                        </>
+                        </div>
                       ) : (
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-faint)' }}>조각을 탭하면 금액을 확인할 수 있어요</span>
                       )}
@@ -610,10 +662,14 @@ export default function Stats() {
                   <div style={{ maxWidth: 360, margin: '0 auto 16px' }}>
                     <Doughnut
                       key={`pf-${hidePortfolio}`}
+                      updateMode="none"
                       data={{ labels, datasets: [{ data: values, backgroundColor: PF_COLORS, borderWidth: 2, hoverOffset: 8 }] }}
                       plugins={[pfCenter, shrinkInactivePlugin]}
                       options={{
                         layout: { padding: 10 },
+                        // hoverOffset이 부드럽게 커지도록 — 카테고리별 지출 도넛과 같은 이유.
+                        transitions: { active: { animation: { duration: 220, easing: 'easeOutQuart' } } },
+                        animation: { onComplete: ctx => { ctx.chart.$entranceDone = true } },
                         // <Doughnut>의 top-level onHover prop은 react-chartjs-2가 인식하는
                         // prop이 아니라서 무시된다 — Chart.js 옵션 안에 넣어야 실제로 호출됨.
                         onHover: (event, elements) => {
@@ -645,11 +701,11 @@ export default function Stats() {
                       padding: '6px 12px', borderRadius: 8, background: pfTip ? 'var(--bg-accent)' : 'transparent',
                     }}>
                       {pfTip ? (
-                        <>
+                        <div key={pfTip.label} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'growIn 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
                           <span style={{ width: 10, height: 10, borderRadius: 3, background: pfTip.color, flexShrink: 0 }} />
                           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pfTip.label}</span>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{pfTip.amount}</span>
-                        </>
+                        </div>
                       ) : (
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-faint)' }}>조각을 탭하면 금액을 확인할 수 있어요</span>
                       )}

@@ -108,7 +108,7 @@ public class CompactWidget extends BaseWidget {
             scale = Math.min(scale, heightGuard);
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
             // 자동 배율에 '크게' 설정까지 곱해지면 라벨이 겹칠 만큼 커지므로 상한을 다시 건다.
-            scale = Math.min(scale, 1.3f);
+            scale = Math.min(scale, 1.45f);
 
             views.setTextViewTextSize(R.id.compact_month,         TypedValue.COMPLEX_UNIT_DIP, 15f * scale);
             views.setTextViewTextSize(R.id.compact_balance_label, TypedValue.COMPLEX_UNIT_DIP, 14f * scale);

@@ -90,12 +90,18 @@ public class BudgetWidget extends BaseWidget {
             float scale = Math.max(0.75f, Math.min(1.3f, Math.min(widthDp / 110f, heightDp / 110f)));
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
             // 자동 배율에 '크게' 설정까지 곱해지면 라벨이 겹칠 만큼 커지므로 상한을 다시 건다.
-            scale = Math.min(scale, 1.3f);
+            scale = Math.min(scale, 1.45f);
 
             views.setTextViewTextSize(R.id.budget_month, TypedValue.COMPLEX_UNIT_DIP, 13f * scale);
             views.setTextViewTextSize(R.id.budget_remaining, TypedValue.COMPLEX_UNIT_DIP, 10f * scale);
             views.setTextViewTextSize(R.id.budget_updated, TypedValue.COMPLEX_UNIT_DIP, 6.5f * scale);
             views.setViewVisibility(R.id.budget_usage_label, android.view.View.GONE);
+            // 그래프 크기는 글자 크기와 별개의 설정(설정 화면 "그래프 크기")으로, 링
+            // ImageView(fitCenter)의 여백을 늘리거나 줄여서 프레임 안에서 링 자체의
+            // 체감 크기를 조정한다.
+            String ringSizePref = WidgetTheme.getRingSizePref(prefs, widgetId);
+            int ringPad = dpToPx(context, WidgetTheme.ringPaddingDp(ringSizePref));
+            views.setViewPadding(R.id.budget_ring, ringPad, ringPad, ringPad, ringPad);
             views.setViewPadding(R.id.widget_budget_root,
                     dpToPx(context, 6 * scale), dpToPx(context, 6 * scale),
                     dpToPx(context, 6 * scale), dpToPx(context, 6 * scale));

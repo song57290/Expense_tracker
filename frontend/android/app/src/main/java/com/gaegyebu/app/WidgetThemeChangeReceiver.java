@@ -25,6 +25,7 @@ public class WidgetThemeChangeReceiver extends BroadcastReceiver {
             TodayWidget.updateAll(context);
             PaceWidget.updateAll(context);
             WeeklyWidget.updateAll(context);
+            GoalWidget.updateAll(context);
             return;
         }
 
@@ -49,5 +50,6 @@ public class WidgetThemeChangeReceiver extends BroadcastReceiver {
         TodayWidget.updateAll(context);
         PaceWidget.updateAll(context);
         WeeklyWidget.updateAll(context);
+        GoalWidget.updateAll(context);
     }
 }

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_goal_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@android:color/transparent">
+
+    <TextView
+        android:id="@+id/goal_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="저축 목표"
+        android:textColor="@color/w_primary"
+        android:textSize="19.5dp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="center_horizontal" />
+
+    <FrameLayout
+        android:id="@+id/goal_ring_frame"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="4dp">
+
+        <ImageView
+            android:id="@+id/goal_ring"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter" />
+
+        <TextView
+            android:id="@+id/goal_usage_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:translationY="34dp"
+            android:text="달성"
+            android:textColor="@color/budget_usage"
+            android:textSize="19dp" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/goal_progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="---원 / ---원"
+        android:textColor="@color/w_primary"
+        android:textSize="12.1dp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="center_horizontal" />
+
+    <TextView
+        android:id="@+id/goal_updated"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="@color/w_hint"
+        android:textSize="9dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:layout_marginTop="2dp" />
+
+</LinearLayout>

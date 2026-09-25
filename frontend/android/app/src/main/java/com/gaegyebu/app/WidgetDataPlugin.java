@@ -32,6 +32,10 @@ public class WidgetDataPlugin extends Plugin {
         String weekTotal = call.getString("week_total", "0");
         String weekAvg = call.getString("week_avg", "0");
         String weekIncome = call.getString("week_income", "0");
+        String goalName = call.getString("goal_name", "");
+        String goalTarget = call.getString("goal_target", "0");
+        String goalCurrent = call.getString("goal_current", "0");
+        String goalTargetDate = call.getString("goal_target_date", "");
 
         Context ctx = getContext();
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -53,6 +57,10 @@ public class WidgetDataPlugin extends Plugin {
                 .putString("week_total", weekTotal)
                 .putString("week_avg", weekAvg)
                 .putString("week_income", weekIncome)
+                .putString("goal_name", goalName)
+                .putString("goal_target", goalTarget)
+                .putString("goal_current", goalCurrent)
+                .putString("goal_target_date", goalTargetDate)
                 .apply();
 
         updateAllWidgets(ctx);
@@ -102,5 +110,6 @@ public class WidgetDataPlugin extends Plugin {
         TodayWidget.updateAll(ctx);
         PaceWidget.updateAll(ctx);
         WeeklyWidget.updateAll(ctx);
+        GoalWidget.updateAll(ctx);
     }
 }

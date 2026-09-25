@@ -141,6 +141,7 @@ export default function Home() {
     if (!Capacitor.isNativePlatform()) return
     const checkNav = () => WidgetData.getPendingNavigation().then(r => {
       if (r?.navigate === 'budget') setBudgetDialog(true)
+      else if (r?.navigate === 'goal') navigate('/budget?section=goal')
     }).catch(() => {})
     checkNav()
     // 위젯으로 앱을 열었을 때 이미 실행 중이면 onNewIntent → appStateChange active로 감지
