@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from functools import wraps
 
 from sqlalchemy import func
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood, SavingsGoal
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -986,6 +986,8 @@ def api_home():
     routines = Routine.query.filter_by(user_id=uid).order_by(Routine.position, Routine.id).all()
     by_routine = _routine_items(uid)
     running_balances = _running_balances_for_user(uid)
+    goals = SavingsGoal.query.filter_by(user_id=uid).order_by(SavingsGoal.position, SavingsGoal.id).all()
+    goals_savings_by_id = {s.id: s for s in Savings.query.filter_by(user_id=uid).all()}
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
@@ -1008,6 +1010,7 @@ def api_home():
         'excl_stat_cat_names': list(excl_stat_cats),
         'routines': [{'id': r.id, 'name': r.name, 'icon': r.icon or '', 'card': r.card or '', 'items': by_routine.get(r.id, [])} for r in routines],
         'budget_limits': {a.category_name: a.monthly_limit for a in BudgetAllocation.query.filter_by(user_id=uid).all() if a.monthly_limit},
+        'savings_goals': [_savings_goal_json(g, goals_savings_by_id) for g in goals],
     })
 
 def _sync_salary_if_needed(uid, category, tx_type, amount):
@@ -2389,6 +2392,76 @@ def api_saving(sid):
         s.bonus_amount = int(ba) if ba else None
     db.session.commit()
     return jsonify({'ok': True})
+
+# ─── 저축 목표 ────────────────────────────────────────────────────────────────
+def _savings_goal_json(g, savings_by_id):
+    # 예·적금 계좌에 연결돼 있으면 그 계좌 잔액이 진행률, 아니면 직접 입력해둔
+    # manual_amount가 진행률이 된다.
+    linked = savings_by_id.get(g.savings_id) if g.savings_id else None
+    current = linked.amount if linked else g.manual_amount
+    return {
+        'id': g.id, 'name': g.name, 'target_amount': g.target_amount, 'target_date': g.target_date or '',
+        'savings_id': g.savings_id, 'savings_name': (f'{linked.bank} {linked.name}'.strip() if linked else ''),
+        'current_amount': current, 'manual': g.savings_id is None,
+        'position': g.position,
+    }
+
+@app.route('/api/savings-goals', methods=['GET', 'POST'])
+@login_required
+def api_savings_goals():
+    uid = session['user_id']
+    if request.method == 'POST':
+        data = request.json or {}
+        max_pos = db.session.query(db.func.max(SavingsGoal.position)).filter_by(user_id=uid).scalar() or 0
+        savings_id = data.get('savings_id')
+        g = SavingsGoal(
+            user_id=uid, name=(data.get('name') or '').strip(),
+            target_amount=int(data.get('target_amount') or 0),
+            target_date=data.get('target_date') or None,
+            savings_id=int(savings_id) if savings_id else None,
+            manual_amount=int(data.get('manual_amount') or 0),
+            position=max_pos + 1,
+        )
+        db.session.add(g)
+        db.session.commit()
+        return jsonify({'ok': True, 'id': g.id})
+    goals = SavingsGoal.query.filter_by(user_id=uid).order_by(SavingsGoal.position, SavingsGoal.id).all()
+    savings_by_id = {s.id: s for s in Savings.query.filter_by(user_id=uid).all()}
+    return jsonify([_savings_goal_json(g, savings_by_id) for g in goals])
+
+@app.route('/api/savings-goals/<int:gid>', methods=['PUT', 'DELETE'])
+@login_required
+def api_savings_goal(gid):
+    uid = session['user_id']
+    g = SavingsGoal.query.filter_by(id=gid, user_id=uid).first_or_404()
+    if request.method == 'DELETE':
+        db.session.delete(g)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    if 'name' in data: g.name = (data['name'] or '').strip()
+    if 'target_amount' in data: g.target_amount = int(data['target_amount'] or 0)
+    if 'target_date' in data: g.target_date = data['target_date'] or None
+    if 'savings_id' in data:
+        sid = data['savings_id']
+        g.savings_id = int(sid) if sid else None
+    if 'manual_amount' in data: g.manual_amount = int(data['manual_amount'] or 0)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/savings-goals/<int:gid>/add', methods=['POST'])
+@login_required
+def api_savings_goal_add(gid):
+    # 수동 목표에 "입금했어요" 하듯 금액을 더하는 빠른 버튼용 — 계좌 연결된
+    # 목표는 진행률이 계좌 잔액을 그대로 따라가므로 여기서 건드릴 게 없다.
+    uid = session['user_id']
+    g = SavingsGoal.query.filter_by(id=gid, user_id=uid).first_or_404()
+    if g.savings_id:
+        return jsonify({'error': '계좌에 연결된 목표는 직접 추가할 수 없습니다'}), 400
+    amount = int((request.json or {}).get('amount') or 0)
+    g.manual_amount = max(0, g.manual_amount + amount)
+    db.session.commit()
+    return jsonify({'ok': True, 'manual_amount': g.manual_amount})
 
 @app.route('/api/usd-rate')
 @login_required

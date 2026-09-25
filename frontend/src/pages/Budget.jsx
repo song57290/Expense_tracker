@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
+import { syncWidget } from '../widgetSync.js'
 import { fmt, bankLogo, cardLogo, fmtMonth, today, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
@@ -320,7 +321,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
             <div className="d-flex gap-2 mb-3">
               {[['card', '💳 카드 / 은행'], ['point', '🎁 포인트'], ['cash', '💵 현금'], ['loan', '💸 대출']].map(([t, label]) => (
                 <button key={t} type="button" onClick={() => switchType(t)}
-                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--border-light)'}`, background: assetType === t ? (t === 'loan' ? 'rgba(220,53,69,0.08)' : 'rgba(176,136,249,0.1)') : 'var(--bg-card)', color: assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--border-light)'}`, background: assetType === t ? (t === 'loan' ? 'rgba(220,53,69,0.08)' : 'rgba(176,136,249,0.1)') : 'var(--bg-card)', color: assetType === t ? (t === 'loan' ? '#dc3545' : '#b088f9') : 'var(--text-muted)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
                   {label}
                 </button>
               ))}
@@ -1312,6 +1313,146 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
   )
 }
 
+function GoalSheet({ open, visible, onClose, onSaved, editItem, savingsList }) {
+  const [name, setName] = useState('')
+  const [targetAmount, setTargetAmount] = useState('')
+  const [targetDate, setTargetDate] = useState('')
+  const [mode, setMode] = useState('manual') // 'manual' | 'auto'
+  const [savingsId, setSavingsId] = useState('')
+  const [manualAmount, setManualAmount] = useState('')
+  const [nameError, setNameError] = useState(false)
+  const [targetError, setTargetError] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setNameError(false); setTargetError(false)
+    if (editItem) {
+      setName(editItem.name || '')
+      setTargetAmount(editItem.target_amount ? String(editItem.target_amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')
+      setTargetDate(editItem.target_date || '')
+      setMode(editItem.savings_id ? 'auto' : 'manual')
+      setSavingsId(editItem.savings_id ? String(editItem.savings_id) : '')
+      setManualAmount(editItem.manual ? String(editItem.current_amount || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')
+    } else {
+      setName(''); setTargetAmount(''); setTargetDate(''); setMode('manual'); setSavingsId(''); setManualAmount('')
+    }
+  }, [open, editItem])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const nameOk = !!name.trim()
+    const targetOk = (parseInt(targetAmount.replace(/,/g, '')) || 0) > 0
+    setNameError(!nameOk)
+    setTargetError(!targetOk)
+    if (!nameOk || !targetOk) return
+    const payload = {
+      name: name.trim(),
+      target_amount: parseInt(targetAmount.replace(/,/g, '')) || 0,
+      target_date: targetDate || null,
+      savings_id: mode === 'auto' ? (savingsId || null) : null,
+      manual_amount: mode === 'manual' ? (parseInt(manualAmount.replace(/,/g, '')) || 0) : 0,
+    }
+    if (editItem) await api.put(`/api/savings-goals/${editItem.id}`, payload)
+    else await api.post('/api/savings-goals', payload)
+    onSaved(); onClose()
+  }
+
+  if (!open) return null
+  return createPortal(
+    <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="mb-0 fw-bold">{editItem ? '저축 목표 수정' : '저축 목표 추가'}</h6>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+        </div>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+          <form id="goal-form" onSubmit={handleSubmit}>
+            <input type="text" className={`form-control${nameError ? ' field-invalid' : ''} mb-1`} placeholder="목표 이름 (예: 여행 자금)"
+              value={name} onChange={e => { setName(e.target.value); setNameError(false) }} style={{ borderRadius: 10 }} />
+            {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>이름을 입력해 주세요</div>}
+            <div className="mb-1" style={{ position: 'relative' }}>
+              <input type="text" className={`form-control${targetError ? ' field-invalid' : ''}`} placeholder="목표 금액" inputMode="numeric"
+                value={targetAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setTargetAmount(v); setTargetError(false) }} style={{ borderRadius: 10, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+            </div>
+            {targetError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>목표 금액을 입력해 주세요</div>}
+            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>목표일 (선택)</p>
+            <div className="mb-3">
+              <DatePickerSheet value={targetDate} onChange={setTargetDate} />
+              {targetDate && (
+                <button type="button" onClick={() => setTargetDate('')}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.76rem', padding: '4px 2px', cursor: 'pointer' }}>날짜 지우기</button>
+              )}
+            </div>
+            <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', fontWeight: 600 }}>진행률 관리 방식</p>
+            <div className="d-flex gap-2 mb-3">
+              {[['manual', '직접 입력'], ['auto', '예·적금 연결']].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setMode(v)}
+                  style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${mode === v ? '#b088f9' : 'var(--border-light)'}`, background: mode === v ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: mode === v ? '#b088f9' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {mode === 'auto' ? (
+              savingsList.length === 0 ? (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8 }}>연결할 예·적금이 없습니다 — 먼저 예·적금을 추가해 주세요</div>
+              ) : (
+                <select className="form-select mb-3" style={{ borderRadius: 10 }} value={savingsId} onChange={e => setSavingsId(e.target.value)}>
+                  <option value="">연결할 예·적금 선택</option>
+                  {savingsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.bank} {s.name} ({fmt(s.amount)}원)</option>
+                  ))}
+                </select>
+              )
+            ) : (
+              <div className="mb-1" style={{ position: 'relative' }}>
+                <input type="text" className="form-control" placeholder="지금까지 모은 금액 (선택, 나중에 추가 가능)" inputMode="numeric"
+                  value={manualAmount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setManualAmount(v) }} style={{ borderRadius: 10, paddingRight: 36 }} />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+              </div>
+            )}
+          </form>
+        </div>
+        <div style={{ padding: '12px 0 calc(16px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
+          <button type="submit" form="goal-form" className="btn w-100" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '12px 0', fontWeight: 600 }}>
+            {editItem ? '수정하기' : '추가하기'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function AddGoalAmountModal({ goal, onClose, onSaved }) {
+  const [amount, setAmount] = useState('')
+  async function handleAdd() {
+    const val = parseInt(amount.replace(/,/g, '')) || 0
+    if (!val) return
+    await api.post(`/api/savings-goals/${goal.id}/add`, { amount: val })
+    onSaved(); onClose()
+  }
+  return (
+    <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '20px', width: '100%', maxWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <p className="fw-semibold mb-3" style={{ fontSize: '0.95rem' }}>{goal.name}에 금액 추가</p>
+        <div className="mb-3" style={{ position: 'relative' }}>
+          <input type="text" className="form-control" placeholder="추가할 금액" inputMode="numeric" autoFocus
+            value={amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setAmount(v) }}
+            style={{ borderRadius: 10, paddingRight: 36 }} />
+          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+        </div>
+        <div className="d-flex gap-2">
+          <button onClick={handleAdd} className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>추가</button>
+          <button onClick={onClose} className="btn btn-outline-secondary flex-fill" style={{ borderRadius: 10 }}>취소</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ITYPE_COLORS = {
   '국내주식': { bg: '#fff0f4', color: '#e84393' },
   '해외주식': { bg: '#fff4e8', color: '#e87000' },
@@ -1709,6 +1850,69 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   )
 }
 
+// 예산 탭 평소 화면 — 은행/예·적금/저축 목표/투자 4개 섹션을 요약 카드 2x2
+// 그리드로만 보여주고, 하나를 탭하면 그 섹션의 상세 화면(기존 목록·필터·추가
+// 버튼 등)으로 전환된다. 섹션이 길어서 밑에 있는 걸 찾기 힘들다는 피드백 —
+// 평소엔 요약만, 필요할 때만 들어가서 보게 바꿨다.
+function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick }) {
+  const hideBalance = hiddenParts === 'all' || hiddenParts.includes('balance')
+  const hideInvest = hiddenParts === 'all' || hiddenParts.includes('invest')
+  const bankTotal = (data.card_stats || []).filter(c => !c.is_loan).reduce((s, c) => s + c.balance, 0)
+  const savingsTotal = (data.savings || []).reduce((s, i) => s + i.current_paid, 0)
+  const goalCount = goals.length
+  const goalAvgPct = goalCount
+    ? Math.round(goals.reduce((s, g) => s + (g.target_amount > 0 ? Math.min(100, g.current_amount / g.target_amount * 100) : 0), 0) / goalCount)
+    : 0
+  const invTotal = (data.investments || []).reduce((s, i) => s + i.current_value, 0)
+  const invPurch = (data.investments || []).reduce((s, i) => s + i.purchase_value, 0)
+  const invPct = invPurch ? (invTotal - invPurch) / invPurch * 100 : 0
+
+  const tiles = [
+    { key: 'bank', icon: '🏦', title: '은행별 잔고', value: `${fmt(bankTotal)}원`, hide: hideBalance, sub: `카드 ${(data.card_stats || []).length}개` },
+    { key: 'savings', icon: '💰', title: '예·적금', value: `${fmt(savingsTotal)}원`, hide: hideInvest, sub: `${(data.savings || []).length}개 가입 중` },
+    { key: 'goal', icon: '🎯', title: '저축 목표', value: goalCount ? `평균 ${goalAvgPct}%` : '없음', hide: false, sub: goalCount ? `${goalCount}개 진행 중` : '목표를 추가해 보세요' },
+    { key: 'invest', icon: '📈', title: '투자', value: `${fmt(invTotal)}원`, hide: hideInvest, sub: `${invPct >= 0 ? '+' : ''}${invPct.toFixed(1)}%`, subColor: invPct >= 0 ? '#198754' : '#dc3545' },
+  ]
+
+  return (
+    <div style={{ animation: 'fadeIn 0.25s ease' }}>
+      {/* 지금까지 금액 가리기 토글이 "은행별 잔고" 상세 화면 안에만 있어서, 그리드
+          요약 화면(정작 금액이 바로 보이는 곳)에선 가릴 방법이 없었다 — 그리드에도
+          같은 토글을 노출해서 상세로 들어가지 않아도 바로 가릴 수 있게 한다. */}
+      <div className="d-flex justify-content-end mb-2">
+        <FilterPopup title="금액 가리기"
+          trigger={open => (
+            <button onClick={open} style={{
+              background: 'var(--bg-accent)', border: 'none', borderRadius: 20, padding: '5px 12px',
+              display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer',
+            }}>
+              <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`} />
+              금액 가리기
+            </button>
+          )}
+          sections={[{
+            label: '가릴 항목', type: 'grid',
+            options: [['balance', '은행별 잔고'], ['invest', '예·적금 · 투자']],
+            value: hiddenParts, onChange: setHiddenParts,
+          }]} />
+      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {tiles.map(t => (
+        <button key={t.key} onClick={e => onPick(t.key, e.currentTarget.getBoundingClientRect())} className="card" style={{
+          border: '1.5px solid var(--border)', borderRadius: 16, padding: '16px 14px', textAlign: 'left',
+          background: 'var(--bg-card)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          <div style={{ fontSize: '1.4rem' }}>{t.icon}</div>
+          <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-muted)' }}>{t.title}</div>
+          <div className={`amt-mask${t.hide ? ' amt-hidden' : ''}`} style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{t.value}</div>
+          <div style={{ fontSize: '0.72rem', color: t.subColor || 'var(--text-faint)' }}>{t.sub}</div>
+        </button>
+      ))}
+    </div>
+    </div>
+  )
+}
+
 // 탭 전환마다 이 페이지가 다시 마운트되면서 로딩 스피너가 매번 깜빡이지 않도록,
 // 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
 let _budgetCache = null
@@ -1749,6 +1953,95 @@ export default function Budget() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
+  // 예산 탭이 길어지면서 밑에 있는 섹션(특히 저축 목표)이 안 보인다는 피드백 —
+  // 평소엔 4개 섹션(은행·예적금·저축목표·투자)을 요약 카드 2x2 그리드로만 보여주고,
+  // 하나를 누르면 그 섹션의 기존 상세 화면(목록·필터·추가 버튼 등)으로 전환한다.
+  // null = 그리드, 그 외엔 해당 섹션의 상세 화면만 보여줌.
+  const [activeSection, setActiveSection] = useState(null)
+  // 그리드 → 상세 전환을 "그 카드 자리에서 실제로 커지는" FLIP 애니메이션으로
+  // 보이게 하려고, 탭한 카드의 화면상 위치·크기(originRect)를 기억해뒀다가 상세
+  // 화면이 그려진 뒤 그 위치/크기에서 시작해 제자리(transform: none)로 트랜지션
+  // 시킨다 — CSS keyframe만으로는 "탭한 자리에서" 커지는 걸 표현할 수 없어서 직접
+  // 계산해 style을 준다.
+  const [originRect, setOriginRect] = useState(null)
+  const detailRef = useRef(null)
+  const handlePick = (key, rect) => { setOriginRect(rect); setActiveSection(key) }
+  useLayoutEffect(() => {
+    if (!activeSection || !originRect || !detailRef.current) return
+    const el = detailRef.current
+    const finalRect = el.getBoundingClientRect()
+    if (!finalRect.width || !finalRect.height) return
+    // 카드 높이(작다) 대비 상세 화면 높이(목록이 길면 아주 크다) 차이가 커서
+    // scaleX/scaleY를 각각 따로 맞추면 세로로 확 늘어나며 찌그러지듯 보여 "조잡한"
+    // 느낌을 줬다 — 가로 비율 기준으로 균일하게(scaleX만) 확대해서, 세로는 위쪽이
+    // 살짝 눌린 채로 시작해 펴지는 정도로만 보이게 한다(찌그러짐 없음).
+    const scale = Math.max(0.4, Math.min(1, originRect.width / finalRect.width))
+    const translateX = originRect.left - finalRect.left
+    const translateY = originRect.top - finalRect.top
+    el.style.transition = 'none'
+    el.style.transformOrigin = '0 0'
+    el.style.opacity = '0'
+    el.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 0.46s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.32s ease'
+        el.style.transform = 'none'
+        el.style.opacity = '1'
+      })
+    })
+  }, [activeSection, originRect])
+  const closingRef = useRef(false)
+  // 뒤로가기 시 상세 화면만 사라지고 그리드는 그 뒤에 늦게 나타나던 게 "그냥
+  // 구석으로 사라지는" 느낌의 원인이었다 — 그리드를 먼저(즉시) 그려두고, 상세
+  // 화면은 그 위에 겹쳐진 채로(overlay) 카드 자리로 줄어들게 해서, 줄어드는
+  // 동안 뒤에 있는 그리드가 계속 비쳐 보이게(사실상 크로스페이드) 한다.
+  const [closingSection, setClosingSection] = useState(null)
+  const closingOverlayStyle = {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
+    maxHeight: '75vh', overflow: 'hidden', background: 'var(--bg-page)',
+    borderRadius: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+  }
+  function closeDetail() {
+    if (closingRef.current) return
+    const key = activeSection
+    const el = detailRef.current
+    if (!el || !originRect || !key) { setActiveSection(null); return }
+    closingRef.current = true
+    // 목록이 긴 상세 화면을 스크롤해서 보다가 뒤로가기를 누르면, 상세 화면이
+    // position:absolute + maxHeight로 확 줄어들면서 문서 전체 높이가 갑자기
+    // 짧아져 브라우저가 스크롤 위치를 강제로 당겨버린다 — 이때 originRect(그리드
+    // 볼 때 기준)랑 지금 좌표계가 어긋나면서 카드 자리가 아니라 엉뚱한 곳(화면
+    // 가운데 근처)으로 줄어드는 것처럼 보였다. 애니메이션을 시작하기 전에 항상
+    // 맨 위로 스크롤을 고정해서 좌표 기준을 일치시킨다.
+    window.scrollTo(0, 0)
+    const curRect = el.getBoundingClientRect()
+    setClosingSection(key)
+    setActiveSection(null)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const wrapEl = detailRef.current
+        if (!wrapEl) { closingRef.current = false; setClosingSection(null); return }
+        const wrapRect = wrapEl.parentElement.getBoundingClientRect()
+        const scale = Math.max(0.4, Math.min(1, originRect.width / curRect.width))
+        const translateX = originRect.left - wrapRect.left
+        const translateY = originRect.top - wrapRect.top
+        wrapEl.style.transformOrigin = '0 0'
+        // 내용이 그대로 축소된 스크린샷처럼 줄어드는 것처럼 보이지 않게 — opacity를
+        // transform보다 훨씬 빠르게 0으로 만들어서, 초반에 콘텐츠가 얼른 하얗게
+        // 사라지고 남은 시간 동안은 빈 박스만 카드 자리로 줄어드는 것처럼 보이게 한다.
+        wrapEl.style.transition = 'transform 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease-in'
+        wrapEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`
+        wrapEl.style.opacity = '0'
+      })
+    })
+    setTimeout(() => { closingRef.current = false; setClosingSection(null) }, 420)
+  }
+  const [goals, setGoals] = useState([])
+  const [goalSheetOpen, setGoalSheetOpen] = useState(false)
+  const [goalSheetVisible, setGoalSheetVisible] = useState(false)
+  const [editGoal, setEditGoal] = useState(null)
+  const [confirmGoal, setConfirmGoal] = useState(null)
+  const [addAmountGoal, setAddAmountGoal] = useState(null)
   // 필터·정렬 선택이 탭 이동·앱 재실행 후에도 유지되도록 로컬 저장(서버 무관)
   // 잔고와 예·적금·투자를 따로 가릴 수 있게 필터 팝업과 같은 다중 선택 방식으로 저장
   // ('all' = 둘 다, 배열 = 그 중 선택된 것만, [] = 아무 것도 안 가림)
@@ -1783,43 +2076,49 @@ export default function Budget() {
   }
   const load = useCallback(() => api.get('/api/budget').then(d => { _budgetCache = d; setData(d) }).catch(console.error), [])
   useEffect(() => { load() }, [load])
+  const loadGoals = useCallback(() => api.get('/api/savings-goals').then(g => { setGoals(g); syncWidget() }).catch(console.error), [])
+  useEffect(() => { loadGoals() }, [loadGoals])
 
   useEffect(() => {
     if (!data) return
     const section = searchParams.get('section')
     if (!section) return
-    setTimeout(() => {
-      const el = document.getElementById(`budget-section-${section}`)
-      if (el) {
-        const top = el.getBoundingClientRect().top + window.scrollY - 40
-        window.scrollTo({ top, behavior: 'smooth' })
-      }
-    }, 100)
+    // 그리드 → 상세 화면 전환 방식으로 바뀌면서, 링크로 들어올 때도 스크롤 대신
+    // 바로 해당 상세 화면을 열어준다.
+    const map = { cards: 'bank', savings: 'savings', investment: 'invest' }
+    setActiveSection(map[section] || section)
   }, [data, searchParams])
 
   useEffect(() => {
-    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!convertCard
+    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || goalSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!confirmGoal || !!addAmountGoal || !!convertCard
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv, convertCard])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard])
 
-  // 안드로이드 뒤로가기로 열린 시트 닫기
+  // 안드로이드 뒤로가기로 열린 시트 닫기 — 그리드→상세 화면 전환도 일종의
+  // "화면 안 이동"이라, 시트/확인창이 하나도 안 열려있을 때는 뒤로가기로 상세
+  // 화면에서 그리드로 돌아가게(activeSection을 null로) 한다. 우선순위는 시트나
+  // 확인창이 열려 있으면 그것부터 닫고, 없으면 그 다음에 상세 화면을 닫는다.
   useEffect(() => {
-    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !confirmCard && !confirmSavings && !confirmInv && !convertCard) return
+    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !goalSheetOpen && !confirmCard && !confirmSavings && !confirmInv && !confirmGoal && !addAmountGoal && !convertCard && !activeSection) return
     const handler = (e) => {
       e.preventDefault()
       if (addSheetOpen) { closeAdd(); return }
       if (editSheetOpen) { closeEdit(); return }
       if (savingsSheetOpen) { closeSavingsSheet(); return }
       if (invSheetOpen) { closeInvSheet(); return }
+      if (goalSheetOpen) { closeGoalSheet(); return }
       if (confirmCard) { setConfirmCard(null); return }
       if (confirmSavings) { setConfirmSavings(null); return }
       if (confirmInv) { setConfirmInv(null); return }
+      if (confirmGoal) { setConfirmGoal(null); return }
+      if (addAmountGoal) { setAddAmountGoal(null); return }
       if (convertCard) { setConvertCard(null); return }
+      if (activeSection) { closeDetail(); return }
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, confirmCard, confirmSavings, confirmInv, convertCard])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, activeSection])
 
   async function handleConvert() {
     if (!convertCard) return
@@ -1932,6 +2231,25 @@ export default function Budget() {
     await api.delete(`/api/savings/${confirmSavings.id}`)
     setConfirmSavings(null); load()
   }
+  function openGoalAdd() {
+    setEditGoal(null)
+    setGoalSheetOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setGoalSheetVisible(true)))
+  }
+  function openGoalEdit(item) {
+    setEditGoal(item)
+    setGoalSheetOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setGoalSheetVisible(true)))
+  }
+  function closeGoalSheet() {
+    setGoalSheetVisible(false)
+    setTimeout(() => { setGoalSheetOpen(false); setEditGoal(null) }, 350)
+  }
+  async function handleDeleteGoal() {
+    if (!confirmGoal) return
+    await api.delete(`/api/savings-goals/${confirmGoal.id}`)
+    setConfirmGoal(null); loadGoals()
+  }
 
   function openInvAdd() {
     setEditInv(null); setInvSheetOpen(true)
@@ -1964,8 +2282,17 @@ export default function Budget() {
 
   return (
     <div style={{ animation: 'fadeIn 0.25s ease' }}>
+    <div style={{ position: 'relative' }}>
+      {activeSection === null && (
+        <BudgetSectionGrid data={data} goals={goals} hiddenParts={hiddenParts} setHiddenParts={setHiddenParts} onPick={handlePick} />
+      )}
+      {(activeSection === 'bank' || closingSection === 'bank') && (
+      <div ref={detailRef} style={closingSection === 'bank' ? closingOverlayStyle : undefined}>
       <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
+        <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
+        </span>
         <div className="d-flex align-items-center gap-2">
           <FilterPopup title="금액 가리기"
             trigger={open => (
@@ -2175,10 +2502,16 @@ export default function Budget() {
           </div>
         </div>
       )}
+      </div>
+      )}
 
-      {/* 예·적금 섹션 */}
+      {(activeSection === 'savings' || closingSection === 'savings') && (
+      <div ref={detailRef} style={closingSection === 'savings' ? closingOverlayStyle : undefined}>
       <div id="budget-section-savings" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>예·적금</span>
+        <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>예·적금</span>
+        </span>
         <div className="d-flex align-items-center gap-2">
           <FilterPopup sections={[{
             label: '정렬', options: [['기본', '기본순'], ['만기일순', '만기일순']],
@@ -2254,10 +2587,84 @@ export default function Budget() {
           </div>
         )
       })()}
+      </div>
+      )}
 
-      {/* 투자 섹션 */}
+      {(activeSection === 'goal' || closingSection === 'goal') && (
+      <div ref={detailRef} style={closingSection === 'goal' ? closingOverlayStyle : undefined}>
+      <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
+        <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>🎯 저축 목표</span>
+        </span>
+        <button onClick={openGoalAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+          <i className="bi bi-plus-lg me-1" />목표 추가
+        </button>
+      </div>
+      {goals.length === 0 ? (
+        <div className="card mb-4 text-center">
+          <div className="card-body py-4 text-muted">
+            <i className="bi bi-flag" style={{ fontSize: '2rem' }} />
+            <p className="mt-2 mb-0">등록된 저축 목표가 없습니다</p>
+            <button onClick={openGoalAdd} className="btn btn-sm mt-3" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>목표 추가 →</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} className="mb-4">
+          {goals.map(g => {
+            const pct = g.target_amount > 0 ? Math.min(100, Math.round(g.current_amount / g.target_amount * 100)) : 0
+            const dDay = g.target_date ? Math.ceil((new Date(g.target_date) - new Date(today())) / 86400000) : null
+            return (
+              <div key={g.id} className="card" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
+                <div className="card-body py-3">
+                  <div className="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>{g.name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                        {g.manual ? '직접 입력' : `${g.savings_name} 연결`}
+                        {g.target_date && (
+                          <> · {g.target_date}{dDay !== null && (dDay >= 0 ? ` (D-${dDay})` : ' (기한 지남)')}</>
+                        )}
+                      </div>
+                    </div>
+                    <div className="d-flex align-items-center gap-2">
+                      {g.manual && (
+                        <button onClick={() => setAddAmountGoal(g)} title="금액 추가"
+                          style={{ background: 'rgba(176,136,249,0.12)', border: 'none', borderRadius: 8, width: 28, height: 28, color: '#b088f9', fontSize: '1rem', cursor: 'pointer' }}>+</button>
+                      )}
+                      <button onClick={() => openGoalEdit(g)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <i className="bi bi-pencil" />
+                      </button>
+                      <button onClick={() => setConfirmGoal(g)} style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <i className="bi bi-trash" />
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                    <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(g.current_amount)}원</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`}>/ {fmt(g.target_amount)}원</span> ({pct}%)
+                    </span>
+                  </div>
+                  <div style={{ height: 8, background: 'var(--bg-section)', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: pct >= 100 ? '#198754' : 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 6, transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      </div>
+      )}
+
+      {(activeSection === 'invest' || closingSection === 'invest') && (
+      <div ref={detailRef} style={closingSection === 'invest' ? closingOverlayStyle : undefined}>
       <div id="budget-section-investment" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
-        <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>투자</span>
+        <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>투자</span>
+        </span>
         <div className="d-flex align-items-center gap-2">
           <FilterPopup sections={[
             {
@@ -2361,6 +2768,9 @@ export default function Budget() {
         </>
         )
       })()}
+      </div>
+      )}
+    </div>
 
       <div className="d-lg-none" style={{ height: 90 }} />
 
@@ -2369,6 +2779,8 @@ export default function Budget() {
       <SavingsSheet open={savingsSheetOpen} visible={savingsSheetVisible} onClose={closeSavingsSheet} onSaved={load} editItem={editSavings} />
 
       <InvestmentSheet open={invSheetOpen} visible={invSheetVisible} onClose={closeInvSheet} onSaved={load} editItem={editInv} />
+
+      <GoalSheet open={goalSheetOpen} visible={goalSheetVisible} onClose={closeGoalSheet} onSaved={loadGoals} editItem={editGoal} savingsList={data?.savings || []} />
 
       {confirmCard && (
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
@@ -2422,6 +2834,24 @@ export default function Budget() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmGoal && createPortal(
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-4" style={{ fontSize: '1rem' }}>저축 목표를 삭제하시겠습니까?</p>
+            <div className="d-flex gap-2">
+              <button autoFocus className="btn flex-fill" onClick={handleDeleteGoal} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmGoal(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {addAmountGoal && createPortal(
+        <AddGoalAmountModal goal={addAmountGoal} onClose={() => setAddAmountGoal(null)} onSaved={loadGoals} />,
+        document.body
       )}
 
       {editSheetOpen && createPortal(

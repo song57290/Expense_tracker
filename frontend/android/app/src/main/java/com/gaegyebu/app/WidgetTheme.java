@@ -34,6 +34,25 @@ public class WidgetTheme {
         return 1.0f;
     }
 
+    // 링 그래프(예산/저축 목표 위젯) 크기 — 글자 크기와는 별개로 위젯 인스턴스별로 저장한다.
+    static final String RINGSIZE_PREF_KEY = "widget_ringsize_";
+    static final String RING_SMALL = "small";
+    static final String RING_MEDIUM = "medium";
+    static final String RING_LARGE = "large";
+
+    static String getRingSizePref(SharedPreferences prefs, int widgetId) {
+        return prefs.getString(RINGSIZE_PREF_KEY + widgetId, RING_MEDIUM);
+    }
+
+    // 링 ImageView(fitCenter)에 줄 여백 dp — 여백이 클수록 프레임 안에서 링이 작게 보인다.
+    // 프레임을 벗어나게 키울 순 없으므로(레이아웃 자체를 건드려야 함), '크게'는 여백 0으로
+    // 프레임을 꽉 채우는 최댓값, '작게'는 여백을 넉넉히 둬서 체감 크기를 줄인다.
+    static float ringPaddingDp(String pref) {
+        if (RING_SMALL.equals(pref)) return 20f;
+        if (RING_LARGE.equals(pref)) return 0f;
+        return 8f;
+    }
+
     // 다크 배경용 색상
     static final int D_PRIMARY = 0xFFFFFFFF;   // 흰색 — 어두운/투명 배경에서 가독성 최우선
     static final int D_ACCENT  = 0xFFB088F9;   // 브랜드 보라 — arc/링 등 강조 요소 전용

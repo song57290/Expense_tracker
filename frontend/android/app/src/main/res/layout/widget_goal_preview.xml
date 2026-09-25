@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="#CC2D1B69">
+
+    <!-- 목표 이름 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="제주도 여행"
+        android:textColor="#FFB088F9"
+        android:textSize="11dp"
+        android:textStyle="bold"
+        android:gravity="center_horizontal" />
+
+    <!-- 원형 그래프 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp">
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:src="@drawable/preview_ring"
+            android:scaleType="fitCenter" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="72%"
+                android:textColor="#FFB088F9"
+                android:textSize="18dp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="D-40"
+                android:textColor="#99FFFFFF"
+                android:textSize="9dp" />
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- 진행 금액 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="720,000 / 1,000,000원"
+        android:textColor="#FFB088F9"
+        android:textSize="11dp"
+        android:textStyle="bold"
+        android:gravity="center_horizontal" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="22:31 업데이트"
+        android:textColor="#AAFFFFFF"
+        android:textSize="9dp"
+        android:gravity="end"
+        android:layout_marginTop="2dp" />
+
+</LinearLayout>

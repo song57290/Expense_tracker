@@ -602,5 +602,6 @@ public class MainActivity extends BridgeActivity {
         TodayWidget.updateAll(this);
         PaceWidget.updateAll(this);
         WeeklyWidget.updateAll(this);
+        GoalWidget.updateAll(this);
     }
 }

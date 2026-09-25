@@ -11,4 +11,5 @@
     <string name="widget_desc_today">오늘 지출 TOP 3 카테고리</string>
     <string name="widget_desc_pace">일 평균 지출과 이번달 예상 지출</string>
     <string name="widget_desc_weekly">이번 주 요일별 지출 그래프</string>
+    <string name="widget_desc_goal">저축 목표 진행률</string>
 </resources>

@@ -322,6 +322,12 @@ body.sheet-open .top-fade { display: none !important; }
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+/* 예산 탭 요약 카드를 탭해서 상세 화면으로 들어갈 때 — 카드가 "싸악" 커지면서
+   나타나는 느낌을 주기 위한 확대+페이드인 */
+@keyframes growIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
 /* amt-mask는 항상 붙여두고 amt-hidden으로 블러 유무만 토글한다 — transition이
    amt-hidden 쪽에만 있으면 그 클래스가 빠지는 순간(블러 풀릴 때) 전환 선언 자체가
    같이 사라져서 애니메이션 없이 뚝 끊기듯 원래대로 돌아갔다. */
@@ -498,14 +504,16 @@ body.sheet-open .top-fade { display: none !important; }
 #add-card-form div:has(> .form-control), #add-card-form div:has(> .form-select),
 #edit-card-form div:has(> .form-control), #edit-card-form div:has(> .form-select),
 #savings-form div:has(> .form-control), #savings-form div:has(> .form-select),
-#investment-form div:has(> .form-control), #investment-form div:has(> .form-select) {
+#investment-form div:has(> .form-control), #investment-form div:has(> .form-select),
+#goal-form div:has(> .form-control), #goal-form div:has(> .form-select) {
   margin-left: 4px;
   margin-right: 4px;
 }
 #add-card-form > .form-control, #add-card-form > .form-select,
 #edit-card-form > .form-control, #edit-card-form > .form-select,
 #savings-form > .form-control, #savings-form > .form-select,
-#investment-form > .form-control, #investment-form > .form-select {
+#investment-form > .form-control, #investment-form > .form-select,
+#goal-form > .form-control, #goal-form > .form-select {
   width: calc(100% - 8px);
   margin-left: 4px;
   margin-right: 4px;

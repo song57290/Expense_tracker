@@ -201,6 +201,18 @@ class RoutineItem(db.Model):
     card = db.Column(db.String(50), nullable=True, default='')
     exclude_cashback = db.Column(db.Boolean, nullable=False, default=False)
 
+class SavingsGoal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    target_amount = db.Column(db.Integer, nullable=False, default=0)
+    target_date = db.Column(db.String(10), nullable=True)
+    # 예·적금 계좌에 연결하면 그 계좌 잔액(Savings.amount)이 진행률이 된다(자동) —
+    # 비워두면 manual_amount를 직접 입력/추가해서 진행률을 관리한다(수동).
+    savings_id = db.Column(db.Integer, nullable=True)
+    manual_amount = db.Column(db.Integer, nullable=False, default=0)
+    position = db.Column(db.Integer, nullable=False, default=0)
+
 class Mood(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)

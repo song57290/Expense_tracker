@@ -88,7 +88,7 @@ public class TodayWidget extends BaseWidget {
             float scale = Math.max(0.6f, Math.min(1.3f, Math.min(widthDp / 180f, heightDp / 110f)));
             scale *= WidgetTheme.textScaleMultiplier(WidgetTheme.getTextSizePref(prefs, widgetId));
             // 자동 배율에 '크게' 설정까지 곱해지면 라벨이 겹칠 만큼 커지므로 상한을 다시 건다.
-            scale = Math.min(scale, 1.3f);
+            scale = Math.min(scale, 1.45f);
 
             views.setTextViewTextSize(R.id.today_title, android.util.TypedValue.COMPLEX_UNIT_DIP, 14f * scale);
             views.setTextViewTextSize(R.id.today_date, android.util.TypedValue.COMPLEX_UNIT_DIP, 12f * scale);
