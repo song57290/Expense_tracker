@@ -172,5 +172,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 캘린더 탭 공휴일 표시 — 기기에 동기화된 "대한민국의 공휴일" 캘린더를 읽기 전용으로만 사용 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
 
 </manifest>

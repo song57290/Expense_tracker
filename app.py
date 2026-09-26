@@ -335,9 +335,9 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 128
-    _apk_version_name = 'ver 2.95'
-    _apk_build_date = '2026-09-25'
+    _apk_version_code = 129
+    _apk_version_name = 'ver 2.96'
+    _apk_build_date = '2026-09-26'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
                               'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
