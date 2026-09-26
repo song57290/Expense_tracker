@@ -660,10 +660,19 @@ export default function Calendar() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                <span className="fw-bold" style={{ fontSize: '1rem', color: holidayDates.has(selected) ? 'var(--fc-sun-color)' : 'inherit' }}>{fmtDate(selected)}</span>
-                {holidayDates.has(selected) && (
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--fc-sun-color)' }}>{holidayDates.get(selected)}</span>
-                )}
+                {(() => {
+                  const dow = new Date(`${selected}T00:00:00`).getDay()
+                  const isHoliday = holidayDates.has(selected)
+                  const dateCol = (isHoliday || dow === 0) ? 'var(--fc-sun-color)' : dow === 6 ? 'var(--fc-sat-color)' : 'inherit'
+                  return (
+                    <>
+                      <span className="fw-bold" style={{ fontSize: '1rem', color: dateCol }}>{fmtDate(selected)}</span>
+                      {isHoliday && (
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--fc-sun-color)' }}>{holidayDates.get(selected)}</span>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); openAdd(selected) }, 280) }}
