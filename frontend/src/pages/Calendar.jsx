@@ -139,7 +139,7 @@ export default function Calendar() {
     setSearchParams({ month: yearMonth }, { replace: true })
   }, [yearMonth])
 
-  const [holidayDates, setHolidayDates] = useState(new Set())
+  const [holidayDates, setHolidayDates] = useState(new Map())
   useEffect(() => {
     const [y, m] = yearMonth.split('-').map(Number)
     // 그리드에 걸치는 앞뒤 달의 일부 날짜까지 포함하도록 여유를 둔다
@@ -659,7 +659,12 @@ export default function Calendar() {
           style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', zIndex: 3000, alignItems: 'center', justifyContent: 'center', padding: '0 20px', opacity: selectedVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 420, maxHeight: '72dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', transform: selectedVisible ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(12px)', transition: 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
             <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span className="fw-bold" style={{ fontSize: '1rem' }}>{fmtDate(selected)}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+                <span className="fw-bold" style={{ fontSize: '1rem', color: holidayDates.has(selected) ? 'var(--fc-sun-color)' : 'inherit' }}>{fmtDate(selected)}</span>
+                {holidayDates.has(selected) && (
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--fc-sun-color)' }}>{holidayDates.get(selected)}</span>
+                )}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => { setSelectedVisible(false); setTimeout(() => { setSelected(null); openAdd(selected) }, 280) }}
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', border: 'none', borderRadius: 12, padding: '3px 10px', fontSize: '0.8rem', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
