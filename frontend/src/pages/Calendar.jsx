@@ -10,6 +10,7 @@ import TxItem from '../components/TxItem.jsx'
 import TxListFilter from '../components/TxListFilter.jsx'
 import FilterPopup from '../components/FilterPopup.jsx'
 import { syncWidget } from '../widgetSync.js'
+import { getHolidayDates } from '../holidaySync.js'
 import SwipeItem from '../components/SwipeItem.jsx'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
@@ -136,6 +137,16 @@ export default function Calendar() {
   // 돌아왔을 때 캘린더가 이 컴포넌트를 다시 마운트하면서 이번 달로 리셋되지 않도록.
   useEffect(() => {
     setSearchParams({ month: yearMonth }, { replace: true })
+  }, [yearMonth])
+
+  const [holidayDates, setHolidayDates] = useState(new Set())
+  useEffect(() => {
+    const [y, m] = yearMonth.split('-').map(Number)
+    // 그리드에 걸치는 앞뒤 달의 일부 날짜까지 포함하도록 여유를 둔다
+    const from = new Date(y, m - 1, 1 - 7)
+    const to = new Date(y, m, 0 + 7)
+    const fmtYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    getHolidayDates(fmtYmd(from), fmtYmd(to)).then(setHolidayDates)
   }, [yearMonth])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear())
@@ -360,7 +371,7 @@ export default function Calendar() {
                 else if (incomeCount >= expenseCount) { incDots = 2; expDots = 1 }
                 else { incDots = 1; expDots = 2 }
               }
-              const numCol = dow === 0 ? 'var(--fc-sun-color)' : dow === 6 ? 'var(--fc-sat-color)' : 'var(--text-primary)'
+              const numCol = (dow === 0 || holidayDates.has(ds)) ? 'var(--fc-sun-color)' : dow === 6 ? 'var(--fc-sat-color)' : 'var(--text-primary)'
               return (
                 <>
                   <span style={{ color: numCol }}>{d.getDate()}</span>
