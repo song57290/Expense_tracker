@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { getHolidayDates } from '../holidaySync.js'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i) // 1900~2100
@@ -90,6 +91,15 @@ export default function DatePickerSheet({ value, onChange, error }) {
   const parsed = parseDate(value)
   const [viewY, setViewY] = useState(parsed.y)
   const [viewM, setViewM] = useState(parsed.m)
+  const [holidayDates, setHolidayDates] = useState(new Map())
+
+  useEffect(() => {
+    // 그리드에 걸치는 앞뒤 달의 일부 날짜까지 포함하도록 여유를 둔다
+    const from = new Date(viewY, viewM - 1, 1 - 7)
+    const to = new Date(viewY, viewM, 0 + 7)
+    const fmtYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    getHolidayDates(fmtYmd(from), fmtYmd(to)).then(setHolidayDates)
+  }, [viewY, viewM])
 
   useEffect(() => {
     if (open) {
@@ -169,12 +179,12 @@ export default function DatePickerSheet({ value, onChange, error }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <button type="button" onClick={prevMonth}
-                      style={{ border: 'none', background: 'var(--bg-accent)', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      style={{ border: 'none', background: 'none', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="bi bi-chevron-left" />
                     </button>
                     <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', minWidth: 40, textAlign: 'center' }}>{viewM}월</span>
                     <button type="button" onClick={nextMonth}
-                      style={{ border: 'none', background: 'var(--bg-accent)', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      style={{ border: 'none', background: 'none', width: 32, height: 32, borderRadius: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="bi bi-chevron-right" />
                     </button>
                   </div>
@@ -219,6 +229,7 @@ export default function DatePickerSheet({ value, onChange, error }) {
                     const dateStr = toStr(viewY, viewM, d)
                     const isSel = dateStr === sel
                     const isToday = dateStr === today
+                    const isHoliday = holidayDates.has(dateStr)
                     return (
                       <button key={i} type="button" onClick={() => selectDay(d)} style={{
                         border: 'none', background: 'none', cursor: 'pointer',
@@ -228,7 +239,7 @@ export default function DatePickerSheet({ value, onChange, error }) {
                           width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           background: isSel ? 'linear-gradient(135deg,#b088f9,#7baff0)' : isToday ? 'rgba(176,136,249,0.12)' : 'transparent',
                           fontSize: '0.9rem', fontWeight: isSel || isToday ? 700 : 400, lineHeight: 1,
-                          color: isSel ? 'white' : isToday ? '#b088f9' : dow === 0 ? '#ff3b30' : dow === 6 ? '#007aff' : 'var(--text-primary)',
+                          color: isSel ? 'white' : isToday ? '#b088f9' : (dow === 0 || isHoliday) ? '#ff3b30' : dow === 6 ? '#007aff' : 'var(--text-primary)',
                         }}>
                           {d}
                         </div>

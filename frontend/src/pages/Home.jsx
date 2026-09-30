@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
@@ -79,6 +79,7 @@ export default function Home() {
   const catCollapseRef = useRef(null)
   const addCollapseRef = useRef(null)
   const txCollapseRef = useRef(null)
+  const [txMaxHeight, setTxMaxHeight] = useState(20000)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState('text')
   const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
@@ -98,6 +99,7 @@ export default function Home() {
   const cardLongPressTimer = useRef(null)
   const wasLongPress = useRef(false)
   const amountRef = useRef(null)
+  const addFormActionsRef = useRef(null)
   const [routineSheet, setRoutineSheet] = useState(null)
   const [routineSheetVisible, setRoutineSheetVisible] = useState(false)
   const [routineSheetDrag, setRoutineSheetDrag] = useState(0)
@@ -124,7 +126,6 @@ export default function Home() {
   // 인라인 폼이라, 키보드가 뜰 때 입력창을 뷰포트 하단에 붙일 구조적인
   // 방법이 없다 — 포커스된 동안만 폼 아래에 여백을 더해 키보드에 바짝
   // 붙어 보이지 않게 한다.
-  const [addFormFocused, setAddFormFocused] = useState(false)
   const [transferFrom, setTransferFrom] = useState('')
   const [transferTo, setTransferTo] = useState('')
   const navigate = useNavigate()
@@ -192,6 +193,16 @@ export default function Home() {
   }, [form.type, data])
 
   const getCardColor = useCardColorMap(data?.card_list)
+
+  // 필터를 바꾸면 목록 내용(과 실제 높이)이 바뀌는데, maxHeight를 렌더링 도중
+  // ref.current.scrollHeight로 바로 읽으면 그 시점엔 아직 이전 필터의 DOM이 남아있어
+  // 한 박자 늦은(stale) 값을 쓰게 된다 — 그래서 필터를 바꾼 직후엔 새 내용이 옛
+  // maxHeight에 잘려 보이다가, 한 번 더 리렌더되는 다른 조작(탭 전환 등)을 해야
+  // 뒤늦게 맞는 값으로 갱신됐다. DOM이 실제로 반영된 뒤(커밋 후, 페인트 전)에 실행되는
+  // useLayoutEffect에서 다시 재는 것으로 해결.
+  useLayoutEffect(() => {
+    if (txCollapseRef.current) setTxMaxHeight(txCollapseRef.current.scrollHeight)
+  }, [txOpen, filter, cardFilter, sortAsc, data?.transactions])
 
   if (!data) return null
 
@@ -410,7 +421,7 @@ export default function Home() {
               { label: '지출', color: '#ff3b30', amt: `-${fmt(data.expense_total)}원` },
               { label: '총계', color: data.balance >= 0 ? '#409cff' : '#ff3b30', amt: `${data.balance >= 0 ? '+' : ''}${fmt(data.balance)}원` },
             ].map(({ label, color, amt }) => (
-              <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+              <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px 12px', textAlign: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 }}>{label}</div>
                 <div className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontSize: '0.88rem', fontWeight: 700, color, wordBreak: 'break-all', lineHeight: 1.3 }}>{amt}</div>
               </div>
@@ -545,8 +556,20 @@ export default function Home() {
             </div>
           )}
             <form onSubmit={handleAdd} className="row g-2 mt-1"
-              onFocus={() => setAddFormFocused(true)}
-              onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setAddFormFocused(false) }}>
+              // adjustResize가 레이아웃 뷰포트(window.innerHeight)를 안 줄여주면 키보드는
+              // 그 위에 그냥 겹쳐 그려질 뿐이라 scrollIntoView는 버튼이 이미 "보인다"고
+              // 착각해 아무것도 안 한다 — 키보드에 가려지지 않는 실제 보이는 영역을 아는
+              // window.visualViewport 기준으로 직접 계산해서, 가려진 만큼만 스크롤한다.
+              onFocus={() => setTimeout(() => {
+                const btn = addFormActionsRef.current
+                const vv = window.visualViewport
+                if (!btn || !vv) return
+                const visibleBottom = vv.height + vv.offsetTop
+                const rect = btn.getBoundingClientRect()
+                if (rect.bottom > visibleBottom) {
+                  window.scrollBy({ top: rect.bottom - visibleBottom + 16, behavior: 'smooth' })
+                }
+              }, 300)}>
               <div className="col-6 col-lg-2">
                 <DatePickerSheet value={form.date} onChange={date => setForm(f => ({ ...f, date }))} />
               </div>
@@ -672,7 +695,7 @@ export default function Home() {
                   </div>
                 )
               })()}
-              <div className="col-12 d-flex justify-content-between align-items-center mt-1">
+              <div ref={addFormActionsRef} className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
                   {pendingReceiptFile && <span style={{ background: '#b088f9', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: '0.7rem', fontWeight: 700 }}>사진 ✓</span>}
@@ -684,7 +707,6 @@ export default function Home() {
                 </div>
               </div>
             </form>
-            {addFormFocused && <div style={{ height: 110, transition: 'height 0.2s ease' }} />}
           </div>
         </div>
       </div>
@@ -703,7 +725,7 @@ export default function Home() {
               <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
             </div>
           </div>
-          <div ref={txCollapseRef} className="s-collapse" style={{ maxHeight: txOpen ? (txCollapseRef.current?.scrollHeight || 20000) + 'px' : '0' }}>
+          <div ref={txCollapseRef} className="s-collapse" style={{ maxHeight: txOpen ? txMaxHeight + 'px' : '0' }}>
           {(
             filtered.length === 0 ? (
               <p className="text-muted text-center py-3">내역이 없습니다.</p>

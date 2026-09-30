@@ -1366,7 +1366,7 @@ function GoalSheet({ open, visible, onClose, onSaved, editItem, savingsList }) {
           <h6 className="mb-0 fw-bold">{editItem ? '저축 목표 수정' : '저축 목표 추가'}</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
         </div>
-        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+        <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingTop: 4 }}>
           <form id="goal-form" onSubmit={handleSubmit}>
             <input type="text" className={`form-control${nameError ? ' field-invalid' : ''} mb-1`} placeholder="목표 이름 (예: 여행 자금)"
               value={name} onChange={e => { setName(e.target.value); setNameError(false) }} style={{ borderRadius: 10 }} />
@@ -1621,10 +1621,18 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const [quantityError, setQuantityError] = useState(false)
   const [avgPriceError, setAvgPriceError] = useState(false)
   const [excludeStats, setExcludeStats] = useState(false)
+  const [currentPriceConfirm, setCurrentPriceConfirm] = useState(false)
+  const [currentPriceUnlocked, setCurrentPriceUnlocked] = useState(false)
+  // 국내주식·해외주식·ETF는 거래일이 지나면 서버가 시세를 자동으로 다시 조회해
+  // current_price를 덮어쓴다(app.py _needs_price_update) — 펀드·코인은 그런 자동
+  // 갱신이 없어 직접 입력이 그 항목의 유일한 갱신 수단이므로 잠글 필요가 없다.
+  const autoFetchApplies = ['국내주식', '해외주식', 'ETF'].includes(itype)
+  const currentPriceLocked = autoFetchApplies && !currentPriceUnlocked
 
   useEffect(() => {
     if (!open) return
     setNameError(false); setQuantityError(false); setAvgPriceError(false)
+    setCurrentPriceUnlocked(false); setCurrentPriceConfirm(false)
     if (editItem) {
       setItype(editItem.itype || '국내주식')
       setAccountType(editItem.account_type || '일반')
@@ -1722,7 +1730,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
   const inp = { borderRadius: 10, border: '1.5px solid var(--border-light)', padding: '9px 12px', fontSize: '0.9rem', width: '100%', outline: 'none', background: 'var(--input-bg)', color: 'var(--text-primary)' }
   if (!open) return null
 
-  return createPortal(
+  const sheetEl = createPortal(
     <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px 0', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
@@ -1784,6 +1792,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                 ⚠️ 환율은 실시간이 아닐 수 있어 실제 금액과 차이가 있을 수 있습니다{exchangeRate ? ` (현재 적용 환율: $1 ≈ ${exchangeRate.toLocaleString()}원)` : ''}
               </div>
               <div style={{ marginBottom: 10 }}>
+                <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>평균 매수가</p>
                 <div style={{ position: 'relative' }}>
                   <input type="text" placeholder="평균 매수가" value={usdAvgPrice} inputMode="decimal"
                     onChange={e => {
@@ -1800,20 +1809,25 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                 {avgPriceError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>평균 매수가를 입력해 주세요</div>}
               </div>
               <div style={{ marginBottom: 10 }}>
+                <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>현재가 (선택사항)</p>
                 <div style={{ position: 'relative' }}>
                   <input type="text" placeholder="현재가 (선택사항)" value={usdCurrentPrice} inputMode="decimal"
+                    readOnly={currentPriceLocked}
+                    onFocus={e => { if (currentPriceLocked) { e.target.blur(); setCurrentPriceConfirm(true) } }}
+                    onMouseDown={() => { if (currentPriceLocked) setCurrentPriceConfirm(true) }}
                     onChange={e => {
                       const val = e.target.value.replace(/[^0-9.]/g, '')
                       setUsdCurrentPrice(val)
                       const krw = exchangeRate ? Math.round((parseFloat(val) || 0) * exchangeRate) : 0
                       setCurrentPrice(krw ? krw.toLocaleString('ko-KR') : '')
                     }}
-                    style={{ ...inp, paddingRight: 46 }} />
+                    style={{ ...inp, paddingRight: 46, ...(currentPriceLocked ? { background: 'var(--bg-section)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}) }} />
                   <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>달러</span>
                 </div>
                 {exchangeRate && usdCurrentPrice && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, paddingLeft: 4 }}>({Math.round((parseFloat(usdCurrentPrice) || 0) * exchangeRate).toLocaleString()}원)</div>}
               </div>
             </>) : (<>
+              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>평균 매수가</p>
               <div style={{ position: 'relative', marginBottom: avgPriceError ? 4 : 10 }}>
                 <input type="text" placeholder="평균 매수가" value={avgPrice} inputMode="numeric"
                   onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); const v = r ? parseInt(r).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setAvgPrice(v); setAvgPriceError(false) }}
@@ -1821,10 +1835,14 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
                 <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
               </div>
               {avgPriceError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>평균 매수가를 입력해 주세요</div>}
+              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>현재가 (선택사항)</p>
               <div style={{ position: 'relative', marginBottom: 10 }}>
                 <input type="text" placeholder="현재가 (선택사항)" value={currentPrice} inputMode="numeric"
+                  readOnly={currentPriceLocked}
+                  onFocus={e => { if (currentPriceLocked) { e.target.blur(); setCurrentPriceConfirm(true) } }}
+                  onMouseDown={() => { if (currentPriceLocked) setCurrentPriceConfirm(true) }}
                   onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); const v = r ? parseInt(r).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setCurrentPrice(v) }}
-                  style={{ ...inp, paddingRight: 36 }} />
+                  style={{ ...inp, paddingRight: 36, ...(currentPriceLocked ? { background: 'var(--bg-section)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}) }} />
                 <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
               </div>
             </>)}
@@ -1848,6 +1866,26 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
     </div>,
     document.body
   )
+
+  return <>
+    {sheetEl}
+    {currentPriceConfirm && createPortal(
+      <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2100, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+          <p className="text-center fw-semibold mb-2" style={{ fontSize: '0.95rem' }}>현재가를 직접 수정하시겠어요?</p>
+          <p className="text-center text-muted mb-4" style={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+            현재가는 다음 거래일이 지나면 시장 가격으로 자동 갱신돼요. 지금 직접 입력해도 다음 갱신 때 덮어써질 수 있어요.
+          </p>
+          <div className="d-flex gap-2">
+            <button autoFocus className="btn flex-fill" onClick={() => { setCurrentPriceUnlocked(true); setCurrentPriceConfirm(false) }}
+              style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>그래도 수정</button>
+            <button className="btn btn-outline-secondary flex-fill" onClick={() => setCurrentPriceConfirm(false)} style={{ borderRadius: 10 }}>취소</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+  </>
 }
 
 // 예산 탭 평소 화면 — 은행/예·적금/저축 목표/투자 4개 섹션을 요약 카드 2x2
@@ -1856,6 +1894,8 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem }) {
 // 평소엔 요약만, 필요할 때만 들어가서 보게 바꿨다.
 function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick }) {
   const hideBalance = hiddenParts === 'all' || hiddenParts.includes('balance')
+  const hideSavings = hiddenParts === 'all' || hiddenParts.includes('savings')
+  const hideGoal = hiddenParts === 'all' || hiddenParts.includes('goal')
   const hideInvest = hiddenParts === 'all' || hiddenParts.includes('invest')
   const bankTotal = (data.card_stats || []).filter(c => !c.is_loan).reduce((s, c) => s + c.balance, 0)
   const savingsTotal = (data.savings || []).reduce((s, i) => s + i.current_paid, 0)
@@ -1869,8 +1909,8 @@ function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick })
 
   const tiles = [
     { key: 'bank', icon: '🏦', title: '은행별 잔고', value: `${fmt(bankTotal)}원`, hide: hideBalance, sub: `카드 ${(data.card_stats || []).length}개` },
-    { key: 'savings', icon: '💰', title: '예·적금', value: `${fmt(savingsTotal)}원`, hide: hideInvest, sub: `${(data.savings || []).length}개 가입 중` },
-    { key: 'goal', icon: '🎯', title: '저축 목표', value: goalCount ? `평균 ${goalAvgPct}%` : '없음', hide: false, sub: goalCount ? `${goalCount}개 진행 중` : '목표를 추가해 보세요' },
+    { key: 'savings', icon: '💰', title: '예·적금', value: `${fmt(savingsTotal)}원`, hide: hideSavings, sub: `${(data.savings || []).length}개 가입 중` },
+    { key: 'goal', icon: '🎯', title: '저축 목표', value: goalCount ? `평균 ${goalAvgPct}%` : '없음', hide: hideGoal, sub: goalCount ? `${goalCount}개 진행 중` : '목표를 추가해 보세요' },
     { key: 'invest', icon: '📈', title: '투자', value: `${fmt(invTotal)}원`, hide: hideInvest, sub: `${invPct >= 0 ? '+' : ''}${invPct.toFixed(1)}%`, subColor: invPct >= 0 ? '#198754' : '#dc3545' },
   ]
 
@@ -1892,7 +1932,7 @@ function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick })
           )}
           sections={[{
             label: '가릴 항목', type: 'grid',
-            options: [['balance', '은행별 잔고'], ['invest', '예·적금 · 투자']],
+            options: [['balance', '은행별 잔고'], ['savings', '예·적금'], ['goal', '저축 목표'], ['invest', '투자']],
             value: hiddenParts, onChange: setHiddenParts,
           }]} />
       </div>
@@ -2050,6 +2090,8 @@ export default function Budget() {
   // 기기에서도 배열 메서드 호출 중 죽지 않도록 항상 배열/'all'로 보정한다.
   const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
   const hideBalance = hiddenParts === 'all' || hiddenParts.includes('balance')
+  const hideSavings = hiddenParts === 'all' || hiddenParts.includes('savings')
+  const hideGoal = hiddenParts === 'all' || hiddenParts.includes('goal')
   const hideInvest = hiddenParts === 'all' || hiddenParts.includes('invest')
   const [invFilter, setInvFilter] = useLocalStorageState('budget_inv_filter', 'all')
   const [cardSort, setCardSort] = useLocalStorageState('budget_card_sort', '기본')
@@ -2290,7 +2332,7 @@ export default function Budget() {
       <div ref={detailRef} style={closingSection === 'bank' ? closingOverlayStyle : undefined}>
       <div id="budget-section-cards" className="d-flex align-items-center justify-content-between mb-3 px-1">
         <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
-          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.5rem', WebkitTextStroke: '1px #b088f9', position: 'relative', top: 1.5 }} />
           <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>은행별 잔고</span>
         </span>
         <div className="d-flex align-items-center gap-2">
@@ -2302,7 +2344,7 @@ export default function Budget() {
             )}
             sections={[{
               label: '가릴 항목', type: 'grid',
-              options: [['balance', '은행별 잔고'], ['invest', '예·적금 · 투자']],
+              options: [['balance', '은행별 잔고'], ['savings', '예·적금'], ['goal', '저축 목표'], ['invest', '투자']],
               value: hiddenParts, onChange: setHiddenParts,
             }]} />
           <FilterPopup sections={[{
@@ -2509,7 +2551,7 @@ export default function Budget() {
       <div ref={detailRef} style={closingSection === 'savings' ? closingOverlayStyle : undefined}>
       <div id="budget-section-savings" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
-          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.5rem', WebkitTextStroke: '1px #b088f9', position: 'relative', top: 1.5 }} />
           <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>예·적금</span>
         </span>
         <div className="d-flex align-items-center gap-2">
@@ -2546,7 +2588,7 @@ export default function Budget() {
                 <SavingsItem key={item.id} item={item}
                   onEdit={() => openSavingsEdit(item)}
                   onDelete={() => setConfirmSavings(item)}
-                  onDepositChange={load} dnd={dnd} hideAmounts={hideInvest} />
+                  onDepositChange={load} dnd={dnd} hideAmounts={hideSavings} />
               )} />
           </>
         )
@@ -2566,21 +2608,21 @@ export default function Budget() {
               <div className="d-flex gap-2 mb-2">
                 <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>예금 원금</div>
-                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(depositTotal)}원</div>
+                  <div className={`amt-mask${hideSavings ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(depositTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: 'var(--bg-elevated)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>적금/청약 월 납입액</div>
-                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(installTotal)}원</div>
+                  <div className={`amt-mask${hideSavings ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{fmt(installTotal)}원</div>
                 </div>
               </div>
               <div className="d-flex gap-2">
                 <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginBottom: 3 }}>예상이자 (세후)</div>
-                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
+                  <div className={`amt-mask${hideSavings ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>+{fmt(interestTotal)}원</div>
                 </div>
                 <div style={{ flex: 1, background: 'var(--bg-success-subtle)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.66rem', color: '#aaa', marginBottom: 3 }}>예상만기금액 (세후)</div>
-                  <div className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
+                  <div className={`amt-mask${hideSavings ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#198754' }}>{fmt(maturityTotal)}원</div>
                 </div>
               </div>
             </div>
@@ -2594,7 +2636,7 @@ export default function Budget() {
       <div ref={detailRef} style={closingSection === 'goal' ? closingOverlayStyle : undefined}>
       <div className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
-          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.5rem', WebkitTextStroke: '1px #b088f9', position: 'relative', top: 1.5 }} />
           <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>🎯 저축 목표</span>
         </span>
         <button onClick={openGoalAdd} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, padding: '6px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
@@ -2641,9 +2683,9 @@ export default function Budget() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                    <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(g.current_amount)}원</span>
+                    <span className={`amt-mask${hideGoal ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(g.current_amount)}원</span>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`}>/ {fmt(g.target_amount)}원</span> ({pct}%)
+                      <span className={`amt-mask${hideGoal ? ' amt-hidden' : ''}`}>/ {fmt(g.target_amount)}원</span> ({pct}%)
                     </span>
                   </div>
                   <div style={{ height: 8, background: 'var(--bg-section)', borderRadius: 6, overflow: 'hidden' }}>
@@ -2662,7 +2704,7 @@ export default function Budget() {
       <div ref={detailRef} style={closingSection === 'invest' ? closingOverlayStyle : undefined}>
       <div id="budget-section-investment" className="d-flex align-items-center justify-content-between mb-3 px-1 mt-2">
         <span className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={closeDetail}>
-          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.1rem' }} />
+          <i className="bi bi-chevron-left" style={{ color: '#b088f9', fontSize: '1.5rem', WebkitTextStroke: '1px #b088f9', position: 'relative', top: 1.5 }} />
           <span className="fw-semibold" style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>투자</span>
         </span>
         <div className="d-flex align-items-center gap-2">

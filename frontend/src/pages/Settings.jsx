@@ -373,6 +373,7 @@ export default function Settings() {
   const [portfolioExporting, setPortfolioExporting] = useState(false)
   const [appInfo, setAppInfo] = useState(null)
   const [serverApkInfo, setServerApkInfo] = useState(null)
+  const [puroopApkInfo, setPuroopApkInfo] = useState(null)
   const [pfSections, setPfSections] = useState({ summary: true, asset_composition: true, cards: true, savings: true, investments: true, transactions: false })
   const [pfSheetOpen, setPfSheetOpen] = useState(false)
   const [pfSheetVisible, setPfSheetVisible] = useState(false)
@@ -388,7 +389,7 @@ export default function Settings() {
   const [editHelpId, setEditHelpId] = useState(null)
   const [editHelpForm, setEditHelpForm] = useState({ icon: '', title: '', desc: '' })
 
-  const loadNotices = () => api.get('/api/notices').then(setNotices).catch(() => {})
+  const loadNotices = () => api.get('/api/notices?app=gaegyebu').then(setNotices).catch(() => {})
   const loadHelp = () => api.get('/api/help').then(setHelpItems).catch(() => {})
 
 
@@ -400,6 +401,7 @@ export default function Settings() {
       CapApp.getInfo().then(setAppInfo).catch(() => {})
     }
     fetch('/api/app-version', { credentials: 'same-origin' }).then(r => r.json()).then(setServerApkInfo).catch(() => {})
+    fetch('/api/puroop-version', { credentials: 'same-origin' }).then(r => r.json()).then(setPuroopApkInfo).catch(() => {})
   }, [])
 
   async function saveHelp(id) {
@@ -413,7 +415,7 @@ export default function Settings() {
     e.preventDefault()
     setNoticeSaving(true)
     try {
-      await api.post('/api/notices', noticeForm)
+      await api.post('/api/notices', { ...noticeForm, app: 'gaegyebu' })
       setNoticeForm({ title: '', content: '' })
       setNoticeFormOpen(false)
       loadNotices()
@@ -980,22 +982,30 @@ export default function Settings() {
               최신 APK 다운로드
             </button>
           )}
-          {serverApkInfo?.url && Capacitor.isNativePlatform() && user?.is_admin && (
+        </div>
+      </div>
+
+      {/* 연동 앱 */}
+      {puroopApkInfo?.url && puroopApkInfo.version_code > 0 && (
+        <div className="card mb-3 s-card" style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
+          <div className="card-body">
+            <div className="fw-semibold mb-1" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>연동 앱</div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+              🎯 푸룹(Life OS) — {puroopApkInfo.version_name || '최신 버전'}
+            </p>
             <button type="button" onClick={() => {
-              // v 파라미터를 안 보내면 MainActivity의 "이미 최신 버전이면 재설치
-              // 생략" 로직과 다운로드 재사용 로직이 둘 다 비활성화돼, 실제로 더 새
-              // 버전이 없어도 매번 처음부터 다운로드→설치 확인창까지 테스트할 수 있다.
-              const u = new URL(serverApkInfo.url, window.location.origin)
+              const u = new URL(puroopApkInfo.url, window.location.origin)
+              if (puroopApkInfo.version_code) u.searchParams.set('v', puroopApkInfo.version_code)
               u.searchParams.set('t', Date.now())
               window.location.href = u.href
             }}
-              className="btn w-100 mt-2"
-              style={{ background: 'linear-gradient(135deg,#f0a978,#f0d878)', color: 'white', fontWeight: 700, fontSize: '0.85rem', borderRadius: 10, border: 'none', padding: '9px 0' }}>
-              🧪 업데이트 테스트 (버전 무시, 강제 재설치)
+              className="btn w-100"
+              style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.85rem', borderRadius: 10, border: 'none', padding: '9px 0' }}>
+              푸룹 설치
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="d-lg-none" style={{ height: 90 }} />
 

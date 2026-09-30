@@ -204,7 +204,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return
-    fetch('/api/notices', { credentials: 'same-origin' })
+    fetch('/api/notices?app=gaegyebu', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(notices => {
         if (!notices.length) return

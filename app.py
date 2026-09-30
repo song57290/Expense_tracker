@@ -297,6 +297,7 @@ with app.app_context():
         'ALTER TABLE investment ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE investment ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE "transaction" ADD COLUMN exclude_cashback BOOLEAN NOT NULL DEFAULT 0',
+        "ALTER TABLE notice ADD COLUMN app VARCHAR(20) NOT NULL DEFAULT 'gaegyebu'",
     ]:
         try:
             with db.engine.connect() as conn:
@@ -308,16 +309,19 @@ with app.app_context():
     _seed_user_categories(1)
 
     # seed / upgrade help items
-    _help_version = 'ver2.29'
+    _help_version = 'ver2.96'
     _help_defaults = [
-        ('🏠', '홈', '수입·지출 내역을 기록하고 이번 달 내역을 관리합니다.\n\n• 이번 달 내역만 목록에 표시됩니다\n• 내역 목록은 날짜별로 그룹화되어 표시\n• 항목을 오른쪽으로 스와이프 → 수정 (PC에서는 마우스 드래그)\n• 항목을 왼쪽으로 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 카드/계좌를 지정하면 예산 탭 잔고에 자동 반영\n\n💱 카드 실적 제외\n• 내역 추가·수정 시 지출 항목에 "카드 실적에서 제외" 토글 제공\n• 계좌이체·대출 상환 등 실적에 포함되지 않는 거래에 사용\n• 제외 설정된 거래는 목록에 "실적제외" 배지로 표시\n• 카테고리에서 실적 제외 설정 시 해당 카테고리 내역 추가 시 자동으로 토글이 켜짐\n\n📥 내역 가져오기\n• 문자 붙여넣기: 카드·은행 문자를 붙여넣으면 자동 인식\n• 엑셀 업로드: 양식 다운로드 후 작성하거나 은행 내보내기 파일 바로 업로드\n  - 업로드 후 카테고리 및 카드/계좌 선택 화면으로 이동\n  - 일괄 적용: 지출/수입/카드 전체에 한 번에 지정 가능\n  - 카드 미선택 시 현금/미지정으로 저장\n  - 현금을 별도 추적하려면 예산 탭에서 현금 자산을 먼저 등록\n  - 오류 항목은 별도 표시 → 내용 확인 후 직접 수동 입력'),
-        ('💳', '예산', '카드·은행·현금 잔고와 예적금·투자를 한눈에 확인합니다.\n\n• 자산 추가: 카드/은행 또는 현금 선택 후 등록\n• 초기 잔고: 앱 사용 시작 전 보유 금액 입력\n• 💸 대출·빚 등록: 초기 잔고에 음수(-) 입력 또는 "대출/빚" 유형 선택 → 잔고가 음수로 표시됨\n• 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC에서는 마우스 드래그)\n• 수정 시 색상 구간 설정 가능: 빨강 ≤ / 노랑 ≤ / 파랑 ≤ / 초록 기준을 % 단위로 직접 조정\n\n🔗 연결 계좌 (카드 공유 잔고)\n• 하나의 은행 계좌에 여러 카드를 연결 가능\n• 연결된 카드는 잔고를 계좌와 공유하며, 실적·목표는 카드별로 분리 관리\n• 자산 추가 → "💳 카드/은행" → "연결 계좌" 드롭다운에서 연결할 계좌 선택\n  - 선택 안 하면 독립 계좌로 등록됨\n• 연결된 카드는 해당 계좌 아래 들여쓰기로 표시되며 🔗 배지로 구분\n\n🏦 예금·적금·청약\n• 만기일·이율·납입액 입력 시 이자 자동 계산 (단리/복리·세금 종류 선택)\n• 세금 종류: 일반과세(15.4%) / 세금우대(9.9%) / ISA / 비과세\n  - ISA: 신탁형 ISA 내 예금·적금에 적용 (중개형·일임형은 예금·적금 불가)\n  - ISA 일반형: 비과세 한도 200만원, 초과분 9.9% 분리과세\n  - ISA 서민형: 비과세 한도 400만원, 초과분 9.9% 분리과세\n• 청약도 연 이율·단리/복리·세금 종류 설정 가능 (비과세 기본)\n• 자동이체 등록: 이체일 설정 후 해당 날짜에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 청약 납입일 알림: 납입일(몇 일) 입력 시 매월 해당 날짜 오전 9시에 푸시 알림 자동 발송 (알림 ON 필요)\n• 청약 추가 입금: 청약 카드에서 추가 입금 내역 기록, 잔고에 자동 합산\n• ✏ 납입 회차 수동 설정: 청약 카드에서 현재 납입 회차를 직접 수정 가능 (수동 설정 시 보라색 "수동" 표시)\n• ⏸ 일시정지: 청약·적금 카드에서 납입 일시정지 — 일시정지 중에는 자동이체 팝업과 고정 지출에서 자동 제외\n• 🎁 정부 지원금: 청년도약계좌 등 월 정부 지원금 등록 시 만기 수령액에 자동 합산 (비과세 처리)\n\n📈 투자\n• 종목·수량·매수가 입력, 티커로 현재가 자동 조회\n• 해외주식은 달러($) 기준으로 평단가·현재가 표시\n• 계좌 종류 선택: 일반 / ISA / 연금저축 / IRP → 종목 카드에 배지로 표시'),
-        ('📅', '캘린더', '날짜별 수입·지출을 달력으로 확인합니다.\n\n• 날짜에 보라색 점(지출) / 초록 점(수입) 표시\n• 날짜 클릭 → 해당일 내역 팝업\n• 상단 년/월 클릭 → 원하는 달로 이동\n\n📋 월별 내역 목록\n• 달력 하단에 해당 월 전체 내역이 날짜별로 그룹화되어 표시\n• 전체 / 지출 / 수입 탭으로 필터링 가능\n• 달 이동 시 목록 자동 갱신'),
-        ('📊', '통계', '카테고리별 지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트: 카테고리별 지출 비중 시각화\n• 월별 추이: 지출 / 수입 / 전체 모드 전환 가능\n  - 전체 모드: 수입·지출 막대를 나란히 비교\n  - 날짜 범위 자유 설정, 전체 버튼으로 첫 거래부터 현재까지 한 번에 확인\n• 자산 구성: 현금·예금·적금/청약·투자를 도넛 차트로 표시\n  - 중앙 숫자는 대출 차감 후 순자산\n  - 대출 계좌가 있으면 목록 하단에 빨간색으로 별도 표시\n• 총 자산 추이: 전월 대비 어느 자산이 얼마나 변화했는지 항목별로 확인\n  - 차트 탭 하여 자세히 보기 → 월별 변화액을 클릭하면 카테고리별 세부 변화 표시\n• 월 이동 버튼으로 과거 달 조회 가능\n• 통계에서 제외한 거래·카테고리는 모든 집계에서 자동 제외'),
-        ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n💵 월급 설정\n• 월급 금액·지급일 입력 후 저장\n\n📋 예산 배분\n• "+ 카테고리 추가" 버튼으로 예산 잡을 카테고리만 선택해서 추가\n• 원화(₩)로 직접 입력, 월급 대비 % 자동 표시\n• 합계가 월급을 초과하면 경고 표시\n• 이번 달 실제 지출과 배분 예산을 나란히 비교\n• ⠿ 핸들을 드래그하여 카테고리 순서 변경 가능\n\n🔒 고정 지출\n• 매달 반복되는 지출 항목 등록 (구독, 보험, 관리비 등)\n• 자동 등록 ON: 지정일에 앱 열면 확인 팝업 → 등록 시 거래 자동 기록\n• 자동이체 설정한 적금·청약도 고정 지출 탭에 자동 표시'),
-        ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다.\n(설정 탭 → 카테고리 관리 버튼으로 접근)\n\n• 추가 양식: 이모지·이름·지출수입·저장·취소를 한 줄로 입력\n• 이모지는 선택 사항 (비워도 저장 가능)\n• 왼쪽 핸들(⠿)을 드래그하여 순서 변경 (모바일·PC 모두 지원)\n• 드래그 중에는 수정/삭제 패널이 숨겨집니다\n• 수정 중인 항목은 앞으로 나오는 강조 효과로 표시\n• 항목을 오른쪽으로 스와이프 → 이름/이모지 수정\n• 항목을 왼쪽으로 스와이프 → 삭제\n• 지출/수입 탭 분리 관리\n\n💱 카드 실적 제외\n• 지출 카테고리에 "카드 실적에서 제외" 설정 가능\n• 설정 시 해당 카테고리의 모든 거래가 카드 실적 집계에서 제외됨\n• 계좌이체·대출 상환 전용 카테고리 등에 활용\n• 실적 제외 카테고리는 목록에 "실적제외" 배지로 표시'),
-        ('⚙️', '설정', '앱 환경을 설정합니다.\n\n• 🆕 업데이트 내역: 최근 업데이트 내용을 언제든 다시 확인 (이전 버전 기록도 열람 가능)\n• 공지사항: 앱 업데이트 및 안내 확인\n• 🏷️ 카테고리 관리: 지출·수입 카테고리 추가·수정·삭제·순서 변경\n• 포트폴리오: 자산 현황을 PDF로 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴'),
-        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 버튼 클릭\n• 포함할 항목 선택 후 PDF 출력\n• 미리보기 화면에서 ⬇ PDF 저장 버튼 클릭\n• 모바일: 공유 → 파일로 저장 / PC: 인쇄 → PDF로 저장\n\n자산 구성\n• 현금·예금·적금/청약·투자 항목 포함, 금액 큰 순서대로 정렬\n• 도넛 차트 중앙은 대출 차감 후 순자산 표시\n• 대출 계좌가 있으면 구분선 아래 빨간색으로 별도 표시\n• 이달 수입·지출은 통계에서 제외한 내역을 자동으로 제외\n\n거래내역\n• 기본 비활성화 — 체크 시 최근 30건만 출력'),
+        ('🏠', '홈', '내역을 빠르게 추가하고 이번 달 현황을 확인합니다.\n\n• 항목 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제 (PC는 드래그)\n• 자주 쓰는 지출은 루틴 칩 탭 한 번으로 추가 (루틴 편집은 설정 → 루틴 관리)\n• 카드별 실적바로 이번 달 사용액 확인\n• 우측 상단 눈 아이콘 → 금액 가리기(항목별 선택 가능)\n• 문자 붙여넣기·엑셀 업로드로 내역 한 번에 가져오기'),
+        ('💳', '예산', '은행별 잔고 · 예·적금 · 저축 목표 · 투자를 4개 카드로 보여주고, 탭하면 상세 화면으로 확대됩니다.\n\n• 🎯 저축 목표: 예·적금 계좌에 자동 연동하거나 직접 금액 입력, 목표일 D-day 확인\n• 자산 추가에서 카드/은행·포인트·현금·대출 등록, 대출은 잔고를 음수로 관리\n• 여러 카드를 한 계좌에 연결해 잔고 공유 가능\n• 그리드 상단 눈 아이콘 → 항목별(은행별 잔고/예·적금/저축 목표/투자) 금액 가리기'),
+        ('📅', '캘린더', '날짜별 내역을 달력으로 확인합니다.\n\n• 설날·추석 등 공휴일은 일요일처럼 빨간 글씨로 표시(안드로이드 앱은 폰에 동기화된 공휴일 캘린더 연동, 웹은 자동 계산 — 날짜 눌러서 어떤 공휴일인지도 확인 가능)\n• 날짜를 꾹 눌러 드래그하면 여러 날짜에 같은 내역 한 번에 추가\n• 필터 버튼으로 정렬·통장 잔고 표시·시간 표시·은행/카드별 필터링'),
+        ('📊', '통계', '지출과 자산 흐름을 차트로 분석합니다.\n\n• 도넛 차트 조각을 탭하면 이름·금액·비율이 차트 아래에 표시(나머지 조각은 톤 다운)\n• 월별 추이(수입/지출/전체), 자산 구성, 총 자산 추이, 전월 대비 카테고리 비교\n• 각 섹션 상단 눈 아이콘으로 금액 가리기'),
+        ('💰', '월급', '월급 기준으로 예산을 계획하고 고정 지출을 관리합니다.\n\n• 예산 배분: 카테고리별 월 한도 설정, 80% 이상 지출 시 경고\n• 고정 지출: 구독·보험 등 반복 지출 등록, 자동 등록 ON 시 지정일에 팝업 없이 자동 기록\n• 자동이체 설정한 예·적금·청약도 고정 지출 탭에 자동 표시'),
+        ('🏷️', '카테고리', '지출·수입 카테고리를 관리합니다 (설정 → 카테고리 관리).\n\n• 항목 오른쪽 스와이프 → 수정, 왼쪽 스와이프 → 삭제\n• ⠿ 핸들 드래그로 순서 변경\n• "카드 실적에서 제외" 설정 시 해당 카테고리 내역이 카드 실적 집계에서 자동 제외'),
+        ('📋', '루틴', '자주 쓰는 지출·수입 조합을 저장해두고 홈 탭에서 칩 한 번으로 추가합니다 (설정 → 루틴 관리).\n\n• 여러 카테고리를 묶어 등록, 항목마다 카드·설명을 미리 지정 가능\n• 항목별로 캐시백 제외 등 옵션 미리 설정\n• 최근 반복된 지출은 자동 감지되어 루틴 등록을 추천'),
+        ('🔍', '내역 검색', '상단 네비바 🔍 아이콘에서 키워드로 내역을 검색합니다.\n\n• 카테고리·지출/수입 유형·날짜 범위·금액 범위로 필터링\n• 검색 결과를 탭하면 바로 수정 화면으로 이동'),
+        ('📱', '홈 화면 위젯', '안드로이드 홈 화면에 위젯을 추가해 앱을 안 열어도 현황을 확인합니다.\n\n• 간편 · 예산 · 오늘 지출 · 지출 추이 · 이번 주 · 저축 목표, 총 6종\n• 위젯을 길게 눌러 배경색·글자 크기 조정, 예산/저축 목표 위젯은 그래프 크기도 별도 조정 가능'),
+        ('⚙️', '설정', '앱 환경을 설정합니다.\n\n• 🆕 업데이트 내역: 최근 업데이트 내용과 이전 버전 기록 확인\n• 📋 루틴 관리, 🏷️ 카테고리 관리\n• 포트폴리오 PDF 출력\n• 🔒 보안: 닉네임·비밀번호 변경, 로그아웃, 회원 탈퇴'),
+        ('📄', '포트폴리오 PDF', '나의 자산 현황을 PDF 파일로 저장합니다.\n\n• 설정 → 포트폴리오 PDF 출력 → 포함할 항목 선택 후 출력\n• 자산 구성(대출 차감 순자산), 이달 수입·지출(통계 제외 내역 자동 제외) 포함\n• 거래내역은 선택 시에만 최근 30건 포함'),
     ]
     _help_v_cfg = AppConfig.query.get('help_version')
     if _help_v_cfg is None or _help_v_cfg.value != _help_version:
@@ -569,28 +573,51 @@ def _compute_cashback(uid, card_name, tx_type, amount, exclude=False):
         return int(amount * card.cashback_rate / 100)
     return 0
 
+# 매년 날짜가 고정인 공휴일(월, 일) — frontend/src/holidaySync.js의 FIXED_HOLIDAYS와 동일
+_FIXED_HOLIDAYS_MD = {(1, 1), (3, 1), (5, 5), (6, 6), (8, 15), (10, 3), (10, 9), (12, 25)}
+# 음력 명절 등 연도별 공휴일 — frontend/src/holidaySync.js의 LUNAR_HOLIDAYS_BY_YEAR와 동일하게
+# 유지해야 함(새해가 되면 그 해 날짜 추가 필요)
+_LUNAR_HOLIDAYS_BY_YEAR = {
+    2026: {
+        '2026-02-16', '2026-02-17', '2026-02-18',  # 설날 연휴
+        '2026-03-02',  # 삼일절 대체공휴일
+        '2026-05-24', '2026-05-25',  # 부처님오신날 + 대체공휴일
+        '2026-08-17',  # 광복절 대체공휴일
+        '2026-09-24', '2026-09-25', '2026-09-26',  # 추석 연휴
+        '2026-10-05',  # 개천절 대체공휴일
+    },
+}
+
+def _is_korean_holiday(d):
+    if (d.month, d.day) in _FIXED_HOLIDAYS_MD:
+        return True
+    return d.isoformat() in _LUNAR_HOLIDAYS_BY_YEAR.get(d.year, ())
+
+def _is_business_day(d):
+    return d.weekday() < 5 and not _is_korean_holiday(d)
+
 def _effective_point_reset_date(year, month, day):
-    """The nominal reset day, pulled back to the preceding weekday if it lands on a
-    weekend — matches how most companies actually pay out benefit points."""
+    """The nominal reset day, pulled back to the preceding business day if it lands on a
+    weekend or public holiday — matches how most companies actually pay out benefit points."""
     import calendar as _calendar
     from datetime import date as _date
     day = min(day, _calendar.monthrange(year, month)[1])
     d = _date(year, month, day)
-    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+    while not _is_business_day(d):
         d -= timedelta(days=1)
     return d
 
 def _effective_withdrawal_date(year, month, day, direction='next'):
-    """The nominal auto-transfer day, adjusted off a weekend per the caller's
-    preference — 'next'(default) pushes forward to the next weekday (money being
+    """The nominal auto-transfer day, adjusted off a weekend/public holiday per the caller's
+    preference — 'next'(default) pushes forward to the next business day (money being
     withdrawn typically goes out on the next business day, not early), 'prev' pulls
-    back to the preceding weekday instead, matching the point-reset convention."""
+    back to the preceding business day instead, matching the point-reset convention."""
     import calendar as _calendar
     from datetime import date as _date
     day = min(day, _calendar.monthrange(year, month)[1])
     d = _date(year, month, day)
     step = -1 if direction == 'prev' else 1
-    while d.weekday() >= 5:
+    while not _is_business_day(d):
         d += timedelta(days=step)
     return d
 
@@ -2583,6 +2610,7 @@ def fetch_investment_price():
 
 
 ADMIN_EMAIL = 'song57290@gmail.com'
+NOTICE_APPS = {'gaegyebu', 'puroop'}
 
 @app.route('/api/notices', methods=['GET', 'POST'])
 @login_required
@@ -2596,12 +2624,14 @@ def api_notices():
         data = request.json or {}
         title = (data.get('title') or '').strip()
         content = (data.get('content') or '').strip()
+        app_name = data.get('app') if data.get('app') in NOTICE_APPS else 'gaegyebu'
         if not title or not content:
             return jsonify({'ok': False, 'error': '제목과 내용을 입력하세요'}), 400
-        db.session.add(Notice(user_id=uid, title=title, content=content, created_at=datetime.now()))
+        db.session.add(Notice(user_id=uid, app=app_name, title=title, content=content, created_at=datetime.now()))
         db.session.commit()
         return jsonify({'ok': True})
-    notices = Notice.query.order_by(Notice.created_at.desc()).all()
+    app_filter = request.args.get('app') if request.args.get('app') in NOTICE_APPS else 'gaegyebu'
+    notices = Notice.query.filter_by(app=app_filter).order_by(Notice.created_at.desc()).all()
     return jsonify([{
         'id': n.id, 'title': n.title, 'content': n.content,
         'created_at': n.created_at.strftime('%Y.%m.%d'),
@@ -2802,7 +2832,9 @@ def api_pending_registers():
         if not atd:
             continue
         effective = _effective_withdrawal_date(today.year, today.month, atd, getattr(s, 'weekend_adjust', 'next') or 'next')
-        if today.date() != effective:
+        # 정확히 그 날에만 뜨면 그날 앱을 안 열었을 때 영영 놓쳐버린다 — 이미 등록된
+        # 거래가 없는 한 그 날짜가 지난 뒤에도(이번 달 안에서는) 계속 띄워준다.
+        if today.date() < effective:
             continue
         desc = f'[자동이체] {s.name}'
         already = Transaction.query.filter_by(user_id=uid).filter(
@@ -2937,6 +2969,58 @@ def download_latest_apk():
     # 받았던 구버전 바이트를 그대로 재사용해버리는 문제가 있었다(index.html에서
     # 이미 한 번 겪었던 것과 같은 종류의 캐싱 버그) — 강하게 캐시를 금지해 항상
     # 지금 releases/gaegyebu-latest.apk의 실제 내용을 새로 받도록 한다.
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
+# ─── 푸룹(Life OS) APK 배포 ────────────────────────────────────────────────────
+# 가계부와 같은 서버에서 푸룹 APK도 함께 호스팅 — 배포 방식은 위 gaegyebu APK와 동일
+# (releases/puroop-latest.apk에 EAS 프로덕션 빌드 결과물을 올려두고 fly deploy).
+@app.route('/api/puroop-version', methods=['GET'])
+def api_puroop_version_get():
+    config = AppConfig.query.get('puroop_apk_version')
+    if config:
+        return jsonify(json.loads(config.value))
+    return jsonify({'version_code': 0, 'version_name': '', 'url': ''})
+
+@app.route('/api/puroop-version', methods=['PUT'])
+@login_required
+def api_puroop_version_put():
+    u = User.query.get(session['user_id'])
+    if u.email != ADMIN_EMAIL:
+        return jsonify({'error': 'Forbidden'}), 403
+    data = request.get_json() or {}
+    value = {
+        'version_code': int(data.get('version_code', 0)),
+        'version_name': data.get('version_name', ''),
+        'url': '/download/puroop-latest.apk',
+    }
+    config = AppConfig.query.get('puroop_apk_version')
+    if config:
+        config.value = json.dumps(value, ensure_ascii=False)
+    else:
+        db.session.add(AppConfig(key='puroop_apk_version', value=json.dumps(value, ensure_ascii=False)))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/download/puroop-latest.apk')
+def download_latest_puroop_apk():
+    releases_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'releases')
+    fname = 'puroop.apk'
+    cfg = AppConfig.query.get('puroop_apk_version')
+    if cfg:
+        info = json.loads(cfg.value)
+        vname = (info.get('version_name') or '').replace('ver', 'v').replace(' ', '')
+        vcode = info.get('version_code')
+        bcode = f'build{vcode}' if vcode else ''
+        bdate = (info.get('build_date') or '').replace('-', '')
+        parts = [p for p in (vname, bcode, bdate) if p]
+        if parts:
+            fname = 'puroop_' + '_'.join(parts) + '.apk'
+    resp = send_from_directory(releases_dir, 'puroop-latest.apk', as_attachment=True,
+                                download_name=fname, mimetype='application/vnd.android.package-archive',
+                                conditional=False, last_modified=False, etag=False)
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
