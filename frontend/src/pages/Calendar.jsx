@@ -668,7 +668,7 @@ export default function Calendar() {
                     <>
                       <span className="fw-bold" style={{ fontSize: '1rem', color: dateCol }}>{fmtDate(selected)}</span>
                       {isHoliday && (
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--fc-sun-color)' }}>{holidayDates.get(selected)}</span>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--fc-sun-color)' }}>{holidayDates.get(selected)}</span>
                       )}
                     </>
                   )

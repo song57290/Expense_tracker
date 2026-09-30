@@ -106,6 +106,7 @@ class Savings(db.Model):
 class Notice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=True)
+    app = db.Column(db.String(20), nullable=False, default='gaegyebu')
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)

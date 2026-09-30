@@ -15,6 +15,7 @@ export default function UpdateNoticeModal() {
   const [visible, setVisible] = useState(false)
   const [config, setConfig] = useState({ version: CURRENT_VERSION, date: UPDATE_DATE, updates: UPDATES })
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [expandedVersion, setExpandedVersion] = useState(null)
   const [user, setUser] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ version: '', date: '', updates: '' })
@@ -263,36 +264,51 @@ export default function UpdateNoticeModal() {
                 <span>이전 버전 기록</span>
                 <span style={{ fontSize: '0.7rem', transition: 'transform 0.2s', transform: historyOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
               </button>
-              {historyOpen && VERSION_HISTORY.map(hist => (
-                <div key={hist.version} style={{ marginTop: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px', marginBottom: 8 }}>
-                    <div style={{ background: 'var(--bg-accent)', color: '#b088f9', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{hist.version}</div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{hist.date}</div>
-                  </div>
-                  {hist.updates.map(sec => (
-                    <div key={sec.section} style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 14, marginBottom: 8, overflow: 'hidden', opacity: 0.85 }}>
-                      <div style={{ padding: '8px 14px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                        {sec.section}
+              {historyOpen && VERSION_HISTORY.map(hist => {
+                const isExpanded = expandedVersion === hist.version
+                const itemCount = hist.updates.reduce((s, sec) => s + sec.items.length, 0)
+                return (
+                  <div key={hist.version} style={{ marginTop: 8 }}>
+                    <button
+                      onClick={() => setExpandedVersion(v => v === hist.version ? null : hist.version)}
+                      style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 10, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ background: 'var(--bg-accent)', color: '#b088f9', fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{hist.version}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{hist.date}</div>
+                        <div style={{ fontSize: '0.66rem', color: 'var(--text-faint)' }}>{itemCount}건</div>
                       </div>
-                      {sec.items.map((item, i) => {
-                        const t = TAG_STYLE[item.tag] || TAG_STYLE.imp
-                        return (
-                          <div key={i} style={{ padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 9, borderBottom: i < sec.items.length - 1 ? '1px solid var(--bg-section)' : 'none' }}>
-                            <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd8ee', marginTop: 6, flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{item.title}</div>
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.desc}</div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+                    </button>
+                    {isExpanded && (
+                      <div style={{ marginTop: 8 }}>
+                        {hist.updates.map(sec => (
+                          <div key={sec.section} style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 14, marginBottom: 8, overflow: 'hidden', opacity: 0.85 }}>
+                            <div style={{ padding: '8px 14px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                              {sec.section}
                             </div>
-                            <div style={{ background: t.bg, color: t.color, fontSize: '0.6rem', fontWeight: 700, padding: '2px 5px', borderRadius: 5, flexShrink: 0, marginTop: 2, opacity: 0.8 }}>
-                              {t.label}
-                            </div>
+                            {sec.items.map((item, i) => {
+                              const t = TAG_STYLE[item.tag] || TAG_STYLE.imp
+                              return (
+                                <div key={i} style={{ padding: '9px 14px', display: 'flex', alignItems: 'flex-start', gap: 9, borderBottom: i < sec.items.length - 1 ? '1px solid var(--bg-section)' : 'none' }}>
+                                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#ddd8ee', marginTop: 6, flexShrink: 0 }} />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{item.title}</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.desc}</div>
+                                  </div>
+                                  <div style={{ background: t.bg, color: t.color, fontSize: '0.6rem', fontWeight: 700, padding: '2px 5px', borderRadius: 5, flexShrink: 0, marginTop: 2, opacity: 0.8 }}>
+                                    {t.label}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
-                        )
-                      })}
-                    </div>
-                  ))}
-                </div>
-              ))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
