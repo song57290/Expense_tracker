@@ -34,6 +34,14 @@ public class MainActivity extends BridgeActivity {
     private static final String PREF_INSTALL_ATTEMPT_AT = "install_attempt_at";
     private static final String PREF_PENDING_APK_STARTED_AT = "pending_apk_started_at";
     private static final String PREF_PENDING_APK_VERSION = "pending_apk_version";
+    // 이 설치 플로우는 원래 가계부 자기 자신을 업데이트하는 용도로만 짜여있어서
+    // 버전 비교가 항상 getPackageName()(자기 자신)만 봤다 — 이제 설정 탭에서 푸룹
+    // 같은 "다른 앱" 설치 링크도 같은 다운로드→설치 경로를 타게 되면서, 어떤 패키지를
+    // 설치하는 중인지 기억해뒀다가 그 패키지의 설치된 버전과 비교해야 한다(자기 자신
+    // 기준으로 비교하면 "이미 최신"으로 잘못 판단해 설치를 건너뛰어버림).
+    private static final String PREF_PENDING_APK_PACKAGE = "pending_apk_package";
+    private static final String PREF_INSTALL_ATTEMPT_PACKAGE = "install_attempt_package";
+    private static final String PUROOP_PACKAGE = "com.song57290.lifeos";
     private static final String PREF_INSTALL_RETRY_COUNT = "install_retry_count";
     // 직전 시도의 최종 상태 브로드캐스트가 새 시도를 시작한 뒤에야 뒤늦게 도착하면
     // (테스트를 연달아 할 때 특히) 그 낡은 값이 지금 진행 중인 시도의 결과인 것처럼
@@ -234,13 +242,16 @@ public class MainActivity extends BridgeActivity {
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
             request.setMimeType("application/vnd.android.package-archive");
             long downloadId = dm.enqueue(request);
-            getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE).edit()
+            String targetPackage = targetPackageForUrl(url);
+            SharedPreferences.Editor ed = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE).edit()
                     .putLong(PREF_PENDING_APK_ID, downloadId)
                     .putString(PREF_PENDING_APK_FILE, fileName)
                     .putString(PREF_PENDING_APK_VERSION, versionParam(url))
                     .putLong(PREF_PENDING_APK_STARTED_AT, System.currentTimeMillis())
-                    .remove(PREF_INSTALL_RETRY_COUNT)
-                    .apply();
+                    .remove(PREF_INSTALL_RETRY_COUNT);
+            if (targetPackage != null) ed.putString(PREF_PENDING_APK_PACKAGE, targetPackage);
+            else ed.remove(PREF_PENDING_APK_PACKAGE);
+            ed.apply();
         } catch (Exception e) {
             Log.e("MainActivity", "Failed to start APK download", e);
         }
@@ -273,13 +284,14 @@ public class MainActivity extends BridgeActivity {
             // 차단 판정 후 재시도(설정에서 돌아왔을 때 등)를 걸기 전에, 사실 직전 설치가
             // 느리게라도 이미 성공했는지부터 확인한다 — 아니면 이미 최신인데도 확인창을
             // 또 띄워버린다(뒤로 돌아왔을 때 업데이트 다이얼로그가 두 번 뜨던 원인).
+            String pendingPackage = prefs.getString(PREF_PENDING_APK_PACKAGE, null);
             String pendingVersionStr = prefs.getString(PREF_PENDING_APK_VERSION, null);
             if (pendingVersionStr != null) {
                 try {
-                    if (currentVersionCode() >= Integer.parseInt(pendingVersionStr)) {
+                    if (versionCodeOf(pendingPackage) >= Integer.parseInt(pendingVersionStr)) {
                         Log.d("MainActivity", "installDownloadedApk: already up to date, skipping reinstall");
                         clearPendingDownload(prefs);
-                        Toast.makeText(this, "업데이트 완료!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "이미 최신 버전입니다", Toast.LENGTH_SHORT).show();
                         return;
                     }
                 } catch (NumberFormatException ignored) {}
@@ -296,9 +308,13 @@ public class MainActivity extends BridgeActivity {
                 Log.d("MainActivity", "installDownloadedApk: file not ready yet, " + file.getAbsolutePath());
                 return;
             }
-            prefs.edit().putInt(PREF_INSTALL_ATTEMPT_VERSION, currentVersionCode())
+            SharedPreferences.Editor attemptEd = prefs.edit()
+                    .putInt(PREF_INSTALL_ATTEMPT_VERSION, versionCodeOf(pendingPackage))
                     .putLong(PREF_INSTALL_ATTEMPT_AT, System.currentTimeMillis())
-                    .remove(PREF_LAST_INSTALL_STATUS).apply();
+                    .remove(PREF_LAST_INSTALL_STATUS);
+            if (pendingPackage != null) attemptEd.putString(PREF_INSTALL_ATTEMPT_PACKAGE, pendingPackage);
+            else attemptEd.remove(PREF_INSTALL_ATTEMPT_PACKAGE);
+            attemptEd.apply();
 
             PackageInstaller installer = getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params =
@@ -338,6 +354,7 @@ public class MainActivity extends BridgeActivity {
         prefs.edit()
                 .remove(PREF_INSTALL_ATTEMPT_VERSION)
                 .remove(PREF_INSTALL_ATTEMPT_AT)
+                .remove(PREF_INSTALL_ATTEMPT_PACKAGE)
                 .remove(PREF_LAST_INSTALL_RESULT)
                 .remove(PREF_LAST_INSTALL_STATUS)
                 .apply();
@@ -353,16 +370,28 @@ public class MainActivity extends BridgeActivity {
         }
         prefs.edit().remove(PREF_PENDING_APK_ID).remove(PREF_PENDING_APK_FILE)
                 .remove(PREF_PENDING_APK_STARTED_AT).remove(PREF_PENDING_APK_VERSION)
+                .remove(PREF_PENDING_APK_PACKAGE)
                 .remove(PREF_INSTALL_RETRY_COUNT).remove(PREF_ACTIVE_SESSION_ID)
                 .remove(PREF_USER_CONFIRMED_INSTALL).remove(PREF_AWAITING_SETTINGS_RETURN).apply();
     }
 
-    private int currentVersionCode() {
+    // pkg가 null이면(=이미 저장된 pending 기록이 없던 옛날 값이거나 자기 자신) 자기
+    // 자신으로 취급 — 이 앱이 나오기 전(패키지 구분 도입 전) 저장된 값과도 호환.
+    // 대상 앱이 아직 설치조차 안 돼 있으면(푸룹 최초 설치) -1을 돌려줘, 어떤 버전과
+    // 비교해도 "이미 최신"으로 오판하지 않고 항상 설치를 진행하게 된다.
+    private int versionCodeOf(String pkg) {
         try {
-            return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+            return getPackageManager().getPackageInfo(pkg != null ? pkg : getPackageName(), 0).versionCode;
         } catch (Exception e) {
             return -1;
         }
+    }
+
+    // 다운로드 URL로 이 설치가 가계부 자기 자신인지 다른 앱(푸룹 등)인지 구분한다.
+    // 새 연동 앱이 늘어나면 여기 분기만 추가하면 된다.
+    private static String targetPackageForUrl(String url) {
+        if (url != null && url.contains("puroop")) return PUROOP_PACKAGE;
+        return null; // null = 가계부 자기 자신
     }
 
     // STATUS_SUCCESS/STATUS_FAILURE_BLOCKED/STATUS_FAILURE_ABORTED 값 그대로
@@ -385,23 +414,25 @@ public class MainActivity extends BridgeActivity {
         SharedPreferences prefs = getSharedPreferences(WIDGET_PREFS, MODE_PRIVATE);
         if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return false;
         int versionBefore = prefs.getInt(PREF_INSTALL_ATTEMPT_VERSION, -1);
-        if (currentVersionCode() != versionBefore) {
+        String attemptPackage = prefs.getString(PREF_INSTALL_ATTEMPT_PACKAGE, null);
+        if (versionCodeOf(attemptPackage) != versionBefore) {
             // 설치 성공 — 더 이상 필요 없는 다운로드 기록·파일 정리
             prefs.edit().remove(PREF_INSTALL_ATTEMPT_VERSION).remove(PREF_INSTALL_ATTEMPT_AT)
+                    .remove(PREF_INSTALL_ATTEMPT_PACKAGE)
                     .remove(PREF_LAST_INSTALL_RESULT).remove(PREF_LAST_INSTALL_STATUS).apply();
             clearPendingDownload(prefs);
             Toast.makeText(this, "업데이트 완료!", Toast.LENGTH_SHORT).show();
             return false;
         }
-        resolveInstallOutcome(prefs, versionBefore, 0);
+        resolveInstallOutcome(prefs, versionBefore, attemptPackage, 0);
         return true;
     }
 
-    private void resolveInstallOutcome(SharedPreferences prefs, int versionBefore, int graceRound) {
+    private void resolveInstallOutcome(SharedPreferences prefs, int versionBefore, String attemptPackage, int graceRound) {
         if (!prefs.contains(PREF_INSTALL_ATTEMPT_VERSION)) return;
 
         // 업데이트 성공
-        if (currentVersionCode() != versionBefore) {
+        if (versionCodeOf(attemptPackage) != versionBefore) {
             clearInstallAttempt(prefs);
             clearPendingDownload(prefs);
             Toast.makeText(this, "업데이트 완료!", Toast.LENGTH_SHORT).show();
@@ -416,6 +447,7 @@ public class MainActivity extends BridgeActivity {
                                 () -> resolveInstallOutcome(
                                         prefs,
                                         versionBefore,
+                                        attemptPackage,
                                         graceRound + 1
                                 ),
                                 INSTALL_OUTCOME_GRACE_MS

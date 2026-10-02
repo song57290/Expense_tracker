@@ -30,11 +30,14 @@ export default function Edit() {
   const [typeSheetDrag, setTypeSheetDrag] = useState(0)
   const typeSheetTouchStartY = useRef(null)
   const receiptInputRef = useRef(null)
+  const [pointOverspend, setPointOverspend] = useState(null) // { card, amount, available, payload }
+  const [overspendStep, setOverspendStep] = useState('warn') // 'warn' | 'pick'
+  const [overspendCardChoice, setOverspendCardChoice] = useState('')
 
   useEffect(() => {
-    document.body.classList.toggle('sheet-open', deleteConfirm || photoViewer || typeSheet)
+    document.body.classList.toggle('sheet-open', deleteConfirm || photoViewer || typeSheet || !!pointOverspend)
     return () => document.body.classList.remove('sheet-open')
-  }, [deleteConfirm, photoViewer, typeSheet])
+  }, [deleteConfirm, photoViewer, typeSheet, pointOverspend])
 
   function openTypeSheet() {
     setTypeSheet(true)
@@ -60,7 +63,7 @@ export default function Edit() {
   }
   function selectType(newType) {
     const newCats = newType === 'expense' ? data.expense_cats : data.income_cats
-    setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false, exclude_cashback: false }))
+    setForm(f => ({ ...f, type: newType, category: newCats[0]?.[0] || '', exclude_perf: false, exclude_cashback: false, cashback_manual: false, cashback_amount: '', point_pool: '' }))
     closeTypeSheet()
   }
 
@@ -68,7 +71,7 @@ export default function Edit() {
     api.get(`/api/transactions/${id}`).then(d => {
       setData(d)
       const desc = d.transaction.description || ''
-      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: desc, card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false, exclude_stats: d.transaction.exclude_stats || false, exclude_cashback: d.transaction.exclude_cashback || false })
+      setForm({ date: d.transaction.date, type: d.transaction.type, category: d.transaction.category, amount: d.transaction.amount, description: desc, card: d.transaction.card || '', exclude_perf: d.transaction.exclude_perf || false, exclude_stats: d.transaction.exclude_stats || false, exclude_cashback: d.transaction.exclude_cashback || false, cashback_manual: d.transaction.cashback_manual || false, cashback_amount: d.transaction.cashback_manual ? Number(d.transaction.cashback).toLocaleString('ko-KR') : '', point_pool: d.transaction.point_pool || '' })
       setAmountDisplay(Number(d.transaction.amount).toLocaleString('ko-KR'))
       if (d.transaction.category === '계좌 이체' && desc.includes(' → ')) {
         const [from, to] = desc.split(' → ')
@@ -101,7 +104,41 @@ export default function Edit() {
     setCardError(!cardOk)
     if (!amt || !cardOk) return
     if (!form.category) return
-    await api.put(`/api/transactions/${id}`, { ...form, amount: amt })
+    const payload = { ...form, amount: amt, cashback_amount: parseInt(form.cashback_amount.replace(/,/g, '')) || 0 }
+
+    // 포인트는 마이너스가 될 수 없다 — 남은 포인트보다 많이 쓰게 고치려고 하면 경고부터.
+    // 이 거래가 이미 같은 포인트 카드 지출이었다면, 화면에 보이는 잔고는 그 원래
+    // 금액만큼 이미 빠진 상태이므로 원래 금액만큼 다시 더해서 "이 수정에 실제로
+    // 쓸 수 있는 금액"을 구해야 한다.
+    if (form.type === 'expense' && !isAccountTransfer) {
+      const selectedCard = data.card_list.find(c => c.name === form.card)
+      if (selectedCard?.point_reset_day && selectedCard.balance != null) {
+        const sameCard = data.transaction.card === form.card && data.transaction.type === 'expense'
+        const available = selectedCard.balance + (sameCard ? data.transaction.amount : 0)
+        if (amt > available) {
+          setPointOverspend({ card: selectedCard, amount: amt, available, payload })
+          setOverspendStep('warn')
+          setOverspendCardChoice('')
+          return
+        }
+      }
+    }
+
+    await api.put(`/api/transactions/${id}`, payload)
+    syncWidget()
+    navigate(-1)
+  }
+
+  async function confirmOverspendWithLinkedCard() {
+    if (!pointOverspend || !overspendCardChoice) return
+    const { payload, amount, available } = pointOverspend
+    const overage = amount - available
+    if (available > 0) {
+      await api.put(`/api/transactions/${id}`, { ...payload, amount: available })
+    } else {
+      await api.delete(`/api/transactions/${id}`)
+    }
+    await api.post('/api/transactions', { ...payload, amount: overage, card: overspendCardChoice, point_pool: '' })
     syncWidget()
     navigate(-1)
   }
@@ -203,7 +240,7 @@ export default function Edit() {
               <CardPicker
                 cards={data.card_list.filter(c => !c.is_loan)}
                 value={form.card}
-                onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
+                onChange={name => { setForm(f => ({ ...f, card: name, point_pool: '' })); setCardError(false) }}
                 error={cardError}
               />
               {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드/계좌를 선택해 주세요</div>}
@@ -240,6 +277,43 @@ export default function Edit() {
                   <div className="ios-toggle">
                     <div className={`ios-track${form.exclude_cashback ? ' on' : ''}`} />
                     <div className={`ios-dot${form.exclude_cashback ? ' on' : ''}`} />
+                  </div>
+                </div>
+              )
+            })()}
+            {form.card && (form.type === 'expense' || form.type === 'income') && (
+              <div className="mb-3">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 0' }}
+                  onClick={() => setForm(f => ({ ...f, cashback_manual: !f.cashback_manual }))}>
+                  <label style={{ flex: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, margin: 0, color: 'var(--text-secondary)' }}>✏️ 캐시백 금액 직접 입력</label>
+                  <div className="ios-toggle">
+                    <div className={`ios-track${form.cashback_manual ? ' on' : ''}`} />
+                    <div className={`ios-dot${form.cashback_manual ? ' on' : ''}`} />
+                  </div>
+                </div>
+                {form.cashback_manual && (
+                  <div style={{ position: 'relative' }}>
+                    <input type="text" inputMode="numeric" className="form-control" placeholder="캐시백 금액" style={{ borderRadius: 10, paddingRight: 36 }}
+                      value={form.cashback_amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; setForm(f => ({ ...f, cashback_amount: v })) }} />
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                  </div>
+                )}
+              </div>
+            )}
+            {(() => {
+              const selectedCard = data.card_list.find(c => c.name === form.card)
+              const isPointWithCarryover = form.type === 'expense' && selectedCard?.point_reset_day && selectedCard.point_carryover > 0
+              return isPointWithCarryover && (
+                <div className="mb-3" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 12, background: 'rgba(176,136,249,0.08)', border: '1px solid rgba(176,136,249,0.18)' }}
+                  onClick={() => setForm(f => ({ ...f, point_pool: f.point_pool === 'carryover' ? '' : 'carryover' }))}>
+                  <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0 }}>🎁</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>전환된 포인트에서 차감</div>
+                    <div style={{ fontSize: '0.72rem', color: '#b088f9', fontWeight: 600, marginTop: 2 }}>전환 가능 {Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원</div>
+                  </div>
+                  <div className="ios-toggle">
+                    <div className={`ios-track${form.point_pool === 'carryover' ? ' on' : ''}`} />
+                    <div className={`ios-dot${form.point_pool === 'carryover' ? ' on' : ''}`} />
                   </div>
                 </div>
               )
@@ -310,6 +384,49 @@ export default function Edit() {
               style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', border: 'none', borderRadius: '50%', width: 30, height: 30, color: 'white', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>✕</button>
             <img src={receiptUrl} alt="사진 보기"
               style={{ display: 'block', maxWidth: '92vw', maxHeight: '78dvh', objectFit: 'contain' }} />
+          </div>
+        </div>
+      )}
+
+      {pointOverspend && overspendStep === 'warn' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', textAlign: 'center' }}>포인트는 마이너스가 될 수 없어요</div>
+            </div>
+            <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                {pointOverspend.card.name}에 남은 포인트는 {pointOverspend.available.toLocaleString('ko-KR')}원인데 {pointOverspend.amount.toLocaleString('ko-KR')}원을 쓰려고 하고 있어요.
+              </div>
+            </div>
+            <div style={{ padding: '0 16px 18px', display: 'flex', gap: 8 }}>
+              <button autoFocus onClick={() => setOverspendStep('pick')} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer' }}>그래도 추가</button>
+              <button onClick={() => setPointOverspend(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>취소하고 다시 작성</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pointOverspend && overspendStep === 'pick' && (
+        // CardPicker가 자기 바텀시트를 zIndex 5000으로 띄우므로, 그 위에 이 모달이
+        // 덮어버리지 않도록 이 단계만 그보다 낮게 둔다 (경고 단계는 CardPicker가
+        // 없으니 그대로 10000 유지).
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 4800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 320, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', textAlign: 'center' }}>차액을 낼 카드/계좌</div>
+            </div>
+            <div style={{ padding: '16px 20px 10px' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 12 }}>
+                부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드나 계좌를 골라주세요.
+              </div>
+              <CardPicker cards={data.card_list.filter(c => c.name !== pointOverspend.card.name && !c.point_reset_day)}
+                value={overspendCardChoice} onChange={setOverspendCardChoice} placeholder="카드/계좌 선택" />
+            </div>
+            <div style={{ padding: '18px 16px 18px', display: 'flex', gap: 8 }}>
+              <button disabled={!overspendCardChoice} onClick={confirmOverspendWithLinkedCard} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', opacity: overspendCardChoice ? 1 : 0.5 }}>확인</button>
+              <button onClick={() => setPointOverspend(null)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--border-light)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>취소</button>
+            </div>
           </div>
         </div>
       )}

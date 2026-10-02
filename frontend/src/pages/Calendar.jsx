@@ -54,17 +54,17 @@ export default function Calendar() {
   const [selected, setSelected] = useState(null)
   const [confirmSheet, setConfirmSheet] = useState(null)
   const [selectedVisible, setSelectedVisible] = useState(false)
-  const [txFilter, setTxFilter] = useState('all')
-  const [txSortAsc, setTxSortAsc] = useState(true)
-  const [showBalance, setShowBalance] = useState(true)
-  const [showTime, setShowTime] = useState(true)
+  const [txFilter, setTxFilter] = useLocalStorageState('calendar_tx_filter', 'all')
+  const [txSortAsc, setTxSortAsc] = useLocalStorageState('calendar_tx_sort_asc', true)
+  const [showBalance, setShowBalance] = useLocalStorageState('calendar_show_balance', true)
+  const [showTime, setShowTime] = useLocalStorageState('calendar_show_time', true)
   // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
   const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_calendar', [])
   // 예전 버전엔 이 키에 단순 boolean을 저장했다 — 남아있어도 안 죽게 보정
   const hiddenParts = hiddenPartsRaw === 'all' ? 'all' : Array.isArray(hiddenPartsRaw) ? hiddenPartsRaw : (hiddenPartsRaw ? 'all' : [])
   const hideSummary = hiddenParts === 'all' || hiddenParts.includes('summary')
   const hideTx = hiddenParts === 'all' || hiddenParts.includes('tx')
-  const [cardFilter, setCardFilter] = useState('all')
+  const [cardFilter, setCardFilter] = useLocalStorageState('calendar_card_filter', 'all')
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
   const longPressTimer = useRef(null)
@@ -157,13 +157,16 @@ export default function Calendar() {
   const [addVisible, setAddVisible] = useState(false)
   const [addTab, setAddTab] = useState('manual')
   const [homeData, setHomeData] = useState(null)
-  const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false })
+  const [addForm, setAddForm] = useState({ date: '', type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, cashback_manual: false, cashback_amount: '', point_pool: ''})
   const [addAmountDisplay, setAddAmountDisplay] = useState('')
   const [addAmountError, setAddAmountError] = useState(false)
   const [addCardError, setAddCardError] = useState(false)
   const [addSaving, setAddSaving] = useState(false)
   const [addTransferFrom, setAddTransferFrom] = useState('')
   const [addTransferTo, setAddTransferTo] = useState('')
+  const [pointOverspend, setPointOverspend] = useState(null) // { card, amount, available, payload, dates }
+  const [overspendStep, setOverspendStep] = useState('warn') // 'warn' | 'pick'
+  const [overspendCardChoice, setOverspendCardChoice] = useState('')
   const [pendingReceiptFile, setPendingReceiptFile] = useState(null)
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
   const calReceiptInputRef = useRef(null)
@@ -174,7 +177,7 @@ export default function Calendar() {
     setAddDates(null)
     setAddOpen(true)
     setAddTab('manual')
-    setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
+    setAddForm(f => ({ ...f, date, type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, cashback_manual: false, cashback_amount: '', point_pool: ''}))
     setAddAmountDisplay('')
     setAddAmountError(false)
     setAddCardError(false)
@@ -192,7 +195,7 @@ export default function Calendar() {
     setAddDates(dates)
     setAddOpen(true)
     setAddTab('manual')
-    setAddForm(f => ({ ...f, date: dates[0], type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
+    setAddForm(f => ({ ...f, date: dates[0], type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, cashback_manual: false, cashback_amount: '', point_pool: ''}))
     setAddAmountDisplay('')
     setAddAmountError(false)
     setAddCardError(false)
@@ -209,6 +212,28 @@ export default function Calendar() {
     setReceiptPreviewUrl(null)
     setTimeout(() => { setAddOpen(false); setAddDates(null) }, 280)
   }
+  async function postAddDates(payload, dates) {
+    let firstId = null
+    for (const d of dates) {
+      const res = await api.post('/api/transactions', { ...payload, date: d })
+      if (!firstId) firstId = res?.id
+    }
+    return firstId
+  }
+
+  async function finishAdd(firstId) {
+    if (pendingReceiptFile && firstId) {
+      try {
+        const fd = new FormData()
+        fd.append('receipt', pendingReceiptFile)
+        await fetch(`/api/transactions/${firstId}/receipt`, { method: 'POST', credentials: 'include', body: fd })
+      } catch {}
+    }
+    closeAdd()
+    load(yearMonth)
+    syncWidget()
+  }
+
   async function handleAddSubmit(e) {
     e.preventDefault()
     const amt = parseInt(addAmountDisplay.replace(/,/g, ''))
@@ -218,28 +243,44 @@ export default function Calendar() {
     setAddCardError(!cardOk)
     if (!amt || !cardOk) return
     if (!addForm.category) return
+    const payload = { ...addForm, amount: amt, cashback_amount: parseInt(addForm.cashback_amount.replace(/,/g, '')) || 0 }
+    if (isTransfer && addTransferFrom) payload.card = addTransferFrom
+    const dates = addDates || [addForm.date]
+
+    // 포인트는 마이너스가 될 수 없다 — 남은 포인트보다 많이 쓰려고 하면 경고부터.
+    if (!isTransfer && addForm.type === 'expense' && homeData) {
+      const selectedCard = homeData.card_list.find(c => c.name === payload.card)
+      if (selectedCard?.point_reset_day && selectedCard.balance != null && amt > selectedCard.balance) {
+        setPointOverspend({ card: selectedCard, amount: amt, available: selectedCard.balance, payload, dates })
+        setOverspendStep('warn')
+        setOverspendCardChoice('')
+        return
+      }
+    }
+
     setAddSaving(true)
     try {
-      const payload = { ...addForm, amount: amt }
-      if (isTransfer && addTransferFrom) payload.card = addTransferFrom
-      const dates = addDates || [addForm.date]
-      let firstId = null
-      for (const d of dates) {
-        const res = await api.post('/api/transactions', { ...payload, date: d })
-        if (!firstId) firstId = res?.id
-      }
-      if (pendingReceiptFile && firstId) {
-        try {
-          const fd = new FormData()
-          fd.append('receipt', pendingReceiptFile)
-          await fetch(`/api/transactions/${firstId}/receipt`, { method: 'POST', credentials: 'include', body: fd })
-        } catch {}
-      }
-      closeAdd()
-      load(yearMonth)
-      syncWidget()
+      const firstId = await postAddDates(payload, dates)
+      await finishAdd(firstId)
     } finally {
       setAddSaving(false)
+    }
+  }
+
+  async function confirmOverspendWithLinkedCard() {
+    if (!pointOverspend || !overspendCardChoice) return
+    const { payload, amount, available, dates } = pointOverspend
+    const overage = amount - available
+    setAddSaving(true)
+    try {
+      let firstId = null
+      if (available > 0) firstId = await postAddDates({ ...payload, amount: available }, dates)
+      const secondId = await postAddDates({ ...payload, amount: overage, card: overspendCardChoice, point_pool: '' }, dates)
+      await finishAdd(firstId || secondId)
+    } finally {
+      setAddSaving(false)
+      setPointOverspend(null)
+      setOverspendCardChoice('')
     }
   }
 
@@ -308,9 +349,10 @@ export default function Calendar() {
 
   // 안드로이드 뒤로가기로 열린 시트 닫기
   useEffect(() => {
-    if (!addOpen && !selected && !confirmSheet && !pickerOpen && !txMenu) return
+    if (!addOpen && !selected && !confirmSheet && !pickerOpen && !txMenu && !pointOverspend) return
     const handler = (e) => {
       e.preventDefault()
+      if (pointOverspend) { if (overspendStep === 'pick') setOverspendStep('warn'); else setPointOverspend(null); return }
       if (addOpen) { closeAdd(); return }
       if (txMenu) { closeTxMenu(); return }
       if (selected) { setSelectedVisible(false); setTimeout(() => setSelected(null), 300); return }
@@ -319,7 +361,7 @@ export default function Calendar() {
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [addOpen, selected, confirmSheet, pickerOpen, txMenu])
+  }, [addOpen, selected, confirmSheet, pickerOpen, txMenu, pointOverspend, overspendStep])
 
   const getCardColor = useCardColorMap(homeData?.card_list)
 
@@ -469,7 +511,7 @@ export default function Calendar() {
                           transition: 'transform 0.26s cubic-bezier(0.25,0.46,0.45,0.94), background 0.26s',
                           boxShadow: addForm.type === 'expense' ? '0 2px 8px rgba(255,59,48,0.45)' : '0 2px 8px rgba(52,199,89,0.45)' }} />
                         {[['expense', '지출'], ['income', '수입']].map(([val, label]) => (
-                          <button key={val} type="button" onClick={() => setAddForm(f => ({ ...f, type: val, category: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))}
+                          <button key={val} type="button" onClick={() => setAddForm(f => ({ ...f, type: val, category: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, cashback_manual: false, cashback_amount: '', point_pool: ''}))}
                             style={{ flex: 1, position: 'relative', zIndex: 1, borderRadius: 8, border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', background: 'transparent',
                               color: addForm.type === val ? 'white' : 'var(--text-muted)', transition: 'color 0.26s' }}>
                             {label}
@@ -516,7 +558,7 @@ export default function Calendar() {
                         <CardPicker
                           cards={(homeData.card_list || []).filter(c => !c.is_loan)}
                           value={addForm.card}
-                          onChange={name => { setAddForm(f => ({ ...f, card: name })); setAddCardError(false) }}
+                          onChange={name => { setAddForm(f => ({ ...f, card: name, point_pool: '' })); setAddCardError(false) }}
                           error={addCardError}
                         />
                         {addCardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드/계좌를 선택해 주세요</div>}
@@ -555,6 +597,43 @@ export default function Calendar() {
                             <div className="ios-toggle">
                               <div className={`ios-track${addForm.exclude_cashback ? ' on' : ''}`} />
                               <div className={`ios-dot${addForm.exclude_cashback ? ' on' : ''}`} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {addForm.card && (addForm.type === 'expense' || addForm.type === 'income') && (
+                      <div className="col-12">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, cashback_manual: !f.cashback_manual }))}>
+                          <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>✏️ 캐시백 금액 직접 입력</label>
+                          <div className="ios-toggle">
+                            <div className={`ios-track${addForm.cashback_manual ? ' on' : ''}`} />
+                            <div className={`ios-dot${addForm.cashback_manual ? ' on' : ''}`} />
+                          </div>
+                        </div>
+                        {addForm.cashback_manual && (
+                          <div style={{ position: 'relative', marginTop: 4 }}>
+                            <input type="text" inputMode="numeric" className="form-control" placeholder="캐시백 금액" style={{ borderRadius: 10, paddingRight: 36 }}
+                              value={addForm.cashback_amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; setAddForm(f => ({ ...f, cashback_amount: v })) }} />
+                            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(() => {
+                      const selectedCard = (homeData?.card_list || []).find(c => c.name === addForm.card)
+                      const isPointWithCarryover = addForm.type === 'expense' && selectedCard?.point_reset_day && selectedCard.point_carryover > 0
+                      return isPointWithCarryover && (
+                        <div className="col-12">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'rgba(176,136,249,0.08)', border: '1px solid rgba(176,136,249,0.18)', cursor: 'pointer' }} onClick={() => setAddForm(f => ({ ...f, point_pool: f.point_pool === 'carryover' ? '' : 'carryover' }))}>
+                            <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0 }}>🎁</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>전환된 포인트에서 차감</div>
+                              <div style={{ fontSize: '0.72rem', color: '#b088f9', fontWeight: 600, marginTop: 2 }}>전환 가능 {Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원</div>
+                            </div>
+                            <div className="ios-toggle">
+                              <div className={`ios-track${addForm.point_pool === 'carryover' ? ' on' : ''}`} />
+                              <div className={`ios-dot${addForm.point_pool === 'carryover' ? ' on' : ''}`} />
                             </div>
                           </div>
                         </div>
@@ -809,6 +888,47 @@ export default function Calendar() {
             <div className="d-flex gap-2">
               <button autoFocus className="btn flex-fill" onClick={() => handleDelete(confirmSheet)} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>확인</button>
               <button className="btn btn-outline-secondary flex-fill" onClick={() => setConfirmSheet(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {pointOverspend && overspendStep === 'warn' && createPortal(
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 6500, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트는 마이너스가 될 수 없어요</p>
+            <p className="text-center text-muted mb-4" style={{ fontSize: '0.82rem' }}>
+              {pointOverspend.card.name}에 남은 포인트는 {pointOverspend.available.toLocaleString('ko-KR')}원인데 {pointOverspend.amount.toLocaleString('ko-KR')}원을 쓰려고 하고 있어요.
+            </p>
+            <div className="d-flex gap-2">
+              <button autoFocus className="btn flex-fill" onClick={() => setOverspendStep('pick')}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>그래도 추가</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointOverspend(null)} style={{ borderRadius: 10 }}>취소하고 다시 작성</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {pointOverspend && overspendStep === 'pick' && createPortal(
+        // CardPicker가 자기 바텀시트를 zIndex 5000으로 띄우므로, 그 위에 이 모달이
+        // 덮어버리지 않도록 이 단계만 그보다 낮게 둔다 (경고 단계는 CardPicker가
+        // 없으니 그대로 6500 유지).
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 4800, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>차액을 낼 카드/계좌</p>
+            <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
+              부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드나 계좌를 골라주세요.
+            </p>
+            <div className="mb-3">
+              <CardPicker cards={(homeData?.card_list || []).filter(c => c.name !== pointOverspend.card.name && !c.point_reset_day)}
+                value={overspendCardChoice} onChange={setOverspendCardChoice} placeholder="카드/계좌 선택" />
+            </div>
+            <div className="d-flex gap-2">
+              <button className="btn flex-fill" disabled={!overspendCardChoice} onClick={confirmOverspendWithLinkedCard}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: overspendCardChoice ? 1 : 0.5 }}>확인</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointOverspend(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
         </div>,
