@@ -6,11 +6,12 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
 import { syncWidget } from '../widgetSync.js'
-import { fmt, bankLogo, cardLogo, fmtMonth, today, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
+import { fmt, bankLogo, cardLogo, fmtMonth, fmtDate, today, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import ImageCropper from '../components/ImageCropper.jsx'
 import FilterPopup from '../components/FilterPopup.jsx'
+import TxItem from '../components/TxItem.jsx'
 
 // Manually drives scrollLeft from raw touch deltas instead of relying on the browser's
 // native touch-scroll gesture recognition, the same way this app's own swipe-to-edit/
@@ -383,7 +384,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
               placeholder={assetType === 'cash' ? '이름 (예: 현금, 지갑)' : assetType === 'loan' ? '이름 (예: 전세 대출, 카드빚)' : assetType === 'point' ? '포인트명 (예: 복지 포인트)' : '카드/은행 이름 (위 선택 시 자동 입력)'}
               value={name} onChange={e => setName(e.target.value)} required style={{ borderRadius: 10 }} />
             <div className="mb-2" style={{ position: 'relative' }}>
-              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : assetType === 'point' ? '초기 포인트 잔액 (선택)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode="text"
+              <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : assetType === 'point' ? '초기 포인트 잔액 (선택)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode={assetType === 'loan' ? 'text' : 'numeric'}
                 value={initialBalance} onChange={e => {
                   const forceNeg = assetType === 'loan'
                   const neg = forceNeg || e.target.value.startsWith('-')
@@ -457,9 +458,11 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                   </div>
                 </div>
                 <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>
-                  매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다. (그 날짜가 주말이면 그 전 영업일에 초기화)
+                  매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다.
                   <br />
-                  일반 은행/카드와 달리 잔고가 이월되지 않으며, "은행별 잔고" 목록에도 별도 섹션으로 표시됩니다.
+                  (주말이면 그 전 영업일에 초기화)
+                  <br />
+                  남은 포인트는 이월되지 않고 사라지지만, 초기화 전 "전환하기"로 미리 저장해둔 포인트는 초기화돼도 사라지지 않고 "전환" 포인트로 따로 남아서, 지출 등록 시 "전환된 포인트에서 차감"을 켜면 계속 쓸 수 있어요.
                 </p>
               </div>
             )}
@@ -492,7 +495,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAccountName, accountCards = [], dnd, hideAmounts = false }) {
+function SwipeCard({ card, onEdit, onDelete, onConvert, onPointInfo, onPerfClick, onRepayChange, linkedAccountName, accountCards = [], dnd, hideAmounts = false }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -570,6 +573,13 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
     else if (cur > trigger) { setOffsetX(0); onEdit() }
     else setOffsetX(0)
   }
+  // 탭(스와이프 없이 제자리에서 눌렀다 뗀 경우) 감지를 onDragEnd의 startX 추적에
+  // 얹었더니, 스와이프 제스처 전용으로 넣어둔 화면 가장자리 80px 제외 구간(안드로이드
+  // 뒤로가기 제스처와 겹치지 않게 하려고 있는 규칙) 때문에 카드 가장자리를 누르면
+  // startX 자체가 안 잡혀서 탭 판정까지 같이 막혀버렸다 — 가운데만 되고 가장자리는
+  // 안 되는 증상. 탭은 스와이프와 무관하니 그냥 onClick으로 따로 받는다(스와이프로
+  // 끌린 경우엔 touchmove에서 이미 preventDefault를 호출해 합성 클릭이 안 생긴다).
+  const onCardClick = () => { if (card.point_reset_day && onPointInfo) onPointInfo() }
   const onSwipeTouchStart = e => { dnd?.listeners?.onTouchStart?.(e); onDragStart(e) }
   const onSwipeMouseDown = e => { dnd?.listeners?.onMouseDown?.(e); onDragStart(e) }
 
@@ -596,7 +606,8 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
         onTouchStart={onSwipeTouchStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}
+        onClick={onCardClick}>
         <div className="d-flex justify-content-between align-items-center mb-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
           <div className="d-flex align-items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
             {logo && <img src={logo} style={{ height: 26, width: 26, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
@@ -615,9 +626,24 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
           </div>
           <div className="text-end">
             <div className="text-muted" style={{ fontSize: '0.7rem' }}>잔고</div>
-            <div className={`fw-bold amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '1.15rem', color: card.balance < 0 ? '#dc3545' : '#198754' }}>
-              {card.balance < 0 ? '-' : ''}{fmt(Math.abs(card.balance))}원
-            </div>
+            {(() => {
+              const hasCarryover = card.point_reset_day && card.point_carryover > 0
+              const displayBalance = hasCarryover ? card.balance + card.point_carryover : card.balance
+              return (<>
+                <div className={`fw-bold amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ fontSize: '1.15rem', color: displayBalance < 0 ? '#dc3545' : '#198754' }}>
+                  {displayBalance < 0 ? '-' : ''}{fmt(Math.abs(displayBalance))}원
+                </div>
+                {/* 포인트 카드는 "이번 주기에 쓸 수 있는 포인트"와 "다음 주기로 넘겨둔(전환된)
+                    포인트"가 서로 다른 돈이라, 위 잔고(둘을 합친 총액) 밑에 각각 얼마씩인지
+                    색으로 구분해서 보여준다 — 전환해둔 게 있을 때만. */}
+                {hasCarryover && (
+                  <div className={`d-flex justify-content-end gap-1 amt-mask${hideAmounts ? ' amt-hidden' : ''}`} style={{ marginTop: 3 }}>
+                    <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#198754', background: 'rgba(25,135,84,0.1)', padding: '1px 6px', borderRadius: 6, whiteSpace: 'nowrap' }}>사용 {fmt(card.balance)}</span>
+                    <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#b088f9', background: 'rgba(176,136,249,0.12)', padding: '1px 6px', borderRadius: 6, whiteSpace: 'nowrap' }}>전환 {fmt(card.point_carryover)}</span>
+                  </div>
+                )}
+              </>)
+            })()}
           </div>
         </div>
         {card.point_reset_day && card.balance > 0 && card.balance <= 30000 && onConvert && (
@@ -644,10 +670,12 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
               </div>
             </div>
           </>) : (<>
-            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
-              <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기 잔고</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(card.initial_balance)}</div>
-            </div>
+            {card.cashback_type && (
+              <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+                <div className="text-muted" style={{ fontSize: '0.8rem' }}>캐시백 금액</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#b08900' }}>{fmt(card.total_cashback || 0)}</div>
+              </div>
+            )}
             <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
               <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
@@ -738,7 +766,7 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
               )}
             </div>
           ) : (
-            <>
+            <div onClick={e => { e.stopPropagation(); onPerfClick?.() }} style={{ cursor: onPerfClick ? 'pointer' : 'default' }}>
               <div className="d-flex justify-content-between align-items-center mb-1">
                 <span className="text-muted" style={{ fontSize: '0.8rem' }}>이달 실적</span>
                 <span className="text-muted" style={{ fontSize: '0.8rem' }}>{fmt(card.spent)} / {fmt(card.target)}원</span>
@@ -748,7 +776,7 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onRepayChange, linkedAcc
                   style={{ width: `${card.percent}%`, borderRadius: 4 }} />
               </div>
               <div className="text-end mt-1" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{card.percent}%</div>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1962,7 +1990,18 @@ export default function Budget() {
   const [data, setData] = useState(() => _budgetCache)
   const [confirmCard, setConfirmCard] = useState(null)
   const [convertCard, setConvertCard] = useState(null)
+  const [convertAmount, setConvertAmount] = useState('')
+  const [convertAmountError, setConvertAmountError] = useState(false)
   const [convertLoading, setConvertLoading] = useState(false)
+  const [pointInfoCard, setPointInfoCard] = useState(null)
+  const [perfTxCard, setPerfTxCard] = useState(null)
+  const [perfTxList, setPerfTxList] = useState([])
+  const [perfTxEmojiMap, setPerfTxEmojiMap] = useState({})
+  const [perfTxLoading, setPerfTxLoading] = useState(false)
+  const [pointInfoEditing, setPointInfoEditing] = useState(false)
+  const [pointInfoUsable, setPointInfoUsable] = useState('')
+  const [pointInfoCarryover, setPointInfoCarryover] = useState('')
+  const [pointInfoSaving, setPointInfoSaving] = useState(false)
   const [editCard, setEditCard] = useState(null)
   const [editInitial, setEditInitial] = useState('')
   const [editBalanceDate, setEditBalanceDate] = useState('')
@@ -1974,9 +2013,22 @@ export default function Budget() {
   const [editInterestRate, setEditInterestRate] = useState('')
   const [editCashbackType, setEditCashbackType] = useState('')
   const [editCashbackRate, setEditCashbackRate] = useState('')
+  const [editCashbackMonthlyCap, setEditCashbackMonthlyCap] = useState('')
+  const [cashbackRulesSheetOpen, setCashbackRulesSheetOpen] = useState(false)
+  const [cashbackRules, setCashbackRules] = useState([])
+  const [cashbackRuleModal, setCashbackRuleModal] = useState(null) // null | 'new' | rule object
+  const [ruleName, setRuleName] = useState('')
+  const [ruleKeywords, setRuleKeywords] = useState('')
+  const [ruleRate, setRuleRate] = useState('')
+  const [ruleDailyCap, setRuleDailyCap] = useState('')
+  const [ruleDailyCountCap, setRuleDailyCountCap] = useState('')
+  const [ruleMonthlyCap, setRuleMonthlyCap] = useState('')
+  const [ruleMonthlyCountCap, setRuleMonthlyCountCap] = useState('')
+  const [ruleSaving, setRuleSaving] = useState(false)
   const [editPointResetOn, setEditPointResetOn] = useState(false)
   const [editPointResetDay, setEditPointResetDay] = useState('')
   const [editPointResetAmount, setEditPointResetAmount] = useState('')
+  const [editPointCarryover, setEditPointCarryover] = useState('')
   const [editCustomIconFile, setEditCustomIconFile] = useState(null)
   const [editCustomIconPreview, setEditCustomIconPreview] = useState(null)
   const [editCropFile, setEditCropFile] = useState(null)
@@ -2132,17 +2184,17 @@ export default function Budget() {
   }, [data, searchParams])
 
   useEffect(() => {
-    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || goalSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!confirmGoal || !!addAmountGoal || !!convertCard
+    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || goalSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!confirmGoal || !!addAmountGoal || !!convertCard || !!pointInfoCard || !!perfTxCard
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard])
 
   // 안드로이드 뒤로가기로 열린 시트 닫기 — 그리드→상세 화면 전환도 일종의
   // "화면 안 이동"이라, 시트/확인창이 하나도 안 열려있을 때는 뒤로가기로 상세
   // 화면에서 그리드로 돌아가게(activeSection을 null로) 한다. 우선순위는 시트나
   // 확인창이 열려 있으면 그것부터 닫고, 없으면 그 다음에 상세 화면을 닫는다.
   useEffect(() => {
-    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !goalSheetOpen && !confirmCard && !confirmSavings && !confirmInv && !confirmGoal && !addAmountGoal && !convertCard && !activeSection) return
+    if (!addSheetOpen && !editSheetOpen && !savingsSheetOpen && !invSheetOpen && !goalSheetOpen && !confirmCard && !confirmSavings && !confirmInv && !confirmGoal && !addAmountGoal && !convertCard && !pointInfoCard && !perfTxCard && !activeSection) return
     const handler = (e) => {
       e.preventDefault()
       if (addSheetOpen) { closeAdd(); return }
@@ -2156,21 +2208,57 @@ export default function Budget() {
       if (confirmGoal) { setConfirmGoal(null); return }
       if (addAmountGoal) { setAddAmountGoal(null); return }
       if (convertCard) { setConvertCard(null); return }
+      if (pointInfoCard) { setPointInfoCard(null); return }
+      if (perfTxCard) { setPerfTxCard(null); return }
       if (activeSection) { closeDetail(); return }
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, activeSection])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard, activeSection])
 
   async function handleConvert() {
     if (!convertCard) return
+    const amt = parseInt(convertAmount.replace(/,/g, '')) || 0
+    if (amt <= 0 || amt > convertCard.balance) {
+      setConvertAmountError(true)
+      return
+    }
+    setConvertAmountError(false)
     setConvertLoading(true)
     try {
-      await api.post(`/api/cards/${convertCard.id}/point-convert`, {})
+      await api.post(`/api/cards/${convertCard.id}/point-convert`, { amount: amt })
       setConvertCard(null)
       await load()
     } finally {
       setConvertLoading(false)
+    }
+  }
+
+  async function openPerfTx(card) {
+    setPerfTxCard(card)
+    setPerfTxList([])
+    setPerfTxLoading(true)
+    try {
+      const d = await api.get(`/api/cards/${card.id}/perf-transactions`)
+      setPerfTxList(d.transactions || [])
+      setPerfTxEmojiMap(d.emoji_map || {})
+    } finally {
+      setPerfTxLoading(false)
+    }
+  }
+
+  async function handlePointBalanceSave() {
+    if (!pointInfoCard) return
+    const usable = parseInt(pointInfoUsable.replace(/,/g, '')) || 0
+    const carryover = parseInt(pointInfoCarryover.replace(/,/g, '')) || 0
+    setPointInfoSaving(true)
+    try {
+      await api.put(`/api/cards/${pointInfoCard.id}/point-balance`, { usable, carryover })
+      setPointInfoCard(null)
+      setPointInfoEditing(false)
+      await load()
+    } finally {
+      setPointInfoSaving(false)
     }
   }
 
@@ -2195,9 +2283,13 @@ export default function Budget() {
     setEditInterestRate(card.interest_rate != null ? String(card.interest_rate) : '')
     setEditCashbackType(card.cashback_type || '')
     setEditCashbackRate(card.cashback_rate != null ? String(card.cashback_rate) : '')
+    setEditCashbackMonthlyCap(card.cashback_monthly_cap != null ? card.cashback_monthly_cap.toLocaleString('ko-KR') : '')
+    setCashbackRules([])
+    if (!card.is_loan) api.get(`/api/cards/${card.id}/cashback-rules`).then(d => setCashbackRules(d.rules || [])).catch(() => {})
     setEditPointResetOn(!!card.point_reset_day)
     setEditPointResetDay(card.point_reset_day != null ? String(card.point_reset_day) : '')
     setEditPointResetAmount(card.point_reset_amount != null ? card.point_reset_amount.toLocaleString('ko-KR') : '')
+    setEditPointCarryover((card.point_carryover || 0).toLocaleString('ko-KR'))
     setEditCustomIconFile(null); setEditCustomIconPreview(null); setEditRemoveIcon(false)
     setEditSheetOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setEditSheetVisible(true)))
@@ -2217,6 +2309,7 @@ export default function Budget() {
   }
   function closeEdit() {
     setEditSheetVisible(false)
+    setCashbackRulesSheetOpen(false)
     setTimeout(() => setEditSheetOpen(false), 350)
   }
 
@@ -2231,9 +2324,18 @@ export default function Budget() {
       interest_rate: editInterestRate ? parseFloat(editInterestRate) : null,
       cashback_type: editCashbackType || null,
       cashback_rate: editCashbackType && editCashbackRate ? parseFloat(editCashbackRate) : null,
+      cashback_monthly_cap: editCashbackMonthlyCap ? parseInt(editCashbackMonthlyCap.replace(/,/g, '')) : null,
       point_reset_day: editPointResetOn && editPointResetDay ? parseInt(editPointResetDay) : null,
       point_reset_amount: editPointResetOn && editPointResetAmount ? parseInt(editPointResetAmount.replace(/,/g, '')) : null,
     })
+    if (editPointResetOn) {
+      const newCarryover = parseInt(editPointCarryover.replace(/,/g, '')) || 0
+      if (newCarryover !== (editCard.point_carryover || 0)) {
+        // 잔고(사용 가능한 포인트)는 그대로 두고 전환 포인트만 바꾼다 — 포인트 탭해서
+        // 뜨는 수정창과 같은 엔드포인트라, 값은 그쪽과 항상 일치한다.
+        await api.put(`/api/cards/${editCard.id}/point-balance`, { usable: editCard.balance, carryover: newCarryover })
+      }
+    }
     if (editCustomIconFile) {
       const fd = new FormData()
       fd.append('icon', editCustomIconFile)
@@ -2246,6 +2348,50 @@ export default function Budget() {
       await fetch(`/api/cards/${editCard.id}/icon`, { method: 'DELETE', credentials: 'include' })
     }
     closeEdit(); load()
+  }
+
+  function openRuleModal(rule) {
+    if (rule) {
+      setRuleName(rule.name); setRuleKeywords(rule.keywords); setRuleRate(String(rule.rate))
+      setRuleDailyCap(rule.daily_cap != null ? String(rule.daily_cap) : '')
+      setRuleDailyCountCap(rule.daily_count_cap != null ? String(rule.daily_count_cap) : '')
+      setRuleMonthlyCap(rule.monthly_cap != null ? String(rule.monthly_cap) : '')
+      setRuleMonthlyCountCap(rule.monthly_count_cap != null ? String(rule.monthly_count_cap) : '')
+      setCashbackRuleModal(rule)
+    } else {
+      setRuleName(''); setRuleKeywords(''); setRuleRate('')
+      setRuleDailyCap(''); setRuleDailyCountCap(''); setRuleMonthlyCap(''); setRuleMonthlyCountCap('')
+      setCashbackRuleModal('new')
+    }
+  }
+
+  async function saveRule() {
+    if (!ruleName.trim() || !ruleKeywords.trim() || !ruleRate) return
+    setRuleSaving(true)
+    const payload = {
+      name: ruleName.trim(), keywords: ruleKeywords.trim(), rate: parseFloat(ruleRate),
+      daily_cap: ruleDailyCap ? parseInt(ruleDailyCap.replace(/,/g, '')) : null,
+      daily_count_cap: ruleDailyCountCap ? parseInt(ruleDailyCountCap) : null,
+      monthly_cap: ruleMonthlyCap ? parseInt(ruleMonthlyCap.replace(/,/g, '')) : null,
+      monthly_count_cap: ruleMonthlyCountCap ? parseInt(ruleMonthlyCountCap) : null,
+    }
+    try {
+      if (cashbackRuleModal === 'new') {
+        await api.post(`/api/cards/${editCard.id}/cashback-rules`, payload)
+      } else {
+        await api.put(`/api/cashback-rules/${cashbackRuleModal.id}`, payload)
+      }
+      const d = await api.get(`/api/cards/${editCard.id}/cashback-rules`)
+      setCashbackRules(d.rules || [])
+      setCashbackRuleModal(null)
+    } finally {
+      setRuleSaving(false)
+    }
+  }
+
+  async function deleteRule(ruleId) {
+    await api.delete(`/api/cashback-rules/${ruleId}`)
+    setCashbackRules(rs => rs.filter(r => r.id !== ruleId))
   }
 
   async function handleDelete() {
@@ -2396,11 +2542,11 @@ export default function Budget() {
             <SortableSection items={accountCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('account', o)}
               renderItem={(card, dnd) => (
                 <div key={card.id}>
-                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} dnd={dnd} hideAmounts={hideBalance} />
+                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onPerfClick={() => openPerfTx(card)} dnd={dnd} hideAmounts={hideBalance} />
                   {(linkedByAccount[card.id] || []).map(lc => (
                     <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
                       <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
-                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} linkedAccountName={card.name} hideAmounts={hideBalance} />
+                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} onPerfClick={() => openPerfTx(lc)} linkedAccountName={card.name} hideAmounts={hideBalance} />
                     </div>
                   ))}
                 </div>
@@ -2413,7 +2559,7 @@ export default function Budget() {
                 </div>
                 <SortableSection items={pointCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('point', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => setConvertCard(card)} dnd={dnd} hideAmounts={hideBalance} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => { setConvertCard(card); setConvertAmount(''); setConvertAmountError(false) }} onPointInfo={() => { setPointInfoCard(card); setPointInfoEditing(false) }} onPerfClick={() => openPerfTx(card)} dnd={dnd} hideAmounts={hideBalance} />
                   )} />
               </>
             )}
@@ -2841,10 +2987,24 @@ export default function Budget() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트 전환</p>
             <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
-              {convertCard.name}에 남은 <span className={`amt-mask${hideBalance ? ' amt-hidden' : ''}`}>{fmt(convertCard.balance)}원</span>을 전환하면, 다음 초기화 때 사라지지 않고 초기화 금액에 그대로 더해져 쌓여요.
+              {convertCard.name}에 남은 <span className={`amt-mask${hideBalance ? ' amt-hidden' : ''}`}>{fmt(convertCard.balance)}원</span> 중 전환할 금액만큼 다음 초기화 때 사라지지 않고 초기화 금액에 그대로 더해져 쌓여요.
             </p>
+            <div className="mb-1" style={{ position: 'relative' }}>
+              <input type="text" className={`form-control${convertAmountError ? ' field-invalid' : ''}`} placeholder="전환할 금액" inputMode="numeric" autoFocus
+                value={convertAmount}
+                onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setConvertAmount(v); setConvertAmountError(false) }}
+                style={{ borderRadius: 10, paddingRight: 36 }} />
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+            </div>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              {convertAmountError
+                ? <div style={{ color: '#dc3545', fontSize: '0.75rem' }}>남은 금액 이하로 입력해 주세요</div>
+                : <span />}
+              <button type="button" onClick={() => { setConvertAmount(String(convertCard.balance)); setConvertAmountError(false) }}
+                style={{ background: 'none', border: 'none', color: '#b088f9', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}>전액 전환</button>
+            </div>
             <div className="d-flex gap-2">
-              <button autoFocus className="btn flex-fill" disabled={convertLoading} onClick={handleConvert}
+              <button className="btn flex-fill" disabled={convertLoading} onClick={handleConvert}
                 style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: convertLoading ? 0.5 : 1 }}>
                 {convertLoading ? '전환 중…' : '전환하기'}
               </button>
@@ -2852,6 +3012,217 @@ export default function Budget() {
             </div>
           </div>
         </div>
+      )}
+
+      {perfTxCard && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setPerfTxCard(null)}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '75dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px' }}>
+            <div className="d-flex justify-content-between align-items-center mb-1">
+              <h6 className="mb-0 fw-bold">{perfTxCard.name} · 이달 실적 내역</h6>
+              <button onClick={() => setPerfTxCard(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+            </div>
+            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>{fmt(perfTxCard.spent)} / {fmt(perfTxCard.target)}원 · {perfTxCard.percent}%</p>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+              {perfTxLoading ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>불러오는 중…</p>
+              ) : perfTxList.length === 0 ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>이달 실적에 해당하는 내역이 없습니다</p>
+              ) : (() => {
+                const byDate = perfTxList.reduce((acc, tx) => {
+                  if (!acc[tx.date]) acc[tx.date] = []
+                  acc[tx.date].push(tx)
+                  return acc
+                }, {})
+                const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+                return dates.map(date => (
+                  <div key={date} className="mb-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        -{fmt(byDate[date].reduce((s, t) => s + t.amount, 0))}원
+                      </span>
+                    </div>
+                    <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                      {byDate[date].map((tx, i) => (
+                        <div key={tx.id} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                          <TxItem tx={tx} emojiMap={perfTxEmojiMap} showBalance={false} showTime />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pointInfoCard && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setPointInfoCard(null)}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <p className="fw-semibold mb-0" style={{ fontSize: '1rem' }}>{pointInfoCard.name}</p>
+              {!pointInfoEditing && (
+                <button type="button" onClick={() => {
+                  setPointInfoUsable(String(pointInfoCard.balance)); setPointInfoCarryover(String(pointInfoCard.point_carryover || 0)); setPointInfoEditing(true)
+                }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer', padding: 0 }}>✏️ 수정</button>
+              )}
+            </div>
+            {!pointInfoEditing ? (<>
+              <div className="d-flex justify-content-between align-items-center mb-2" style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(25,135,84,0.08)' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>남은 포인트</span>
+                <span className={`fw-bold amt-mask${hideBalance ? ' amt-hidden' : ''}`} style={{ fontSize: '0.95rem', color: '#198754' }}>{fmt(pointInfoCard.balance)}원</span>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mb-3" style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(176,136,249,0.1)' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>전환 포인트</span>
+                <span className={`fw-bold amt-mask${hideBalance ? ' amt-hidden' : ''}`} style={{ fontSize: '0.95rem', color: '#b088f9' }}>{fmt(pointInfoCard.point_carryover || 0)}원</span>
+              </div>
+              <div className="d-flex gap-2">
+                {pointInfoCard.balance > 0 && (
+                  <button className="btn flex-fill" onClick={() => {
+                    setConvertCard(pointInfoCard); setConvertAmount(''); setConvertAmountError(false); setPointInfoCard(null)
+                  }} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>전환하기</button>
+                )}
+                <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointInfoCard(null)} style={{ borderRadius: 10 }}>닫기</button>
+              </div>
+            </>) : (<>
+              <p className="text-muted mb-2" style={{ fontSize: '0.72rem' }}>전환하기를 잘못 눌렀을 때 등 직접 바로잡을 때만 사용하세요.</p>
+              <div className="mb-2">
+                <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>남은 포인트</label>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, paddingRight: 36 }}
+                    value={pointInfoUsable} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setPointInfoUsable(v) }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>전환 포인트</label>
+                <div style={{ position: 'relative' }}>
+                  <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, paddingRight: 36 }}
+                    value={pointInfoCarryover} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? String(parseInt(raw)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''; restoreCaretAfterFormat(e.target, v); setPointInfoCarryover(v) }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
+              </div>
+              <div className="d-flex gap-2">
+                <button className="btn flex-fill" disabled={pointInfoSaving} onClick={handlePointBalanceSave}
+                  style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: pointInfoSaving ? 0.5 : 1 }}>
+                  {pointInfoSaving ? '저장 중…' : '저장'}
+                </button>
+                <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointInfoEditing(false)} style={{ borderRadius: 10 }}>취소</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+      )}
+
+      {cashbackRulesSheetOpen && editCard && createPortal(
+        <div onClick={e => e.target === e.currentTarget && setCashbackRulesSheetOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px' }}>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <h6 className="mb-0 fw-bold">{editCard.name} · 캐시백 규칙</h6>
+              <button onClick={() => setCashbackRulesSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+            </div>
+            <p className="text-muted mb-3" style={{ fontSize: '0.72rem' }}>
+              규칙을 하나라도 등록하면, 카드의 "캐시백 / 충전 보너스" 고정 비율 대신 가맹점명(항목 설명) 매칭으로 캐시백을 계산합니다.
+            </p>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+              {cashbackRules.length > 0 ? cashbackRules.map(r => (
+                <div key={r.id} onClick={() => openRuleModal(r)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--bg-accent)', marginBottom: 8, cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{r.name} · {r.rate}%</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {r.keywords}
+                      {(r.daily_cap || r.monthly_cap) && (
+                        <> · {r.daily_cap ? `일 ${r.daily_cap.toLocaleString('ko-KR')}원` : ''}{r.daily_cap && r.monthly_cap ? ' · ' : ''}{r.monthly_cap ? `월 ${r.monthly_cap.toLocaleString('ko-KR')}원` : ''}</>
+                      )}
+                    </div>
+                  </div>
+                  <button type="button" onClick={e => { e.stopPropagation(); deleteRule(r.id) }}
+                    style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.78rem', padding: '2px 6px', flexShrink: 0 }}>삭제</button>
+                </div>
+              )) : (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>등록된 규칙이 없습니다</p>
+              )}
+              <button type="button" onClick={() => openRuleModal(null)}
+                style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px dashed #b088f9', background: 'rgba(176,136,249,0.06)', color: '#b088f9', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', marginBottom: 14 }}>
+                + 규칙 추가
+              </button>
+              {cashbackRules.length > 0 && (
+                <div className="mb-3" style={{ position: 'relative' }}>
+                  <label className="text-muted mb-1 d-block" style={{ fontSize: '0.78rem' }}>통합 월 한도 (선택, 예: 전월실적 구간별 한도)</label>
+                  <input type="text" inputMode="numeric" className="form-control" style={{ borderRadius: 10, paddingRight: 36 }}
+                    value={editCashbackMonthlyCap} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; setEditCashbackMonthlyCap(v) }} />
+                  <span style={{ position: 'absolute', right: 12, top: 34, color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {cashbackRuleModal && createPortal(
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2500, alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}
+          onClick={e => e.target === e.currentTarget && setCashbackRuleModal(null)}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '20px', width: '100%', maxWidth: 340, maxHeight: '85dvh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="fw-semibold mb-3" style={{ fontSize: '1rem' }}>{cashbackRuleModal === 'new' ? '캐시백 규칙 추가' : '캐시백 규칙 수정'}</p>
+            <div className="mb-2">
+              <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>규칙 이름</label>
+              <input type="text" className="form-control" placeholder="예: 편의점 20%" style={{ borderRadius: 10 }}
+                value={ruleName} onChange={e => setRuleName(e.target.value)} />
+            </div>
+            <div className="mb-2">
+              <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>가맹점명 키워드 (쉼표로 여러 개, 항목 설명에 포함되면 매칭)</label>
+              <input type="text" className="form-control" placeholder="예: GS25, CU" style={{ borderRadius: 10 }}
+                value={ruleKeywords} onChange={e => setRuleKeywords(e.target.value)} />
+            </div>
+            <div className="mb-2">
+              <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>캐시백 비율</label>
+              <div style={{ position: 'relative' }}>
+                <input type="number" className="form-control" style={{ borderRadius: 10, paddingRight: 36 }} step="0.1" min="0" max="100"
+                  value={ruleRate} onChange={e => setRuleRate(e.target.value)} />
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>%</span>
+              </div>
+            </div>
+            <p className="text-muted mb-1 mt-3" style={{ fontSize: '0.78rem', fontWeight: 600 }}>한도 (선택, 비워두면 무제한)</p>
+            <div className="d-flex gap-2 mb-2">
+              <div style={{ flex: 1 }}>
+                <label className="text-muted mb-1" style={{ fontSize: '0.72rem' }}>일 한도 금액</label>
+                <input type="text" inputMode="numeric" className="form-control form-control-sm" style={{ borderRadius: 8 }}
+                  value={ruleDailyCap} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRuleDailyCap(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="text-muted mb-1" style={{ fontSize: '0.72rem' }}>일 최대 횟수</label>
+                <input type="number" className="form-control form-control-sm" style={{ borderRadius: 8 }} min="0"
+                  value={ruleDailyCountCap} onChange={e => setRuleDailyCountCap(e.target.value)} />
+              </div>
+            </div>
+            <div className="d-flex gap-2 mb-3">
+              <div style={{ flex: 1 }}>
+                <label className="text-muted mb-1" style={{ fontSize: '0.72rem' }}>월 한도 금액</label>
+                <input type="text" inputMode="numeric" className="form-control form-control-sm" style={{ borderRadius: 8 }}
+                  value={ruleMonthlyCap} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRuleMonthlyCap(raw ? parseInt(raw).toLocaleString('ko-KR') : '') }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="text-muted mb-1" style={{ fontSize: '0.72rem' }}>월 최대 횟수</label>
+                <input type="number" className="form-control form-control-sm" style={{ borderRadius: 8 }} min="0"
+                  value={ruleMonthlyCountCap} onChange={e => setRuleMonthlyCountCap(e.target.value)} />
+              </div>
+            </div>
+            <div className="d-flex gap-2">
+              <button className="btn flex-fill" disabled={ruleSaving || !ruleName.trim() || !ruleKeywords.trim() || !ruleRate} onClick={saveRule}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: ruleSaving ? 0.5 : 1 }}>
+                {ruleSaving ? '저장 중…' : '저장'}
+              </button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setCashbackRuleModal(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {confirmSavings && (
@@ -2906,18 +3277,20 @@ export default function Budget() {
             </div>
             <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, paddingBottom: 20 }}>
               <form id="edit-card-form" onSubmit={handleEditSave}>
-                <div className="mb-3">
-                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고</label>
-                  <div style={{ position: 'relative' }}>
-                    <input type="text" inputMode="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
-                      value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true, editCard?.is_loan, e.target)} />
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                {!editCard?.point_reset_day && (
+                  <div className="mb-3">
+                    <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>초기 잔고</label>
+                    <div style={{ position: 'relative' }}>
+                      <input type="text" inputMode={editCard?.is_loan ? 'text' : 'numeric'} className="form-control" style={{ borderRadius: 10, fontSize: '1rem', paddingRight: 36 }}
+                        value={editInitial} onChange={e => fmtInput(e.target.value, setEditInitial, true, editCard?.is_loan, e.target)} />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>작성한 반영할 날짜</label>
+                      <DatePickerSheet value={editBalanceDate} onChange={setEditBalanceDate} />
+                    </div>
                   </div>
-                  <div className="mt-2">
-                    <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>작성한 반영할 날짜</label>
-                    <DatePickerSheet value={editBalanceDate} onChange={setEditBalanceDate} />
-                  </div>
-                </div>
+                )}
                 <div className="mb-3">
                   <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>월 실적 목표 금액</label>
                   <div style={{ position: 'relative' }}>
@@ -2997,6 +3370,17 @@ export default function Budget() {
                 )}
                 {!editCard?.is_loan && (
                   <div className="mb-3">
+                    <button type="button" onClick={() => setCashbackRulesSheetOpen(true)}
+                      style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-light)', background: 'var(--bg-accent)', cursor: 'pointer' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        🎁 캐시백 규칙{cashbackRules.length > 0 ? ` (${cashbackRules.length}개)` : ' (가맹점별, 선택)'}
+                      </span>
+                      <i className="bi bi-chevron-right" style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }} />
+                    </button>
+                  </div>
+                )}
+                {!editCard?.is_loan && (
+                  <div className="mb-3">
                     <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>포인트 정기 충전 (선택)</label>
                     <div className="d-flex gap-2 mb-2">
                       {[[false, '일반 (이월)'], [true, '정기 충전 (복지 포인트 등)']].map(([val, label]) => (
@@ -3021,8 +3405,18 @@ export default function Budget() {
                             <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
                           </div>
                         </div>
+                        <div className="mb-2" style={{ position: 'relative' }}>
+                          <label className="text-muted mb-1" style={{ fontSize: '0.76rem' }}>전환 포인트 (선택, 포인트 카드 탭해서도 수정 가능)</label>
+                          <input type="text" className="form-control" inputMode="numeric" style={{ borderRadius: 10, paddingRight: 36 }}
+                            value={editPointCarryover} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; restoreCaretAfterFormat(e.target, v); setEditPointCarryover(v) }} />
+                          <span style={{ position: 'absolute', right: 12, top: 34, color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                        </div>
                         <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.72rem' }}>
-                          매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다 (그 날짜가 주말이면 그 전 영업일에 초기화). 일반 은행/카드와 달리 잔고가 이월되지 않아요.
+                          매월 지정한 날짜에 이전 잔액과 상관없이 충전 금액으로 초기화됩니다.
+                          <br />
+                          (그 날짜가 주말이면 그 전 영업일에 초기화)
+                          <br />
+                          남은 포인트는 이월되지 않고 사라지지만, 초기화 전 "전환하기"로 미리 저장해둔 포인트는 초기화돼도 사라지지 않고 "전환" 포인트로 따로 남아서, 지출 등록 시 "전환된 포인트에서 차감"을 켜면 계속 쓸 수 있어요.
                         </p>
                       </>
                     )}

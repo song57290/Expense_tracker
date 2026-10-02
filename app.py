@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from functools import wraps
 
 from sqlalchemy import func
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood, SavingsGoal
+from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood, SavingsGoal, CashbackRule
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -290,6 +290,10 @@ with app.app_context():
         'ALTER TABLE card ADD COLUMN point_reset_amount INTEGER',
         'ALTER TABLE card ADD COLUMN point_reset_last_date VARCHAR(10)',
         'ALTER TABLE card ADD COLUMN point_carryover INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN point_carryover_baseline INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE card ADD COLUMN cashback_monthly_cap INTEGER',
+        'ALTER TABLE "transaction" ADD COLUMN cashback_rule_id INTEGER',
+        'ALTER TABLE "transaction" ADD COLUMN cashback_manual BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE savings ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE savings ADD COLUMN withdraw_transaction_id INTEGER',
         "ALTER TABLE savings ADD COLUMN weekend_adjust VARCHAR(10) NOT NULL DEFAULT 'next'",
@@ -298,6 +302,7 @@ with app.app_context():
         'ALTER TABLE investment ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE "transaction" ADD COLUMN exclude_cashback BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE notice ADD COLUMN app VARCHAR(20) NOT NULL DEFAULT 'gaegyebu'",
+        'ALTER TABLE "transaction" ADD COLUMN point_pool VARCHAR(20)',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -339,9 +344,9 @@ with app.app_context():
     # build_date is set by hand to when that APK was actually built (not the
     # server's restart date) — it's what makes the downloaded filename below
     # distinguishable from the previous release.
-    _apk_version_code = 129
-    _apk_version_name = 'ver 2.96'
-    _apk_build_date = '2026-09-26'
+    _apk_version_code = 131
+    _apk_version_name = 'ver 2.97'
+    _apk_build_date = '2026-10-01'
     _apk_notice = None
     _apk_value = json.dumps({'version_code': _apk_version_code, 'version_name': _apk_version_name,
                               'url': '/download/gaegyebu-latest.apk', 'notice': _apk_notice,
@@ -353,6 +358,30 @@ with app.app_context():
     elif _apk_cfg.value != _apk_value:
         _apk_cfg.value = _apk_value
         db.session.commit()
+
+    # 푸룹(Life OS) apk version registry — gaegyebu처럼 숫자를 이 파일에 직접 박아두면
+    # 푸룹 쪽 app.json 버전과 매번 따로 손으로 맞춰야 해서, 대신 Life OS 세션이
+    # releases/puroop-latest.apk와 함께 놓아둘 releases/puroop-version.json
+    # (예: {"version_code": 3, "version_name": "1.0.0"})을 그대로 읽어온다 —
+    # 푸룹 쪽에서 이미 관리 중인 버전 표기를 그대로 가져다 쓰는 것. 그 파일이 아직
+    # 없으면(첫 배포 전) 등록 자체를 건너뛰어 "푸룹 설치" 버튼이 계속 숨겨진 채로 둔다.
+    _puroop_version_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'releases', 'puroop-version.json')
+    if os.path.exists(_puroop_version_json):
+        with open(_puroop_version_json, encoding='utf-8') as f:
+            _puroop_info = json.load(f)
+        _puroop_value = json.dumps({'version_code': int(_puroop_info.get('version_code') or 0),
+                                     'version_name': _puroop_info.get('version_name') or '',
+                                     'url': '/download/puroop-latest.apk'}, ensure_ascii=False)
+    else:
+        _puroop_value = None
+    _puroop_cfg = AppConfig.query.get('puroop_apk_version')
+    if _puroop_value is not None:
+        if _puroop_cfg is None:
+            db.session.add(AppConfig(key='puroop_apk_version', value=_puroop_value))
+            db.session.commit()
+        elif _puroop_cfg.value != _puroop_value:
+            _puroop_cfg.value = _puroop_value
+            db.session.commit()
 
     # one-time fix: reset price_updated_at for 해외주식 so auto-fetch re-runs
     # (previous version stored current_price in KRW; new version stores in USD)
@@ -562,16 +591,89 @@ def _net_amount(tx):
     cashback = tx.cashback or 0
     return tx.amount - cashback if tx.type == 'expense' else tx.amount + cashback
 
-def _compute_cashback(uid, card_name, tx_type, amount, exclude=False):
+def _point_balance(card, all_txs):
+    # 포인트 카드의 "지금 쓸 수 있는 포인트" — account_balance(건드리지 않는 원본 anchor)
+    # + 이번 주기 수입 - 지출 - 이번 주기에 "새로" 전환한 금액. point_carryover는 리셋이
+    # 지나가도 안 비워지고 그대로 누적되므로(_apply_point_resets), 전체 point_carryover를
+    # 매번 빼면 지난 주기에 이미 떼어둔 전환 포인트가 이번에 새로 충전된 금액까지 또
+    # 깎아버린다 — point_carryover_baseline(마지막 리셋 시점의 스냅샷)을 뺀 "이번 주기
+    # 순증분"만 빼야 한다. 포인트는 성격상 마이너스가 될 수 없으므로 0 아래로는 내려가지
+    # 않게 막는다. /api/budget, /api/home, 포인트 전환/직접수정 엔드포인트가 전부 이 함수
+    # 하나로 계산해야 서로 다른 값이 안 보인다.
+    card_txs = [tx for tx in all_txs if tx.card == card.name]
+    inc = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+    exp = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+    converted_this_cycle = max(0, (card.point_carryover or 0) - (card.point_carryover_baseline or 0))
+    return max(0, (card.account_balance or 0) + inc - exp - converted_this_cycle)
+
+def _effective_budget_amount(uid, month):
+    # 이번 달에 예산을 따로 입력 안 했으면 0원이 아니라, 가장 최근에 설정해둔 이전 달
+    # 예산을 그대로 이어서 보여준다 — 매달 새로 입력할 필요 없이 사용자가 직접 바꿀
+    # 때까지는 마지막 설정값이 계속 유지된다.
+    budget = Budget.query.filter_by(month=month, user_id=uid).first()
+    if budget:
+        return budget.amount
+    prev = Budget.query.filter(Budget.user_id == uid, Budget.month < month).order_by(Budget.month.desc()).first()
+    return prev.amount if prev else 0
+
+def _compute_cashback(uid, card_name, tx_type, amount, exclude=False, description='', date=None, exclude_tx_id=None):
+    """Returns (cashback_amount, matched_rule_id). 카드에 CashbackRule이 하나라도
+    등록돼 있으면 그 규칙들로 계산하고(가맹점명 매칭 + 일/월 한도 + 카드 통합 월 한도),
+    없으면 기존의 카드 단위 고정 비율(cashback_type/cashback_rate)로 계산한다 — 실제
+    카드사들의 캐시백이 "결제 금액의 X%" 단순 비율인 경우도 많지만, 가맹점마다 비율과
+    한도가 다 다른 카드(배달의민족 5%, 편의점 20% 등)도 있어 두 방식을 같이 지원한다."""
     if exclude or not card_name or tx_type not in ('income', 'expense'):
-        return 0
+        return 0, None
     card = Card.query.filter_by(user_id=uid, name=card_name).first()
-    if not card or not card.cashback_type or not card.cashback_rate:
-        return 0
+    if not card:
+        return 0, None
+    rules = CashbackRule.query.filter_by(card_id=card.id).order_by(CashbackRule.position, CashbackRule.id).all()
+    if rules:
+        # 규칙 기반 캐시백은 결제(지출)에만 적용 — 실제 카드 캐시백도 결제 기준이고,
+        # "충전 시 적립"류는 여기서 다루지 않는다.
+        if tx_type != 'expense':
+            return 0, None
+        date = date or datetime.now(_KST).strftime('%Y-%m-%d')
+        desc_lower = (description or '').lower()
+        matched = None
+        for r in rules:
+            keywords = [k.strip().lower() for k in (r.keywords or '').split(',') if k.strip()]
+            if any(k in desc_lower for k in keywords):
+                matched = r
+                break
+        if not matched:
+            return 0, None
+        cb = int(amount * matched.rate / 100)
+        if cb <= 0:
+            return 0, None
+        day_str, month_str = date[:10], date[:7]
+        rule_txs = Transaction.query.filter_by(user_id=uid, card=card_name, cashback_rule_id=matched.id).all()
+        if exclude_tx_id:
+            rule_txs = [t for t in rule_txs if t.id != exclude_tx_id]
+        day_txs = [t for t in rule_txs if t.date == day_str]
+        month_txs = [t for t in rule_txs if t.date.startswith(month_str)]
+        if matched.daily_count_cap is not None and len(day_txs) >= matched.daily_count_cap:
+            cb = 0
+        if matched.daily_cap is not None:
+            cb = min(cb, max(0, matched.daily_cap - sum(t.cashback or 0 for t in day_txs)))
+        if matched.monthly_count_cap is not None and len(month_txs) >= matched.monthly_count_cap:
+            cb = 0
+        if matched.monthly_cap is not None:
+            cb = min(cb, max(0, matched.monthly_cap - sum(t.cashback or 0 for t in month_txs)))
+        if cb > 0 and card.cashback_monthly_cap is not None:
+            card_txs = Transaction.query.filter_by(user_id=uid, card=card_name).filter(
+                Transaction.cashback_rule_id.isnot(None), Transaction.date.like(f'{month_str}%')).all()
+            if exclude_tx_id:
+                card_txs = [t for t in card_txs if t.id != exclude_tx_id]
+            overall_used = sum(t.cashback or 0 for t in card_txs)
+            cb = min(cb, max(0, card.cashback_monthly_cap - overall_used))
+        return cb, matched.id
+    if not card.cashback_type or not card.cashback_rate:
+        return 0, None
     if (card.cashback_type == 'payment' and tx_type == 'expense') or \
        (card.cashback_type == 'charge' and tx_type == 'income'):
-        return int(amount * card.cashback_rate / 100)
-    return 0
+        return int(amount * card.cashback_rate / 100), None
+    return 0, None
 
 # 매년 날짜가 고정인 공휴일(월, 일) — frontend/src/holidaySync.js의 FIXED_HOLIDAYS와 동일
 _FIXED_HOLIDAYS_MD = {(1, 1), (3, 1), (5, 5), (6, 6), (8, 15), (10, 3), (10, 9), (12, 25)}
@@ -625,7 +727,12 @@ def _apply_point_resets():
     """Runs daily: any card with point_reset_day set gets its balance snapped to
     point_reset_amount on its (weekend-adjusted) reset day, discarding whatever was
     left — a monthly allowance, not a carried-over balance. Independent of every
-    other card's normal carry-forward behavior."""
+    other card's normal carry-forward behavior.
+    point_carryover(전환해둔 포인트)는 여기서 account_balance에 합쳐버리지 않고
+    그대로 둔다 — 합쳐버리면 "충전된 포인트"와 "전환한 포인트"가 한 숫자로
+    뭉개져서 화면에 더 이상 구분해서 보여줄 수가 없다. 대신 point_carryover_baseline을
+    지금 point_carryover 값으로 찍어둬서, _point_balance()가 "이번 주기에 새로 전환한
+    금액"만 새 충전액에서 빼고 지난 주기부터 있던 전환 포인트는 건드리지 않게 한다."""
     with app.app_context():
         today_str = datetime.now(_KST).strftime('%Y-%m-%d')
         today = datetime.now(_KST).date()
@@ -635,8 +742,8 @@ def _apply_point_resets():
             effective = _effective_point_reset_date(today.year, today.month, card.point_reset_day)
             eff_str = effective.strftime('%Y-%m-%d')
             if today == effective and card.point_reset_last_date != eff_str:
-                card.account_balance = (card.point_reset_amount or 0) + (card.point_carryover or 0)
-                card.point_carryover = 0
+                card.account_balance = card.point_reset_amount or 0
+                card.point_carryover_baseline = card.point_carryover or 0
                 card.balance_since = eff_str
                 card.point_reset_last_date = eff_str
                 changed = True
@@ -980,8 +1087,7 @@ def api_home():
     income_total = sum(tx.amount for tx in month_txs if tx.type == 'income' and _is_stats_tx(tx))
     expense_total = sum(tx.amount for tx in month_txs if tx.type == 'expense' and _is_stats_tx(tx))
 
-    budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
-    budget_amount = budget.amount if budget else 0
+    budget_amount = _effective_budget_amount(uid, current_month)
 
     cards = Card.query.filter_by(user_id=uid).all()
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
@@ -1027,8 +1133,10 @@ def api_home():
         'budget_amount': budget_amount,
         'remaining': budget_amount - expense_total,
         'card_stats': card_stats,
-        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
-                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or ''} for c in cards],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0 and not c.point_reset_day,
+                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or '',
+                       'point_reset_day': c.point_reset_day, 'point_carryover': c.point_carryover or 0,
+                       'balance': _point_balance(c, transactions) if c.point_reset_day else None} for c in cards],
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
         'emoji_map': emoji_map,
@@ -1049,6 +1157,17 @@ def _sync_salary_if_needed(uid, category, tx_type, amount):
             db.session.add(SalaryConfig(user_id=uid, amount=amount, pay_day=None))
         db.session.commit()
 
+def _adjust_point_carryover(uid, card_name, point_pool, tx_type, amount, sign):
+    """포인트 카드 지출이 "전환된 포인트에서 차감"으로 표시된 경우에만 card.point_carryover를
+    직접 늘리거나 줄인다. sign=-1: 새로 반영(차감), sign=+1: 되돌림(거래 수정 전 값 복구·삭제).
+    일반("이번 포인트") 지출은 기존처럼 account_balance 쪽 거래 합산으로만 계산되므로 손대지 않는다."""
+    if point_pool != 'carryover' or tx_type != 'expense' or not card_name:
+        return
+    card = Card.query.filter_by(user_id=uid, name=card_name).filter(Card.point_reset_day.isnot(None)).first()
+    if not card:
+        return
+    card.point_carryover = max(0, (card.point_carryover or 0) + sign * amount)
+
 @app.route('/api/transactions', methods=['POST'])
 @login_required
 def api_add_transaction():
@@ -1062,6 +1181,12 @@ def api_add_transaction():
     now_time = datetime.now(_KST).strftime('%H:%M')
     amount = int(data['amount'])
     exclude_cashback = bool(data.get('exclude_cashback', False))
+    point_pool = data.get('point_pool') if data['type'] == 'expense' else None
+    cashback_manual = bool(data.get('cashback_manual', False))
+    if cashback_manual:
+        cb_amount, cb_rule_id = int(data.get('cashback_amount', 0) or 0), None
+    else:
+        cb_amount, cb_rule_id = _compute_cashback(uid, card, data['type'], amount, exclude_cashback, desc, data['date'])
     tx = Transaction(
         date=data['date'], type=data['type'], category=data['category'],
         description=desc, amount=amount,
@@ -1070,18 +1195,21 @@ def api_add_transaction():
         exclude_stats=bool(data.get('exclude_stats', False)),
         exclude_cashback=exclude_cashback,
         time=now_time,
-        cashback=_compute_cashback(uid, card, data['type'], amount, exclude_cashback),
+        cashback=cb_amount, cashback_rule_id=cb_rule_id, cashback_manual=cashback_manual,
         user_id=uid,
+        point_pool=point_pool,
     )
     db.session.add(tx)
+    _adjust_point_carryover(uid, card, point_pool, data['type'], amount, -1)
     if is_transfer and ' → ' in desc:
         to_card = desc.split(' → ')[1].strip() or None
+        paired_cb, _ = _compute_cashback(uid, to_card, 'income', amount, False, desc, data['date'])
         paired = Transaction(
             date=data['date'], type='income', category='계좌 이체',
             description=desc, amount=amount,
             card=to_card, exclude_perf=True, exclude_stats=True,
             time=now_time,
-            cashback=_compute_cashback(uid, to_card, 'income', amount),
+            cashback=paired_cb,
             user_id=uid,
         )
         db.session.add(paired)
@@ -1107,12 +1235,14 @@ def api_transaction(tx_id):
         linked_saving = Savings.query.filter_by(user_id=uid, withdraw_transaction_id=tx.id).first()
         if linked_saving:
             db.session.delete(linked_saving)
+        _adjust_point_carryover(uid, tx.card, tx.point_pool, tx.type, tx.amount, 1)
         db.session.delete(tx)
         db.session.commit()
         return jsonify({'ok': True})
     if request.method == 'PUT':
         data = request.json or {}
         old_date, old_desc, old_amount, old_type, old_category = tx.date, tx.description, tx.amount, tx.type, tx.category
+        old_card, old_point_pool = tx.card, tx.point_pool
         tx.date = data.get('date', tx.date)
         tx.type = data.get('type', tx.type)
         tx.category = data.get('category', tx.category)
@@ -1125,7 +1255,20 @@ def api_transaction(tx_id):
             tx.exclude_stats = bool(data['exclude_stats'])
         if 'exclude_cashback' in data:
             tx.exclude_cashback = bool(data['exclude_cashback'])
-        tx.cashback = _compute_cashback(uid, tx.card, tx.type, tx.amount, tx.exclude_cashback)
+        if 'point_pool' in data:
+            tx.point_pool = data['point_pool'] if tx.type == 'expense' else None
+        elif tx.type != 'expense':
+            tx.point_pool = None
+        if 'cashback_manual' in data:
+            tx.cashback_manual = bool(data['cashback_manual'])
+        if tx.cashback_manual:
+            tx.cashback = int(data.get('cashback_amount', tx.cashback) or 0)
+            tx.cashback_rule_id = None
+        else:
+            tx.cashback, tx.cashback_rule_id = _compute_cashback(uid, tx.card, tx.type, tx.amount, tx.exclude_cashback, tx.description, tx.date, exclude_tx_id=tx.id)
+        # 전환 포인트 차감 거래였으면 수정 전 값만큼 먼저 되돌려놓고, 수정된 값으로 다시 반영
+        _adjust_point_carryover(uid, old_card, old_point_pool, old_type, old_amount, 1)
+        _adjust_point_carryover(uid, tx.card, tx.point_pool, tx.type, tx.amount, -1)
 
         # 계좌 이체는 지출/수입 두 건이 한 쌍으로 생성되는데, 한쪽 날짜만 바꾸면
         # 두 건의 날짜가 어긋나 버리므로 짝이 되는 거래도 같이 옮겨준다.
@@ -1144,16 +1287,23 @@ def api_transaction(tx_id):
         return jsonify({'ok': True})
     expense_cats = Category.query.filter_by(user_id=uid, cat_type='expense').order_by(Category.position, Category.id).all()
     income_cats = Category.query.filter_by(user_id=uid, cat_type='income').order_by(Category.position, Category.id).all()
+    _edit_cards = Card.query.filter_by(user_id=uid).all()
+    _all_txs = Transaction.query.filter_by(user_id=uid).all()
     return jsonify({
         'transaction': {'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                         'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
                         'exclude_perf': bool(tx.exclude_perf), 'exclude_stats': bool(tx.exclude_stats),
                         'exclude_cashback': bool(getattr(tx, 'exclude_cashback', False)),
-                        'has_receipt': bool(getattr(tx, 'has_receipt', False)), 'cashback': tx.cashback or 0},
+                        'has_receipt': bool(getattr(tx, 'has_receipt', False)), 'cashback': tx.cashback or 0,
+                        'cashback_manual': bool(tx.cashback_manual),
+                        'point_pool': tx.point_pool or ''},
         'expense_cats': [[c.name, c.icon] for c in expense_cats],
         'income_cats': [[c.name, c.icon] for c in income_cats],
-        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0,
-                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or ''} for c in Card.query.filter_by(user_id=uid).all()],
+        'card_list': [{'id': c.id, 'name': c.name, 'is_loan': (c.account_balance or 0) < 0 and not c.point_reset_day,
+                       'has_custom_icon': bool(c.has_custom_icon), 'cashback_type': c.cashback_type or '',
+                       'point_reset_day': c.point_reset_day, 'point_carryover': c.point_carryover or 0,
+                       'balance': _point_balance(c, _all_txs) if c.point_reset_day else None}
+                      for c in _edit_cards],
         'excl_cat_names': [c.name for c in expense_cats if c.exclude_perf],
         'excl_stat_cat_names': [c.name for c in (expense_cats + income_cats) if c.exclude_stats],
     })
@@ -1308,12 +1458,93 @@ def api_card(card_id):
         card.cashback_type = data['cashback_type'] or None
     if 'cashback_rate' in data:
         card.cashback_rate = float(data['cashback_rate']) if data['cashback_rate'] not in (None, '') else None
+    if 'cashback_monthly_cap' in data:
+        card.cashback_monthly_cap = int(data['cashback_monthly_cap']) if data['cashback_monthly_cap'] not in (None, '') else None
     if 'point_reset_day' in data:
         card.point_reset_day = int(data['point_reset_day']) if data['point_reset_day'] not in (None, '') else None
     if 'point_reset_amount' in data:
         card.point_reset_amount = int(data['point_reset_amount']) if data['point_reset_amount'] not in (None, '') else None
     db.session.commit()
     return jsonify({'ok': True})
+
+def _cashback_rule_json(r):
+    return {'id': r.id, 'name': r.name, 'keywords': r.keywords, 'rate': r.rate,
+            'daily_cap': r.daily_cap, 'daily_count_cap': r.daily_count_cap,
+            'monthly_cap': r.monthly_cap, 'monthly_count_cap': r.monthly_count_cap}
+
+@app.route('/api/cards/<int:card_id>/cashback-rules', methods=['GET', 'POST'])
+@login_required
+def api_cashback_rules(card_id):
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    if request.method == 'GET':
+        rules = CashbackRule.query.filter_by(card_id=card.id).order_by(CashbackRule.position, CashbackRule.id).all()
+        return jsonify({'rules': [_cashback_rule_json(r) for r in rules]})
+    data = request.json or {}
+    if not data.get('name') or not data.get('keywords') or not data.get('rate'):
+        return jsonify({'error': 'invalid rule'}), 400
+    last_pos = db.session.query(db.func.max(CashbackRule.position)).filter_by(card_id=card.id).scalar() or 0
+    rule = CashbackRule(
+        card_id=card.id, user_id=uid, name=data['name'], keywords=data['keywords'],
+        rate=float(data['rate']),
+        daily_cap=int(data['daily_cap']) if data.get('daily_cap') not in (None, '') else None,
+        daily_count_cap=int(data['daily_count_cap']) if data.get('daily_count_cap') not in (None, '') else None,
+        monthly_cap=int(data['monthly_cap']) if data.get('monthly_cap') not in (None, '') else None,
+        monthly_count_cap=int(data['monthly_count_cap']) if data.get('monthly_count_cap') not in (None, '') else None,
+        position=last_pos + 1,
+    )
+    db.session.add(rule)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': rule.id})
+
+@app.route('/api/cashback-rules/<int:rule_id>', methods=['PUT', 'DELETE'])
+@login_required
+def api_cashback_rule(rule_id):
+    uid = session['user_id']
+    rule = CashbackRule.query.filter_by(id=rule_id, user_id=uid).first_or_404()
+    if request.method == 'DELETE':
+        db.session.delete(rule)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    rule.name = data.get('name', rule.name)
+    rule.keywords = data.get('keywords', rule.keywords)
+    if 'rate' in data:
+        rule.rate = float(data['rate'])
+    if 'daily_cap' in data:
+        rule.daily_cap = int(data['daily_cap']) if data['daily_cap'] not in (None, '') else None
+    if 'daily_count_cap' in data:
+        rule.daily_count_cap = int(data['daily_count_cap']) if data['daily_count_cap'] not in (None, '') else None
+    if 'monthly_cap' in data:
+        rule.monthly_cap = int(data['monthly_cap']) if data['monthly_cap'] not in (None, '') else None
+    if 'monthly_count_cap' in data:
+        rule.monthly_count_cap = int(data['monthly_count_cap']) if data['monthly_count_cap'] not in (None, '') else None
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/cards/<int:card_id>/perf-transactions')
+@login_required
+def api_card_perf_transactions(card_id):
+    # 예산 탭의 "이달 실적" 퍼센트가 어떤 거래들로 계산됐는지 그대로 보여준다 —
+    # card_stats의 perf_spent와 같은 조건(이번 달 지출 + 카드 일치 + 실적 제외 아님)으로 걸러야
+    # 숫자가 일치한다.
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    current_month = datetime.now(_KST).strftime('%Y-%m')
+    all_cats = Category.query.filter_by(user_id=uid).all()
+    excl_cats = {c.name for c in all_cats if c.exclude_perf}
+    emoji_map = {c.name: c.icon for c in all_cats}
+    txs = Transaction.query.filter_by(user_id=uid, card=card.name).all()
+    matched = [t for t in txs if t.type == 'expense' and t.date.startswith(current_month) and _is_perf_tx(t, excl_cats)]
+    matched.sort(key=lambda t: (t.date, t.time or ''), reverse=True)
+    return jsonify({
+        'transactions': [{'id': t.id, 'date': t.date, 'time': t.time or '', 'type': t.type, 'category': t.category,
+                           'description': t.description or '', 'amount': t.amount, 'card': t.card or '',
+                           'exclude_perf': bool(t.exclude_perf), 'exclude_stats': bool(t.exclude_stats),
+                           'has_receipt': bool(getattr(t, 'has_receipt', False)), 'cashback': t.cashback or 0}
+                          for t in matched],
+        'emoji_map': emoji_map,
+    })
 
 @app.route('/api/cards/<int:card_id>/point-convert', methods=['POST'])
 @login_required
@@ -1322,8 +1553,46 @@ def api_point_convert(card_id):
     card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
     if not card.point_reset_day:
         return jsonify({'error': 'not a point card'}), 400
-    card.point_carryover = (card.point_carryover or 0) + (card.account_balance or 0)
-    card.account_balance = 0
+    # account_balance(초기 잔고)는 사용자가 입력/리셋한 그대로 유지한다 — 전환은
+    # account_balance를 전혀 건드리지 않고 point_carryover만 늘린다. "사용 가능한
+    # 포인트"는 _point_balance()로 조회할 때마다 다시 계산되므로, 전환해둔 금액은
+    # 자동으로 제외되고 account_balance는 언제 봐도 "원래 입력한 금액" 그대로 남는다.
+    all_txs = Transaction.query.filter_by(user_id=uid).all()
+    usable = _point_balance(card, all_txs)
+    data = request.get_json(silent=True) or {}
+    amount = data.get('amount')
+    amount = usable if amount is None else int(amount)
+    if amount <= 0 or amount > usable:
+        return jsonify({'error': 'invalid amount'}), 400
+    card.point_carryover = (card.point_carryover or 0) + amount
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/cards/<int:card_id>/point-balance', methods=['PUT'])
+@login_required
+def api_point_balance(card_id):
+    # 전환하기를 잘못 눌렀을 때(금액 실수 등) 사용자가 화면에 보이는 "사용 가능"/
+    # "전환" 두 숫자를 직접 원하는 값으로 고칠 수 있게 하는 엔드포인트. account_balance를
+    # 직접 받지 않고 두 표시값을 받아서 역산하는 이유는, account_balance 자체는 사용자
+    # 입장에서 의미 없는 내부 anchor라 직접 입력하게 하면 또 이상한 값이 되기 쉽다.
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    if not card.point_reset_day:
+        return jsonify({'error': 'not a point card'}), 400
+    data = request.json or {}
+    try:
+        usable = int(data.get('usable', 0))
+        carryover = int(data.get('carryover', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid amount'}), 400
+    if usable < 0 or carryover < 0:
+        return jsonify({'error': 'invalid amount'}), 400
+    card_txs = Transaction.query.filter_by(user_id=uid, card=card.name).all()
+    inc_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
+    exp_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+    converted_this_cycle = max(0, carryover - (card.point_carryover_baseline or 0))
+    card.account_balance = usable - inc_now + exp_now + converted_this_cycle
+    card.point_carryover = carryover
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -2215,7 +2484,7 @@ def api_budget():
             db.session.add(Budget(month=current_month, amount=amount, user_id=uid))
         db.session.commit()
         return jsonify({'ok': True})
-    budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
+    budget_amount = _effective_budget_amount(uid, current_month)
     all_txs = Transaction.query.filter_by(user_id=uid).all()
     all_cats_budget = Category.query.filter_by(user_id=uid).all()
     excl_cats_budget = {c.name for c in all_cats_budget if c.exclude_perf}
@@ -2236,10 +2505,16 @@ def api_budget():
     for r in LoanRepayment.query.filter_by(user_id=uid).all():
         loan_repayments_all[r.card_id] = loan_repayments_all.get(r.card_id, 0) + r.amount
 
+    cashback_rule_counts = {}
+    for r in CashbackRule.query.filter_by(user_id=uid).all():
+        cashback_rule_counts[r.card_id] = cashback_rule_counts.get(r.card_id, 0) + 1
+
     card_stats = []
     for card in cards:
         initial_balance = card.account_balance or 0
-        is_loan = initial_balance < 0
+        # 포인트 카드는 account_balance가 (복구용 역산 등으로) 음수가 되더라도 "대출"로
+        # 취급하면 안 된다 — 완전히 다른 화면/공식(all_repaid 등)으로 빠져버린다.
+        is_loan = initial_balance < 0 and not card.point_reset_day
         linked_account_id = card.linked_account_id
         if is_loan:
             all_repaid = loan_repayments_all.get(card.id, 0)
@@ -2258,6 +2533,7 @@ def api_budget():
             all_expense = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
             display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
+            display_cashback = sum(tx.cashback or 0 for tx in card_txs if tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             perf_spent = sum(_net_amount(tx) for tx in card_txs
                              if tx.type == 'expense' and tx.date.startswith(current_month)
                              and _is_perf_tx(tx, excl_cats_budget))
@@ -2269,6 +2545,7 @@ def api_budget():
                     all_expense += sum(_net_amount(tx) for tx in ltxs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
                     display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
+                    display_cashback += sum(tx.cashback or 0 for tx in ltxs if tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             # linked card: show account card's balance
             if linked_account_id and linked_account_id in card_by_id:
                 acc = card_by_id[linked_account_id]
@@ -2278,18 +2555,33 @@ def api_budget():
                 acc_exp = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and _since_balance(tx.date, acc.balance_since))
                 balance = acc_initial + acc_inc - acc_exp
             else:
-                balance = initial_balance + all_income - all_expense
+                # 포인트 카드는 "이번 주기에 새로 전환한 금액"만 사용 가능한 잔고에서
+                # 빼야 한다 — account_balance 자체는 건드리지 않으므로 여기서 매번
+                # 빼줘야 전환한 만큼 실제로 줄어든 것처럼 보이고, point_carryover 전체가
+                # 아니라 baseline을 뺀 순증분만 빼야 지난 주기부터 있던 전환 포인트가
+                # 이번에 새로 충전된 금액까지 깎아먹지 않는다(_point_balance 참고).
+                # 일반 카드는 point_carryover가 항상 0이라 영향 없음.
+                converted_this_cycle = max(0, (card.point_carryover or 0) - (card.point_carryover_baseline or 0))
+                balance = initial_balance + all_income - all_expense - converted_this_cycle
+                # 포인트는 성격상 마이너스가 될 수 없다 — 가진 포인트보다 더 쓸 수는
+                # 없으므로, 어떤 이유로든 계산이 음수가 나오면 0으로 바닥을 둔다.
+                # 일반 계좌(마이너스 통장 등)는 실제로 음수일 수 있어 대상에서 뺀다.
+                if card.point_reset_day and balance < 0:
+                    balance = 0
             percent = min(int(perf_spent / card.monthly_target * 100), 100) if card.monthly_target > 0 else 0
             card_stats.append({
                 'id': card.id, 'name': card.name,
                 'initial_balance': initial_balance, 'total_income': display_income,
-                'total_expense': display_expense, 'balance': balance,
+                'total_expense': display_expense, 'total_cashback': display_cashback, 'balance': balance,
                 'spent': perf_spent, 'target': card.monthly_target, 'percent': percent,
                 'tier1': card.tier1 or 20, 'tier2': card.tier2 or 50, 'tier3': card.tier3 or 80,
                 'url': card.url or '', 'is_loan': False, 'linked_account_id': linked_account_id,
                 'cashback_type': card.cashback_type or '', 'cashback_rate': card.cashback_rate,
+                'cashback_monthly_cap': card.cashback_monthly_cap,
+                'cashback_rule_count': cashback_rule_counts.get(card.id, 0),
                 'has_custom_icon': bool(card.has_custom_icon), 'balance_since': card.balance_since,
                 'point_reset_day': card.point_reset_day, 'point_reset_amount': card.point_reset_amount,
+                'point_carryover': card.point_carryover or 0,
             })
 
     savings = Savings.query.filter_by(user_id=uid).order_by(Savings.position, Savings.id).all()
@@ -2299,7 +2591,7 @@ def api_budget():
     for dep in SavingsDeposit.query.filter_by(user_id=uid).all():
         extra_deposits[dep.savings_id] = extra_deposits.get(dep.savings_id, 0) + dep.amount
     return jsonify({
-        'budget_amount': budget.amount if budget else 0,
+        'budget_amount': budget_amount,
         'expense_total': expense_total,
         'current_month': current_month,
         'card_stats': card_stats,
@@ -3128,7 +3420,7 @@ def api_portfolio():
     savings_stats = [_savings_stats(s, extra_deposits_port.get(s.id, 0)) for s in savings_list]
     inv_list = Investment.query.filter_by(user_id=uid).all()
     _auto_fetch_investment_prices(inv_list)
-    budget = Budget.query.filter_by(month=current_month, user_id=uid).first()
+    budget_amount_port = _effective_budget_amount(uid, current_month)
     investments = [_investment_stats(i) for i in inv_list]
     # 통계 제외 항목은 목록에는 그대로 남기고, 합계·순자산 계산에서만 뺀다
     savings_stats_ct = [s for s in savings_stats if not s.get('exclude_stats')]
@@ -3154,7 +3446,7 @@ def api_portfolio():
         },
         'investments': investments,
         'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments_ct), 'return_rate': inv_return_rate, 'total_cost': inv_cost_total},
-        'budget': budget.amount if budget else 0,
+        'budget': budget_amount_port,
         'transactions': [{'date': tx.date, 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''}
                          for tx in transactions],
@@ -3639,22 +3931,24 @@ def import_categorize_confirm():
         transfer_to = request.form.get(f'transfer_to_{i}', '').strip() or None
         is_transfer = cat == '계좌 이체' and transfer_to
         desc = f'{card_val} → {transfer_to}' if is_transfer else row['description']
+        row_cb, row_cb_rule_id = _compute_cashback(uid, card_val, row['type'], row['amount'], False, desc, row['date'])
         db.session.add(Transaction(
             date=row['date'], type=row['type'], category=cat,
             description=desc, amount=row['amount'],
             card=card_val, user_id=uid,
             exclude_perf=bool(is_transfer), exclude_stats=bool(is_transfer),
             time=now_time,
-            cashback=_compute_cashback(uid, card_val, row['type'], row['amount']),
+            cashback=row_cb, cashback_rule_id=row_cb_rule_id,
         ))
         if is_transfer:
+            paired_cb, _ = _compute_cashback(uid, transfer_to, 'income', row['amount'], False, desc, row['date'])
             db.session.add(Transaction(
                 date=row['date'], type='income', category='계좌 이체',
                 description=desc, amount=row['amount'],
                 card=transfer_to, user_id=uid,
                 exclude_perf=True, exclude_stats=True,
                 time=now_time,
-                cashback=_compute_cashback(uid, transfer_to, 'income', row['amount']),
+                cashback=paired_cb,
             ))
         if cat == '월급' and row['type'] == 'income':
             salary_sync = row['amount']
@@ -3814,23 +4108,25 @@ def import_text_confirm():
             amount = int(str(amts[i]).replace(',', ''))
             card = cardss[i] if cardss[i] else None
             is_transfer = bool(cats[i] == '계좌 이체' and transfer_tos[i])
+            row_cb, row_cb_rule_id = _compute_cashback(uid, card, types[i], amount, False, descs[i], dates[i])
             db.session.add(Transaction(
                 date=dates[i], type=types[i], category=cats[i],
                 description=descs[i], amount=amount,
                 card=card, user_id=uid,
                 exclude_perf=is_transfer, exclude_stats=is_transfer,
                 time=now_time,
-                cashback=_compute_cashback(uid, card, types[i], amount),
+                cashback=row_cb, cashback_rule_id=row_cb_rule_id,
             ))
             if is_transfer:
                 to_card = transfer_tos[i]
+                paired_cb, _ = _compute_cashback(uid, to_card, 'income', amount, False, descs[i], dates[i])
                 db.session.add(Transaction(
                     date=dates[i], type='income', category='계좌 이체',
                     description=descs[i], amount=amount,
                     card=to_card, user_id=uid,
                     exclude_perf=True, exclude_stats=True,
                     time=now_time,
-                    cashback=_compute_cashback(uid, to_card, 'income', amount),
+                    cashback=paired_cb,
                 ))
             imported += 1
         except Exception:

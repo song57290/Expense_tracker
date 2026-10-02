@@ -51,9 +51,9 @@ let _homeCache = null
 
 export default function Home() {
   const [data, setData] = useState(() => _homeCache)
-  const [filter, setFilter] = useState('all')
-  const [sortAsc, setSortAsc] = useState(false)
-  const [showBalance, setShowBalance] = useState(true)
+  const [filter, setFilter] = useLocalStorageState('home_tx_filter', 'all')
+  const [sortAsc, setSortAsc] = useLocalStorageState('home_tx_sort_asc', false)
+  const [showBalance, setShowBalance] = useLocalStorageState('home_show_balance', true)
   // 필터 팝업과 같은 방식으로 가릴 항목을 고를 수 있게 다중 선택으로 저장
   // ('all' = 전부, 배열 = 그 중 선택된 것만, [] = 아무 것도 안 가림)
   const [hiddenPartsRaw, setHiddenParts] = useLocalStorageState('hide_amounts_home', [])
@@ -63,7 +63,7 @@ export default function Home() {
   const hideCardStat = hiddenParts === 'all' || hiddenParts.includes('cardstat')
   const hideCategory = hiddenParts === 'all' || hiddenParts.includes('category')
   const hideTx = hiddenParts === 'all' || hiddenParts.includes('tx')
-  const [showTime, setShowTime] = useState(true)
+  const [showTime, setShowTime] = useLocalStorageState('home_show_time', true)
   // 접기/펼치기 상태도 탭 이동·앱 재실행 후에 유지되도록 로컬 저장
   const [summaryOpen, setSummaryOpen] = useLocalStorageState('home_summary_open', true)
   const [cardStatOpen, setCardStatOpen] = useLocalStorageState('home_cardstat_open', true)
@@ -86,7 +86,7 @@ export default function Home() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
   const receiptInputRef = useRef(null)
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
-  const [cardFilter, setCardFilter] = useState('all')
+  const [cardFilter, setCardFilter] = useLocalStorageState('home_card_filter', 'all')
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
   const [cardSheetSortAsc, setCardSheetSortAsc] = useState(false)
@@ -112,16 +112,36 @@ export default function Home() {
   const [routineSheetDate, setRoutineSheetDate] = useState('')
   const [routineSheetAmounts, setRoutineSheetAmounts] = useState([])
   const [routineSheetError, setRoutineSheetError] = useState(false)
-  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false })
+  const [form, setForm] = useState({ date: today(), type: 'expense', category: '', amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, point_pool: '', cashback_manual: false, cashback_amount: ''})
   const [amountDisplay, setAmountDisplay] = useState('')
   const [amountError, setAmountError] = useState(false)
   const [cardError, setCardError] = useState(false)
+  // 포인트 카드 잔고보다 큰 금액을 쓰려고 하면(포인트는 마이너스가 될 수 없으므로)
+  // 바로 등록하지 않고 경고 → (그래도 추가 시) 차액을 대신 결제할 연결 카드 선택
+  // 순서로 한 번 더 확인시킨다.
+  const [pointOverspend, setPointOverspend] = useState(null) // { card, amount, available, payload }
+  const [overspendStep, setOverspendStep] = useState('warn') // 'warn' | 'pick'
+  const [overspendCardChoice, setOverspendCardChoice] = useState('')
   // .s-collapse는 접힌 상태를 실제로 숨기려고 overflow:hidden을 쓰는데, 펼쳐진
   // 채로 계속 두면 안에 있는 입력창 포커스 링까지 옆으로 잘린다 — 펼침 애니메이션이
   // 끝난 뒤에만 overflow를 풀어주고, 닫히거나 다시 열리는 동안은 hidden으로 되돌려
   // 접기 애니메이션이 그대로 보이게 한다.
   const [addCollapseSettled, setAddCollapseSettled] = useState(addOpen)
   useEffect(() => { if (!addOpen) setAddCollapseSettled(false) }, [addOpen])
+  // maxHeight를 scrollHeight로 매 렌더 읽기만 하면, 폼 안에서 조건부로 나타나는
+  // 요소(예: 전환된 포인트 토글)가 생기는 바로 그 렌더에서는 "생기기 전" 높이를
+  // 읽어버려 한 템포 뒤처진다 — 그 상태로 다른 상태 변화가 없으면 영영 그 높이로
+  // 굳어서 밑부분(저장 버튼 등)이 잘린 채로 남는다. ResizeObserver로 실제 DOM
+  // 높이가 바뀔 때마다 다시 재는 값을 따로 들고 있으면 이 한 템포 지연이 없어진다.
+  const [addContentHeight, setAddContentHeight] = useState(3000)
+  useEffect(() => {
+    if (!addOpen || !addCollapseRef.current) return
+    const el = addCollapseRef.current
+    const ro = new ResizeObserver(() => setAddContentHeight(el.scrollHeight))
+    ro.observe(el)
+    setAddContentHeight(el.scrollHeight)
+    return () => ro.disconnect()
+  }, [addOpen])
   // 내역 추가 카드는 캘린더/월급 탭처럼 팝업이 아니라 페이지에 항상 펼쳐진
   // 인라인 폼이라, 키보드가 뜰 때 입력창을 뷰포트 하단에 붙일 구조적인
   // 방법이 없다 — 포커스된 동안만 폼 아래에 여백을 더해 키보드에 바짝
@@ -160,14 +180,14 @@ export default function Home() {
   }, [params])
 
   useEffect(() => {
-    const open = !!confirmSheet || !!cardSheet || importOpen || !!photoViewerTxId || budgetDialog || !!routineSheet || hideCardConfirm
+    const open = !!confirmSheet || !!cardSheet || importOpen || !!photoViewerTxId || budgetDialog || !!routineSheet || hideCardConfirm || !!pointOverspend
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [confirmSheet, cardSheet, importOpen, photoViewerTxId, budgetDialog, routineSheet, hideCardConfirm])
+  }, [confirmSheet, cardSheet, importOpen, photoViewerTxId, budgetDialog, routineSheet, hideCardConfirm, pointOverspend])
 
   // 안드로이드 뒤로가기로 열린 시트 닫기
   useEffect(() => {
-    if (!confirmSheet && !cardSheet && !importOpen && !hideCardConfirm && !routineSheet) return
+    if (!confirmSheet && !cardSheet && !importOpen && !hideCardConfirm && !routineSheet && !pointOverspend) return
     const handler = (e) => {
       e.preventDefault()
       if (routineSheet) { setRoutineSheetVisible(false); setTimeout(() => setRoutineSheet(null), 350); return }
@@ -175,10 +195,11 @@ export default function Home() {
       if (confirmSheet) { setConfirmSheet(null); return }
       if (hideCardConfirm) { setHideCardVisible(false); setTimeout(() => setHideCardConfirm(null), 260); return }
       if (importOpen) { setImportOpen(false); return }
+      if (pointOverspend) { if (overspendStep === 'pick') setOverspendStep('warn'); else setPointOverspend(null); return }
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [routineSheet, cardSheet, confirmSheet, hideCardConfirm, importOpen])
+  }, [routineSheet, cardSheet, confirmSheet, hideCardConfirm, importOpen, pointOverspend, overspendStep])
 
   useEffect(() => {
     if (data) {
@@ -230,6 +251,23 @@ export default function Home() {
 
   const existingRoutineCats = new Set((data.routines || []).map(r => r.category))
 
+  async function attachPendingReceipt(txId) {
+    if (!pendingReceiptFile || !txId) return
+    const fd = new FormData()
+    fd.append('receipt', pendingReceiptFile)
+    await fetch(`/api/transactions/${txId}/receipt`, { method: 'POST', credentials: 'same-origin', body: fd }).catch(() => {})
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
+    setPendingReceiptFile(null)
+    setReceiptPreviewUrl(null)
+  }
+
+  function resetAddForm() {
+    setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false, point_pool: '', cashback_manual: false, cashback_amount: ''}))
+    setAmountDisplay('')
+    setTransferFrom('')
+    setTransferTo('')
+  }
+
   async function handleAdd(e) {
     e.preventDefault()
     const amt = parseInt(amountDisplay.replace(/,/g, '')) || 0
@@ -240,21 +278,38 @@ export default function Home() {
     const isTransfer = form.category === '계좌 이체'
     if (!isTransfer && !form.card) { setCardError(true); return }
     setCardError(false)
-    const payload = { ...form, amount: amt }
+    const payload = { ...form, amount: amt, cashback_amount: parseInt(form.cashback_amount.replace(/,/g, '')) || 0 }
     if (isTransfer && transferFrom) payload.card = transferFrom
-    const res = await api.post('/api/transactions', payload)
-    if (pendingReceiptFile && res?.id) {
-      const fd = new FormData()
-      fd.append('receipt', pendingReceiptFile)
-      await fetch(`/api/transactions/${res.id}/receipt`, { method: 'POST', credentials: 'same-origin', body: fd }).catch(() => {})
-      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl)
-      setPendingReceiptFile(null)
-      setReceiptPreviewUrl(null)
+
+    // 포인트는 마이너스가 될 수 없다 — 가진 포인트보다 많이 쓰려고 하면 바로
+    // 등록하지 않고 경고부터 띄운다 (그래도 추가하려면 차액을 낼 연결 카드를 고르게 함).
+    if (!isTransfer && form.type === 'expense') {
+      const selectedCard = data.card_list.find(c => c.name === payload.card)
+      if (selectedCard?.point_reset_day && selectedCard.balance != null && amt > selectedCard.balance) {
+        setPointOverspend({ card: selectedCard, amount: amt, available: selectedCard.balance, payload })
+        setOverspendStep('warn')
+        setOverspendCardChoice('')
+        return
+      }
     }
-    setForm(f => ({ ...f, amount: '', description: '', card: '', exclude_perf: false, exclude_stats: false, exclude_cashback: false }))
-    setAmountDisplay('')
-    setTransferFrom('')
-    setTransferTo('')
+
+    const res = await api.post('/api/transactions', payload)
+    await attachPendingReceipt(res?.id)
+    resetAddForm()
+    load()
+  }
+
+  async function confirmOverspendWithLinkedCard() {
+    if (!pointOverspend || !overspendCardChoice) return
+    const { payload, amount, available } = pointOverspend
+    const overage = amount - available
+    let firstRes = null
+    if (available > 0) firstRes = await api.post('/api/transactions', { ...payload, amount: available })
+    const secondRes = await api.post('/api/transactions', { ...payload, amount: overage, card: overspendCardChoice, point_pool: '' })
+    await attachPendingReceipt((firstRes || secondRes)?.id)
+    setPointOverspend(null)
+    setOverspendCardChoice('')
+    resetAddForm()
     load()
   }
 
@@ -515,20 +570,27 @@ export default function Home() {
             {(() => {
               const catEntries = Object.entries(data.category_totals).sort(([, a], [, b]) => b - a)
               const maxAmt = catEntries[0]?.[1] || 1
-              return catEntries.map(([cat, amt]) => (
-                <div key={cat} className="mb-2 mt-2">
-                  <div className="d-flex justify-content-between align-items-center mb-1">
-                    <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span className={`text-muted amt-mask${hideCategory ? ' amt-hidden' : ''}`} style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', minWidth: 34 }}>({catSum > 0 ? Math.round(amt / catSum * 100) : 0}%)</span>
+              return catEntries.map(([cat, amt]) => {
+                const pct = catSum > 0 ? Math.round(amt / catSum * 100) : 0
+                // 막대는 평소엔 카테고리끼리 상대 비교가 되게 최대 80%까지만 채우지만,
+                // 이 카테고리가 이번 달 지출 전부(100%)라면 비교할 다른 막대가 없는
+                // 셈이라 끝까지 꽉 채운다 — 안 그러면 "(100%)" 글자랑 안 맞아 보인다.
+                const barWidth = pct >= 100 ? 100 : (amt / maxAmt * 80)
+                return (
+                  <div key={cat} className="mb-2 mt-2">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <span style={{ fontSize: '0.9rem' }}>{data.emoji_map[cat] || '📦'} {cat}</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                        <span className={`text-muted amt-mask${hideCategory ? ' amt-hidden' : ''}`} style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: 60 }}>{fmt(amt)}원</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', minWidth: 34 }}>({pct}%)</span>
+                      </div>
+                    </div>
+                    <div className="progress" style={{ height: 5 }}>
+                      <div className="progress-bar" style={{ width: `${barWidth.toFixed(1)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
                     </div>
                   </div>
-                  <div className="progress" style={{ height: 5 }}>
-                    <div className="progress-bar" style={{ width: `${(amt / maxAmt * 80).toFixed(1)}%`, background: 'linear-gradient(90deg,#b088f9,#7baff0)', borderRadius: 4 }} />
-                  </div>
-                </div>
-              ))
+                )
+              })
             })()}
             </div>
           </div>
@@ -543,7 +605,7 @@ export default function Home() {
             <h5 className="card-title mb-0">내역 추가</h5>
             <span className="s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
           </div>
-          <div ref={addCollapseRef} className="s-collapse" style={{ maxHeight: addOpen ? (addCollapseRef.current?.scrollHeight || 3000) + 'px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
+          <div ref={addCollapseRef} className="s-collapse" style={{ maxHeight: addOpen ? addContentHeight + 'px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
             onTransitionEnd={e => { if (e.propertyName === 'max-height' && addOpen) setAddCollapseSettled(true) }}>
           {data.routines?.length > 0 && (
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 10, marginBottom: 2 }}>
@@ -648,7 +710,7 @@ export default function Home() {
                         <CardPicker
                           cards={data.card_list.filter(c => !c.is_loan)}
                           value={form.card}
-                          onChange={name => { setForm(f => ({ ...f, card: name })); setCardError(false) }}
+                          onChange={name => { setForm(f => ({ ...f, card: name, point_pool: '' })); setCardError(false) }}
                           error={cardError}
                         />
                         {cardError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3 }}>카드를 선택해 주세요</div>}
@@ -695,6 +757,43 @@ export default function Home() {
                   </div>
                 )
               })()}
+              {form.card && (form.type === 'expense' || form.type === 'income') && (
+                <div className="col-12">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 2px', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, cashback_manual: !f.cashback_manual }))}>
+                    <label style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 0, cursor: 'pointer' }}>✏️ 캐시백 금액 직접 입력</label>
+                    <div className="ios-toggle">
+                      <div className={`ios-track${form.cashback_manual ? ' on' : ''}`} />
+                      <div className={`ios-dot${form.cashback_manual ? ' on' : ''}`} />
+                    </div>
+                  </div>
+                  {form.cashback_manual && (
+                    <div style={{ position: 'relative', marginTop: 4 }}>
+                      <input type="text" inputMode="numeric" className="form-control" placeholder="캐시백 금액" style={{ borderRadius: 10, paddingRight: 36 }}
+                        value={form.cashback_amount} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); const v = raw ? parseInt(raw).toLocaleString('ko-KR') : ''; setForm(f => ({ ...f, cashback_amount: v })) }} />
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {(() => {
+                const selectedCard = data.card_list.find(c => c.name === form.card)
+                const isPointWithCarryover = form.type === 'expense' && selectedCard?.point_reset_day && selectedCard.point_carryover > 0
+                return isPointWithCarryover && (
+                  <div className="col-12">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, background: 'rgba(176,136,249,0.08)', border: '1px solid rgba(176,136,249,0.18)', cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, point_pool: f.point_pool === 'carryover' ? '' : 'carryover' }))}>
+                      <span style={{ fontSize: '1.2rem', lineHeight: 1, flexShrink: 0 }}>🎁</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>전환된 포인트에서 차감</div>
+                        <div style={{ fontSize: '0.72rem', color: '#b088f9', fontWeight: 600, marginTop: 2 }}>전환 가능 {fmt(selectedCard.point_carryover)}원</div>
+                      </div>
+                      <div className="ios-toggle">
+                        <div className={`ios-track${form.point_pool === 'carryover' ? ' on' : ''}`} />
+                        <div className={`ios-dot${form.point_pool === 'carryover' ? ' on' : ''}`} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
               <div ref={addFormActionsRef} className="col-12 d-flex justify-content-between align-items-center mt-1">
                 <button type="button" className="btn btn-outline-secondary" style={{ borderRadius: 10, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setImportOpen(true)}>
                   <i className="bi bi-upload" /> 가져오기
@@ -703,7 +802,7 @@ export default function Home() {
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn"
                   style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
-                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false, exclude_cashback: false })) }}>취소</button>
+                  <button type="reset" className="btn btn-outline-secondary" onClick={() => { setAmountDisplay(''); if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl); setPendingReceiptFile(null); setReceiptPreviewUrl(null); setForm(f => ({ ...f, exclude_perf: false, exclude_stats: false, exclude_cashback: false, point_pool: '', cashback_manual: false, cashback_amount: ''})) }}>취소</button>
                 </div>
               </div>
             </form>
@@ -878,6 +977,42 @@ export default function Home() {
         </div>
       )}
 
+      {pointOverspend && overspendStep === 'warn' && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트는 마이너스가 될 수 없어요</p>
+            <p className="text-center text-muted mb-4" style={{ fontSize: '0.82rem' }}>
+              {pointOverspend.card.name}에 남은 포인트는 {pointOverspend.available.toLocaleString('ko-KR')}원인데 {pointOverspend.amount.toLocaleString('ko-KR')}원을 쓰려고 하고 있어요.
+            </p>
+            <div className="d-flex gap-2">
+              <button autoFocus className="btn flex-fill" onClick={() => setOverspendStep('pick')}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>그래도 추가</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointOverspend(null)} style={{ borderRadius: 10 }}>취소하고 다시 작성</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pointOverspend && overspendStep === 'pick' && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>차액을 낼 카드/계좌</p>
+            <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
+              부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드나 계좌를 골라주세요.
+            </p>
+            <div className="mb-3">
+              <CardPicker cards={data.card_list.filter(c => c.name !== pointOverspend.card.name && !c.point_reset_day)}
+                value={overspendCardChoice} onChange={setOverspendCardChoice} placeholder="카드/계좌 선택" />
+            </div>
+            <div className="d-flex gap-2">
+              <button className="btn flex-fill" disabled={!overspendCardChoice} onClick={confirmOverspendWithLinkedCard}
+                style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, opacity: overspendCardChoice ? 1 : 0.5 }}>확인</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setPointOverspend(null)} style={{ borderRadius: 10 }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {hideCardConfirm && (
         <div onClick={closeHideCard}
           style={{ display: 'flex', position: 'fixed', inset: 0, zIndex: 2000, alignItems: 'center', justifyContent: 'center',
@@ -902,7 +1037,10 @@ export default function Home() {
           onClick={e => e.target === e.currentTarget && closeCardSheet()}>
           <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72dvh', overflowY: 'auto', overscrollBehavior: 'contain', padding: '20px 16px 40px', transform: cardSheetVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94), max-height 0.2s ease' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h6 className="mb-0 fw-bold">{cardSheet} 내역</h6>
+              <h6 className="mb-0 fw-bold d-flex align-items-center gap-2">
+                {(() => { const logo = cardLogo(data.card_stats.find(cs => cs.name === cardSheet)); return logo && <img src={logo} style={{ height: 24, width: 24, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} /> })()}
+                {cardSheet} 내역
+              </h6>
               <div className="d-flex align-items-center gap-2">
                 <button onClick={() => setCardSheetSortAsc(a => !a)}
                   style={{ borderRadius: 20, padding: '3px 10px', fontSize: '0.78rem', color: '#b088f9', border: '1px solid #b088f9', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}>

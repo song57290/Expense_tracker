@@ -32,6 +32,16 @@ class Transaction(db.Model):
     has_receipt = db.Column(db.Boolean, nullable=False, default=False)
     cashback = db.Column(db.Integer, nullable=False, default=0)
     exclude_cashback = db.Column(db.Boolean, nullable=False, default=False)
+    # 포인트 카드 지출 전용 — 'carryover'면 이 거래가 전환(이월)해둔 포인트에서 차감된
+    # 것, None/''이면 이번 주기 포인트에서 차감(기본값)
+    point_pool = db.Column(db.String(20), nullable=True)
+    # 이 거래의 캐시백이 카드의 어떤 CashbackRule로 계산됐는지 — 일/월 한도를 셀 때
+    # "이 규칙으로 이미 얼마나 썼는지"를 과거 거래에서 되짚어보려면 필요하다.
+    # 규칙이 없는 카드(기존 고정비율 cashback_type/rate)는 항상 null.
+    cashback_rule_id = db.Column(db.Integer, nullable=True)
+    # 자동 계산(고정비율/규칙) 대신 사용자가 캐시백 금액을 직접 입력했는지 — true면
+    # 수정 폼을 다시 열었을 때도 자동 재계산하지 않고 그 값을 그대로 보여준다.
+    cashback_manual = db.Column(db.Boolean, nullable=False, default=False)
 
 class Budget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,9 +81,34 @@ class Card(db.Model):
     point_reset_day = db.Column(db.Integer, nullable=True)
     point_reset_amount = db.Column(db.Integer, nullable=True)
     point_reset_last_date = db.Column(db.String(10), nullable=True)
-    # 초기화 직전 남은 소액 잔액을 사용자가 "전환"해 다음 초기화 금액에 더해 받도록
-    # 보관해두는 값 — 다른 계좌로 옮기는 게 아니라 같은 카드에 누적됨.
+    # "전환하기"로 따로 떼어둔 포인트의 누적 총량 — 리셋이 지나가도 사라지지 않고
+    # 그대로 남아, "전환된 포인트에서 차감" 토글을 켠 지출로만 줄어든다.
     point_carryover = db.Column(db.Integer, nullable=False, default=0)
+    # point_carryover 중 "지난 리셋 시점에 이미 있던 만큼"의 스냅샷 — 이번 주기에
+    # 새로 전환한 금액(point_carryover - 이 값)만 이번 충전액에서 빼서 보여줘야,
+    # 리셋 전부터 있던 전환 포인트가 새 충전액까지 깎아먹지 않는다. _point_balance() 참고.
+    point_carryover_baseline = db.Column(db.Integer, nullable=False, default=0)
+    # 여러 CashbackRule을 합쳐서 한 달에 받을 수 있는 캐시백 총액의 상한(예: "전월실적
+    # 20~50만원 구간은 Life 서비스 통합 월 2만원"). 전월실적 구간 자체는 추적하지 않고
+    # 사용자가 매달 바뀔 때 직접 갱신 — null이면 통합 한도 없음(규칙별 한도만 적용).
+    cashback_monthly_cap = db.Column(db.Integer, nullable=True)
+
+class CashbackRule(db.Model):
+    # 카드 하나에 여러 개 — "배달의민족 5%, 일 1회 최대 1천원, 월 5회 최대 5천원" 같은
+    # 가맹점/카테고리별 캐시백 규칙 한 줄. 카드에 이 규칙이 하나라도 있으면 _compute_cashback은
+    # cashback_type/cashback_rate(고정비율) 대신 이 규칙들로 계산한다.
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, nullable=True)
+    name = db.Column(db.String(50), nullable=False)  # 화면에 보여줄 규칙 이름 (예: "편의점 20%")
+    # 거래 설명(가맹점명)에 이 중 하나라도 포함되면 매칭 — 쉼표로 여러 개(OR)
+    keywords = db.Column(db.String(300), nullable=False)
+    rate = db.Column(db.Float, nullable=False)  # percent
+    daily_cap = db.Column(db.Integer, nullable=True)
+    daily_count_cap = db.Column(db.Integer, nullable=True)
+    monthly_cap = db.Column(db.Integer, nullable=True)
+    monthly_count_cap = db.Column(db.Integer, nullable=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
 class Savings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
