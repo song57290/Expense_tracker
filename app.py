@@ -4505,6 +4505,12 @@ def api_mood_list():
     moods = query.order_by(Mood.date.desc()).limit(400).all()
     return jsonify([{
         'id': m.id, 'date': m.date, 'score': m.score, 'memo': m.memo or '',
+        # 연속 기록 계산용 — 그날 당일에 기록했는지(연속 인정) 나중에 소급 입력했는지
+        # (연속 계산에서 제외) 구분하기 위한 실제 최초 입력일. updated_at이 아니라
+        # created_at을 써야 "내용만 수정"한 경우엔 연속 기록이 깨지지 않는다.
+        # created_at은 서버(fly, UTC) 시각 그대로 저장되므로 한국 날짜로 바꿔서 내려준다 —
+        # 안 그러면 KST 0~9시에 당일 기록한 것도 "전날 입력"으로 보여 연속이 끊긴다.
+        'created_date': m.created_at.replace(tzinfo=timezone.utc).astimezone(_KST).strftime('%Y-%m-%d'),
     } for m in moods])
 
 @app.route('/api/mood', methods=['POST'])

@@ -1237,6 +1237,8 @@ JS/React 변경만 있으면 `fly deploy` 만으로 자동 반영됨 (원격 로
 | 523 | 캐시백 금액 직접 입력 옵션 추가(Home · Edit · Calendar 공통) — 자동 계산(고정 비율이든 516의 규칙 엔진이든)이 실제와 다를 때를 위한 안전장치로, "✏️ 캐시백 금액 직접 입력" 토글을 켜면 금액을 직접 적어 자동 계산을 덮어씀 — `Transaction.cashback_manual` 추가, 켜져 있으면 수정 화면을 다시 열어도 자동 재계산하지 않고 그 값을 그대로 보여줌 |
 | 524 | 이번 달 예산을 따로 입력 안 하면 0원이 아니라 가장 최근에 설정해둔 이전 달 예산을 그대로 이어 보여주도록 변경 — `_effective_budget_amount(uid, month)` 헬퍼 신설(해당 월 레코드가 없으면 그 이전 달 중 가장 최근 값을 조회), `/api/home`·`/api/budget`·내보내기 API 세 곳의 중복 조회 로직을 이 헬퍼로 통일 — 사용자가 직접 저장하면 그 달부터만 새 레코드가 생기고 이후 달은 계속 그 값을 이어받음 |
 | 525 | `updateNotice.js` 업데이트 내역 갱신 — `CURRENT_VERSION`을 "2.97" → "2.98"로 올리고 이번 배치(509~524) 내용을 홈 · 예산 · 포인트 · 캐시백 · 월별 예산 섹션으로 정리해 반영, 기존 ver 2.97 내용은 `VERSION_HISTORY`로 이동 |
+| 526 | 푸룹(Life OS) 연속 기록 규칙 변경 대응 — `GET /api/mood` 응답에 `created_date`(그 기분을 실제로 처음 입력한 날짜) 추가. 푸룹 ver 2.10부터 "그날 당일에 기록한 날만 연속으로 인정, 나중에 소급 입력한 날은 제외" 규칙에 쓰임. `created_at`은 서버(fly, UTC) 시각으로 저장돼 있어 그대로 쓰면 한국 시간 0~9시에 당일 기록한 것도 전날 입력으로 보여 연속이 끊기므로, KST로 변환해서 내려줌. `updated_at`이 아니라 `created_at` 기준이라 내용만 수정해도 연속은 유지 |
+| 527 | 푸룹 APK 배포 — `releases/puroop-latest.apk`를 EAS 빌드 4(ver 2.10)로 교체, `releases/puroop-version.json`을 `{"version_code": 4, "version_name": "ver 2.10"}`으로 갱신 |
 
 ---
 
