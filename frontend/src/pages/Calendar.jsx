@@ -164,6 +164,7 @@ export default function Calendar() {
   const [addSaving, setAddSaving] = useState(false)
   const [addTransferFrom, setAddTransferFrom] = useState('')
   const [addTransferTo, setAddTransferTo] = useState('')
+  const [carryoverError, setCarryoverError] = useState(null)
   const [pointOverspend, setPointOverspend] = useState(null) // { card, amount, available, payload, dates }
   const [overspendStep, setOverspendStep] = useState('warn') // 'warn' | 'pick'
   const [overspendCardChoice, setOverspendCardChoice] = useState('')
@@ -250,14 +251,20 @@ export default function Calendar() {
     // 포인트는 마이너스가 될 수 없다 — 남은 포인트보다 많이 쓰려고 하면 경고부터.
     if (!isTransfer && addForm.type === 'expense' && homeData) {
       const selectedCard = homeData.card_list.find(c => c.name === payload.card)
-      if (selectedCard?.point_reset_day && selectedCard.balance != null && amt > selectedCard.balance) {
-        setPointOverspend({ card: selectedCard, amount: amt, available: selectedCard.balance, payload, dates })
+      // 여러 날짜에 같은 금액을 한 번에 넣으면 날짜마다 거래가 생기므로, 실제로 빠지는 총액(amt × 날짜 수)으로 판단한다.
+      const dateCount = dates.length
+      if (selectedCard?.point_reset_day && addForm.point_pool === 'carryover') {
+        const carry = selectedCard.point_carryover || 0
+        if (amt * dateCount > carry) { const per = Math.floor(carry / dateCount); setCarryoverError({ card: selectedCard, amount: amt, available: per, totalAmount: amt * dateCount, totalAvailable: carry, payload, dates, canSplit: amt * dateCount - carry <= (selectedCard.balance || 0) }); return }
+      } else if (selectedCard?.point_reset_day && selectedCard.balance != null && amt * dateCount > selectedCard.balance) {
+        setPointOverspend({ card: selectedCard, amount: amt, available: Math.floor(selectedCard.balance / dateCount), totalAmount: amt * dateCount, totalAvailable: selectedCard.balance, payload, dates })
         setOverspendStep('warn')
         setOverspendCardChoice('')
         return
       }
     }
 
+    setCarryoverError(null)
     setAddSaving(true)
     try {
       const firstId = await postAddDates(payload, dates)
@@ -267,16 +274,48 @@ export default function Calendar() {
     }
   }
 
-  async function confirmOverspendWithLinkedCard() {
-    if (!pointOverspend || !overspendCardChoice) return
-    const { payload, amount, available, dates } = pointOverspend
-    const overage = amount - available
+  // 전환(또는 사용 가능) 잔고를 날짜들에 나눌 때 내림으로 남는 금액은 첫 날짜에 얹어서,
+  // 날짜 수로 안 나누어떨어져도 합계가 정확히 맞게 한다.
+  async function postSplitPerDate({ payload, amount, totalAvailable, dates, pool, otherCard }) {
+    const n = dates.length
+    const base = Math.floor(totalAvailable / n)
+    const extra = totalAvailable - base * n
+    let firstId = null
+    for (let i = 0; i < n; i++) {
+      const c = Math.min(amount, base + (i === 0 ? extra : 0))
+      if (c > 0) {
+        const r = await api.post('/api/transactions', { ...payload, date: dates[i], amount: c, point_pool: pool })
+        if (!firstId) firstId = r?.id
+      }
+      const rest = amount - c
+      if (rest > 0) {
+        const r = await api.post('/api/transactions', { ...payload, date: dates[i], amount: rest, card: otherCard || payload.card, point_pool: '', ...(c > 0 ? { cashback_manual: false, cashback_amount: 0 } : {}) })
+        if (!firstId) firstId = r?.id
+      }
+    }
+    return firstId
+  }
+
+  async function confirmCarrySplit() {
+    const e = carryoverError
+    if (!e) return
     setAddSaving(true)
     try {
-      let firstId = null
-      if (available > 0) firstId = await postAddDates({ ...payload, amount: available }, dates)
-      const secondId = await postAddDates({ ...payload, amount: overage, card: overspendCardChoice, point_pool: '' }, dates)
-      await finishAdd(firstId || secondId)
+      const firstId = await postSplitPerDate({ payload: e.payload, amount: e.amount, totalAvailable: e.totalAvailable, dates: e.dates, pool: 'carryover' })
+      setCarryoverError(null)
+      await finishAdd(firstId)
+    } finally {
+      setAddSaving(false)
+    }
+  }
+
+  async function confirmOverspendWithLinkedCard() {
+    if (!pointOverspend || !overspendCardChoice) return
+    const { payload, amount, totalAvailable, dates } = pointOverspend
+    setAddSaving(true)
+    try {
+      const firstId = await postSplitPerDate({ payload, amount, totalAvailable, dates, pool: '', otherCard: overspendCardChoice })
+      await finishAdd(firstId)
     } finally {
       setAddSaving(false)
       setPointOverspend(null)
@@ -636,6 +675,7 @@ export default function Calendar() {
                               <div className={`ios-dot${addForm.point_pool === 'carryover' ? ' on' : ''}`} />
                             </div>
                           </div>
+                          {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: -4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number((carryoverError.amount - carryoverError.available) * carryoverError.dates.length).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
                         </div>
                       )
                     })()}
@@ -899,7 +939,7 @@ export default function Calendar() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>포인트는 마이너스가 될 수 없어요</p>
             <p className="text-center text-muted mb-4" style={{ fontSize: '0.82rem' }}>
-              {pointOverspend.card.name}에 남은 포인트는 {pointOverspend.available.toLocaleString('ko-KR')}원인데 {pointOverspend.amount.toLocaleString('ko-KR')}원을 쓰려고 하고 있어요.
+              {pointOverspend.card.name}에 남은 포인트는 {pointOverspend.totalAvailable.toLocaleString('ko-KR')}원인데 {pointOverspend.totalAmount.toLocaleString('ko-KR')}원을 쓰려고 하고 있어요.
             </p>
             <div className="d-flex gap-2">
               <button autoFocus className="btn flex-fill" onClick={() => setOverspendStep('pick')}
@@ -919,10 +959,10 @@ export default function Calendar() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '24px 20px', width: 'min(88vw,320px)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <p className="text-center fw-semibold mb-1" style={{ fontSize: '1rem' }}>차액을 낼 카드/계좌</p>
             <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>
-              부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드나 계좌를 골라주세요.
+              부족한 {(pointOverspend.totalAmount - pointOverspend.totalAvailable).toLocaleString('ko-KR')}원을 결제할 카드·계좌를 골라주세요.
             </p>
             <div className="mb-3">
-              <CardPicker cards={(homeData?.card_list || []).filter(c => c.name !== pointOverspend.card.name && !c.point_reset_day)}
+              <CardPicker cards={(homeData?.card_list || []).filter(c => c.name !== pointOverspend.card.name)}
                 value={overspendCardChoice} onChange={setOverspendCardChoice} placeholder="카드/계좌 선택" />
             </div>
             <div className="d-flex gap-2">

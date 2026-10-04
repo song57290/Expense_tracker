@@ -33,6 +33,7 @@ export default function Edit() {
   const [pointOverspend, setPointOverspend] = useState(null) // { card, amount, available, payload }
   const [overspendStep, setOverspendStep] = useState('warn') // 'warn' | 'pick'
   const [overspendCardChoice, setOverspendCardChoice] = useState('')
+  const [carryoverError, setCarryoverError] = useState(null)
 
   useEffect(() => {
     document.body.classList.toggle('sheet-open', deleteConfirm || photoViewer || typeSheet || !!pointOverspend)
@@ -112,7 +113,12 @@ export default function Edit() {
     // 쓸 수 있는 금액"을 구해야 한다.
     if (form.type === 'expense' && !isAccountTransfer) {
       const selectedCard = data.card_list.find(c => c.name === form.card)
-      if (selectedCard?.point_reset_day && selectedCard.balance != null) {
+      if (selectedCard?.point_reset_day && form.point_pool === 'carryover') {
+        // 전환 포인트에서 쓰는 지출은 전환 포인트 한도로만 제한 (이 거래가 원래 같은 카드·전환 지출이었으면 그 금액은 되돌려서 계산)
+        const sameCarry = data.transaction.card === form.card && data.transaction.type === 'expense' && data.transaction.point_pool === 'carryover'
+        const carryAvail = (selectedCard.point_carryover || 0) + (sameCarry ? data.transaction.amount : 0)
+        if (amt > carryAvail) { const sameRegular = data.transaction.card === form.card && data.transaction.type === 'expense' && data.transaction.point_pool !== 'carryover'; setCarryoverError({ card: selectedCard, amount: amt, available: carryAvail, payload, canSplit: amt - carryAvail <= (selectedCard.balance || 0) + (sameRegular ? data.transaction.amount : 0) }); return }
+      } else if (selectedCard?.point_reset_day && selectedCard.balance != null) {
         const sameCard = data.transaction.card === form.card && data.transaction.type === 'expense'
         const available = selectedCard.balance + (sameCard ? data.transaction.amount : 0)
         if (amt > available) {
@@ -123,8 +129,22 @@ export default function Edit() {
         }
       }
     }
+    setCarryoverError(null)
 
     await api.put(`/api/transactions/${id}`, payload)
+    syncWidget()
+    navigate(-1)
+  }
+
+  async function confirmCarrySplit() {
+    const e = carryoverError
+    if (!e) return
+    if (e.available > 0) {
+      await api.put(`/api/transactions/${id}`, { ...e.payload, amount: e.available, point_pool: 'carryover' })
+    } else {
+      await api.delete(`/api/transactions/${id}`)
+    }
+    await api.post('/api/transactions', { ...e.payload, amount: e.amount - e.available, point_pool: '', ...(e.available > 0 ? { cashback_manual: false, cashback_amount: 0 } : {}) })
     syncWidget()
     navigate(-1)
   }
@@ -138,7 +158,7 @@ export default function Edit() {
     } else {
       await api.delete(`/api/transactions/${id}`)
     }
-    await api.post('/api/transactions', { ...payload, amount: overage, card: overspendCardChoice, point_pool: '' })
+    await api.post('/api/transactions', { ...payload, amount: overage, card: overspendCardChoice, point_pool: '', ...(available > 0 ? { cashback_manual: false, cashback_amount: 0 } : {}) })
     syncWidget()
     navigate(-1)
   }
@@ -315,6 +335,7 @@ export default function Edit() {
                     <div className={`ios-track${form.point_pool === 'carryover' ? ' on' : ''}`} />
                     <div className={`ios-dot${form.point_pool === 'carryover' ? ' on' : ''}`} />
                   </div>
+                {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number(carryoverError.amount - carryoverError.available).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
                 </div>
               )
             })()}
@@ -418,9 +439,9 @@ export default function Edit() {
             </div>
             <div style={{ padding: '16px 20px 10px' }}>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 12 }}>
-                부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드나 계좌를 골라주세요.
+                부족한 {(pointOverspend.amount - pointOverspend.available).toLocaleString('ko-KR')}원을 결제할 카드·계좌를 골라주세요.
               </div>
-              <CardPicker cards={data.card_list.filter(c => c.name !== pointOverspend.card.name && !c.point_reset_day)}
+              <CardPicker cards={data.card_list.filter(c => c.name !== pointOverspend.card.name)}
                 value={overspendCardChoice} onChange={setOverspendCardChoice} placeholder="카드/계좌 선택" />
             </div>
             <div style={{ padding: '18px 16px 18px', display: 'flex', gap: 8 }}>

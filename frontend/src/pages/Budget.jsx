@@ -2025,6 +2025,8 @@ export default function Budget() {
   const [ruleMonthlyCap, setRuleMonthlyCap] = useState('')
   const [ruleMonthlyCountCap, setRuleMonthlyCountCap] = useState('')
   const [ruleSaving, setRuleSaving] = useState(false)
+  const [rulePrevMin, setRulePrevMin] = useState('')
+  const [ruleHelpOpen, setRuleHelpOpen] = useState(false)
   const [editPointResetOn, setEditPointResetOn] = useState(false)
   const [editPointResetDay, setEditPointResetDay] = useState('')
   const [editPointResetAmount, setEditPointResetAmount] = useState('')
@@ -2357,10 +2359,12 @@ export default function Budget() {
       setRuleDailyCountCap(rule.daily_count_cap != null ? String(rule.daily_count_cap) : '')
       setRuleMonthlyCap(rule.monthly_cap != null ? String(rule.monthly_cap) : '')
       setRuleMonthlyCountCap(rule.monthly_count_cap != null ? String(rule.monthly_count_cap) : '')
+      setRulePrevMin(rule.prev_month_min != null ? rule.prev_month_min.toLocaleString('ko-KR') : '')
+      setRuleHelpOpen(false)
       setCashbackRuleModal(rule)
     } else {
       setRuleName(''); setRuleKeywords(''); setRuleRate('')
-      setRuleDailyCap(''); setRuleDailyCountCap(''); setRuleMonthlyCap(''); setRuleMonthlyCountCap('')
+      setRuleDailyCap(''); setRuleDailyCountCap(''); setRuleMonthlyCap(''); setRuleMonthlyCountCap(''); setRulePrevMin(''); setRuleHelpOpen(false)
       setCashbackRuleModal('new')
     }
   }
@@ -2374,6 +2378,7 @@ export default function Budget() {
       daily_count_cap: ruleDailyCountCap ? parseInt(ruleDailyCountCap) : null,
       monthly_cap: ruleMonthlyCap ? parseInt(ruleMonthlyCap.replace(/,/g, '')) : null,
       monthly_count_cap: ruleMonthlyCountCap ? parseInt(ruleMonthlyCountCap) : null,
+      prev_month_min: rulePrevMin ? parseInt(rulePrevMin.replace(/,/g, '')) : null,
     }
     try {
       if (cashbackRuleModal === 'new') {
@@ -3136,6 +3141,7 @@ export default function Budget() {
                     <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{r.name} · {r.rate}%</div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                       {r.keywords}
+                      {r.prev_month_min ? ` · 전월 ${r.prev_month_min.toLocaleString('ko-KR')}원 이상` : ''}
                       {(r.daily_cap || r.monthly_cap) && (
                         <> · {r.daily_cap ? `일 ${r.daily_cap.toLocaleString('ko-KR')}원` : ''}{r.daily_cap && r.monthly_cap ? ' · ' : ''}{r.monthly_cap ? `월 ${r.monthly_cap.toLocaleString('ko-KR')}원` : ''}</>
                       )}
@@ -3176,9 +3182,42 @@ export default function Budget() {
                 value={ruleName} onChange={e => setRuleName(e.target.value)} />
             </div>
             <div className="mb-2">
-              <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>가맹점명 키워드 (쉼표로 여러 개, 항목 설명에 포함되면 매칭)</label>
+              <div className="d-flex align-items-center gap-1 mb-1">
+                <label className="text-muted mb-0" style={{ fontSize: '0.78rem' }}>가맹점명 키워드</label>
+                <button type="button" onClick={() => setRuleHelpOpen(o => !o)} style={{ width: 18, height: 18, borderRadius: '50%', border: '1px solid #b088f9', background: 'transparent', color: '#b088f9', fontSize: '0.7rem', fontWeight: 700, padding: 0, lineHeight: 1, cursor: 'pointer', flexShrink: 0 }}>?</button>
+              </div>
               <input type="text" className="form-control" placeholder="예: GS25, CU" style={{ borderRadius: 10 }}
                 value={ruleKeywords} onChange={e => setRuleKeywords(e.target.value)} />
+              {ruleHelpOpen && (
+                <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'var(--bg-accent)', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  쉼표(,)로 구분해서 여러 개 적을 수 있어요. 항목 설명에 이 중 하나라도 들어 있으면 이 규칙이 적용됩니다.
+                  <div style={{ marginTop: 4, color: 'var(--text-primary)' }}>예) <b>GS25, CU</b> → 설명에 "GS25"나 "CU"가 들어간 거래</div>
+                  <div style={{ color: 'var(--text-primary)' }}>예) <b>스타벅스, 이디야, 메가커피</b> → 세 매장 중 하나라도 해당</div>
+                  <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>대소문자는 구분하지 않아요.</div>
+                </div>
+              )}
+            </div>
+            <div className="mb-2">
+              <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>전월 실적 조건</label>
+              <div className="d-flex gap-2 mb-2">
+                {[['none', '조건 없음'], ['min', '전월 실적 이상일 때만']].map(([val, label]) => {
+                  const on = (val === 'min') === !!rulePrevMin
+                  return (
+                    <button key={val} type="button" onClick={() => setRulePrevMin(val === 'min' ? (rulePrevMin || '0') : '')}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, background: on ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: on ? '#b088f9' : 'var(--text-muted)', fontWeight: on ? 600 : 400, fontSize: '0.78rem', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              {!!rulePrevMin && (
+                <div style={{ position: 'relative' }}>
+                  <input type="text" inputMode="numeric" className="form-control" placeholder="지난달 이 카드 지출 합계 기준 (예: 300,000)" style={{ borderRadius: 10, paddingRight: 36 }}
+                    value={rulePrevMin} onChange={e => { const raw = e.target.value.replace(/[^0-9]/g, ''); setRulePrevMin(raw ? parseInt(raw).toLocaleString('ko-KR') : '0') }} />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
+                </div>
+              )}
+              <div className="text-muted mt-1" style={{ fontSize: '0.7rem' }}>구간별로 다른 비율이면, 높은 구간 규칙을 위에 두고 구간마다 규칙을 따로 만드세요.</div>
             </div>
             <div className="mb-2">
               <label className="text-muted mb-1" style={{ fontSize: '0.78rem' }}>캐시백 비율</label>

@@ -84,10 +84,9 @@ class Card(db.Model):
     # "전환하기"로 따로 떼어둔 포인트의 누적 총량 — 리셋이 지나가도 사라지지 않고
     # 그대로 남아, "전환된 포인트에서 차감" 토글을 켠 지출로만 줄어든다.
     point_carryover = db.Column(db.Integer, nullable=False, default=0)
-    # point_carryover 중 "지난 리셋 시점에 이미 있던 만큼"의 스냅샷 — 이번 주기에
-    # 새로 전환한 금액(point_carryover - 이 값)만 이번 충전액에서 빼서 보여줘야,
-    # 리셋 전부터 있던 전환 포인트가 새 충전액까지 깎아먹지 않는다. _point_balance() 참고.
-    point_carryover_baseline = db.Column(db.Integer, nullable=False, default=0)
+    # 이번 주기(마지막 리셋 이후)에 새로 전환해서 충전 잔고에서 떼어둔 금액. 사용 가능
+    # 포인트 계산에서 이만큼 뺀다. 전환 포인트에서 쓴 지출은 이 값을 건드리지 않는다.
+    point_converted_cycle = db.Column(db.Integer, nullable=False, default=0)
     # 여러 CashbackRule을 합쳐서 한 달에 받을 수 있는 캐시백 총액의 상한(예: "전월실적
     # 20~50만원 구간은 Life 서비스 통합 월 2만원"). 전월실적 구간 자체는 추적하지 않고
     # 사용자가 매달 바뀔 때 직접 갱신 — null이면 통합 한도 없음(규칙별 한도만 적용).
@@ -108,6 +107,8 @@ class CashbackRule(db.Model):
     daily_count_cap = db.Column(db.Integer, nullable=True)
     monthly_cap = db.Column(db.Integer, nullable=True)
     monthly_count_cap = db.Column(db.Integer, nullable=True)
+    # 전월 실적 조건 — 비우면 전월 실적과 무관하게 적용, 값이 있으면 카드의 지난달 지출 합계가 이 금액 이상일 때만 적용
+    prev_month_min = db.Column(db.Integer, nullable=True)
     position = db.Column(db.Integer, nullable=False, default=0)
 
 class Savings(db.Model):

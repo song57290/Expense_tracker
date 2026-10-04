@@ -292,6 +292,7 @@ with app.app_context():
         'ALTER TABLE card ADD COLUMN point_carryover INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE card ADD COLUMN point_carryover_baseline INTEGER NOT NULL DEFAULT 0',
         'ALTER TABLE card ADD COLUMN cashback_monthly_cap INTEGER',
+        'ALTER TABLE cashback_rule ADD COLUMN prev_month_min INTEGER',
         'ALTER TABLE "transaction" ADD COLUMN cashback_rule_id INTEGER',
         'ALTER TABLE "transaction" ADD COLUMN cashback_manual BOOLEAN NOT NULL DEFAULT 0',
         'ALTER TABLE savings ADD COLUMN position INTEGER NOT NULL DEFAULT 0',
@@ -303,10 +304,15 @@ with app.app_context():
         'ALTER TABLE "transaction" ADD COLUMN exclude_cashback BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE notice ADD COLUMN app VARCHAR(20) NOT NULL DEFAULT 'gaegyebu'",
         'ALTER TABLE "transaction" ADD COLUMN point_pool VARCHAR(20)',
+        'ALTER TABLE card ADD COLUMN point_converted_cycle INTEGER NOT NULL DEFAULT 0',
     ]:
         try:
             with db.engine.connect() as conn:
                 conn.execute(text(_sql)); conn.commit()
+            if 'point_converted_cycle' in _sql:
+                # 새 컬럼을 처음 만든 배포에서만 기존 값을 옮긴다 (이후 재시작 때는 건너뜀)
+                with db.engine.connect() as conn:
+                    conn.execute(text('UPDATE card SET point_converted_cycle = MAX(0, point_carryover - point_carryover_baseline)')); conn.commit()
         except Exception:
             pass
     db.create_all()
@@ -591,6 +597,10 @@ def _net_amount(tx):
     cashback = tx.cashback or 0
     return tx.amount - cashback if tx.type == 'expense' else tx.amount + cashback
 
+def _is_account_expense(tx):
+    # "전환된 포인트에서 차감" 지출은 계좌(이번 주기 충전) 잔고에서 빼지 않고 전환 포인트에서만 뺀다
+    return tx.type == 'expense' and tx.point_pool != 'carryover'
+
 def _point_balance(card, all_txs):
     # 포인트 카드의 "지금 쓸 수 있는 포인트" — account_balance(건드리지 않는 원본 anchor)
     # + 이번 주기 수입 - 지출 - 이번 주기에 "새로" 전환한 금액. point_carryover는 리셋이
@@ -602,9 +612,8 @@ def _point_balance(card, all_txs):
     # 하나로 계산해야 서로 다른 값이 안 보인다.
     card_txs = [tx for tx in all_txs if tx.card == card.name]
     inc = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-    exp = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
-    converted_this_cycle = max(0, (card.point_carryover or 0) - (card.point_carryover_baseline or 0))
-    return max(0, (card.account_balance or 0) + inc - exp - converted_this_cycle)
+    exp = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
+    return max(0, (card.account_balance or 0) + inc - exp - (card.point_converted_cycle or 0))
 
 def _effective_budget_amount(uid, month):
     # 이번 달에 예산을 따로 입력 안 했으면 0원이 아니라, 가장 최근에 설정해둔 이전 달
@@ -636,11 +645,19 @@ def _compute_cashback(uid, card_name, tx_type, amount, exclude=False, descriptio
         date = date or datetime.now(_KST).strftime('%Y-%m-%d')
         desc_lower = (description or '').lower()
         matched = None
+        prev_month = (datetime.strptime(date[:7] + '-01', '%Y-%m-%d').replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
+        prev_spend = None
         for r in rules:
             keywords = [k.strip().lower() for k in (r.keywords or '').split(',') if k.strip()]
-            if any(k in desc_lower for k in keywords):
-                matched = r
-                break
+            if not any(k in desc_lower for k in keywords):
+                continue
+            if r.prev_month_min:
+                if prev_spend is None:
+                    prev_spend = sum(t.amount for t in Transaction.query.filter_by(user_id=uid, card=card_name, type='expense').all() if t.date.startswith(prev_month))
+                if prev_spend < r.prev_month_min:
+                    continue
+            matched = r
+            break
         if not matched:
             return 0, None
         cb = int(amount * matched.rate / 100)
@@ -734,7 +751,6 @@ def _apply_point_resets():
     지금 point_carryover 값으로 찍어둬서, _point_balance()가 "이번 주기에 새로 전환한
     금액"만 새 충전액에서 빼고 지난 주기부터 있던 전환 포인트는 건드리지 않게 한다."""
     with app.app_context():
-        today_str = datetime.now(_KST).strftime('%Y-%m-%d')
         today = datetime.now(_KST).date()
         cards = Card.query.filter(Card.point_reset_day.isnot(None)).all()
         changed = False
@@ -743,7 +759,7 @@ def _apply_point_resets():
             eff_str = effective.strftime('%Y-%m-%d')
             if today == effective and card.point_reset_last_date != eff_str:
                 card.account_balance = card.point_reset_amount or 0
-                card.point_carryover_baseline = card.point_carryover or 0
+                card.point_converted_cycle = 0
                 card.balance_since = eff_str
                 card.point_reset_last_date = eff_str
                 changed = True
@@ -1166,7 +1182,7 @@ def _adjust_point_carryover(uid, card_name, point_pool, tx_type, amount, sign):
     card = Card.query.filter_by(user_id=uid, name=card_name).filter(Card.point_reset_day.isnot(None)).first()
     if not card:
         return
-    card.point_carryover = max(0, (card.point_carryover or 0) + sign * amount)
+    card.point_carryover = (card.point_carryover or 0) + sign * amount
 
 @app.route('/api/transactions', methods=['POST'])
 @login_required
@@ -1182,6 +1198,10 @@ def api_add_transaction():
     amount = int(data['amount'])
     exclude_cashback = bool(data.get('exclude_cashback', False))
     point_pool = data.get('point_pool') if data['type'] == 'expense' else None
+    if point_pool == 'carryover' and card:
+        pc = Card.query.filter_by(user_id=uid, name=card).filter(Card.point_reset_day.isnot(None)).first()
+        if pc and amount > (pc.point_carryover or 0):
+            return jsonify({'error': '전환 포인트가 부족합니다'}), 400
     cashback_manual = bool(data.get('cashback_manual', False))
     if cashback_manual:
         cb_amount, cb_rule_id = int(data.get('cashback_amount', 0) or 0), None
@@ -1241,6 +1261,18 @@ def api_transaction(tx_id):
         return jsonify({'ok': True})
     if request.method == 'PUT':
         data = request.json or {}
+        new_type = data.get('type', tx.type)
+        new_card = data.get('card') or None if 'card' in data else tx.card
+        new_amount = int(data.get('amount', tx.amount))
+        new_pool = (data['point_pool'] if 'point_pool' in data else tx.point_pool) if new_type == 'expense' else None
+        if new_pool == 'carryover' and new_type == 'expense' and new_card:
+            pc = Card.query.filter_by(user_id=uid, name=new_card).filter(Card.point_reset_day.isnot(None)).first()
+            if pc:
+                avail = pc.point_carryover or 0
+                if tx.point_pool == 'carryover' and tx.type == 'expense' and tx.card == new_card:
+                    avail += tx.amount
+                if new_amount > avail:
+                    return jsonify({'error': '전환 포인트가 부족합니다'}), 400
         old_date, old_desc, old_amount, old_type, old_category = tx.date, tx.description, tx.amount, tx.type, tx.category
         old_card, old_point_pool = tx.card, tx.point_pool
         tx.date = data.get('date', tx.date)
@@ -1322,7 +1354,7 @@ def api_debug_balance_check():
         dates = sorted(tx.date for tx in card_txs)
         excluded = [tx for tx in card_txs if not _since_balance(tx.date, card.balance_since)]
         inc_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-        exp_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        exp_now = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
         inc_all = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income')
         exp_all = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense')
         initial = card.account_balance or 0
@@ -1470,7 +1502,8 @@ def api_card(card_id):
 def _cashback_rule_json(r):
     return {'id': r.id, 'name': r.name, 'keywords': r.keywords, 'rate': r.rate,
             'daily_cap': r.daily_cap, 'daily_count_cap': r.daily_count_cap,
-            'monthly_cap': r.monthly_cap, 'monthly_count_cap': r.monthly_count_cap}
+            'monthly_cap': r.monthly_cap, 'monthly_count_cap': r.monthly_count_cap,
+            'prev_month_min': r.prev_month_min}
 
 @app.route('/api/cards/<int:card_id>/cashback-rules', methods=['GET', 'POST'])
 @login_required
@@ -1491,6 +1524,7 @@ def api_cashback_rules(card_id):
         daily_count_cap=int(data['daily_count_cap']) if data.get('daily_count_cap') not in (None, '') else None,
         monthly_cap=int(data['monthly_cap']) if data.get('monthly_cap') not in (None, '') else None,
         monthly_count_cap=int(data['monthly_count_cap']) if data.get('monthly_count_cap') not in (None, '') else None,
+        prev_month_min=int(data['prev_month_min']) if data.get('prev_month_min') not in (None, '', 0) else None,
         position=last_pos + 1,
     )
     db.session.add(rule)
@@ -1519,6 +1553,8 @@ def api_cashback_rule(rule_id):
         rule.monthly_cap = int(data['monthly_cap']) if data['monthly_cap'] not in (None, '') else None
     if 'monthly_count_cap' in data:
         rule.monthly_count_cap = int(data['monthly_count_cap']) if data['monthly_count_cap'] not in (None, '') else None
+    if 'prev_month_min' in data:
+        rule.prev_month_min = int(data['prev_month_min']) if data['prev_month_min'] not in (None, '', 0) else None
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1565,6 +1601,7 @@ def api_point_convert(card_id):
     if amount <= 0 or amount > usable:
         return jsonify({'error': 'invalid amount'}), 400
     card.point_carryover = (card.point_carryover or 0) + amount
+    card.point_converted_cycle = (card.point_converted_cycle or 0) + amount
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1589,9 +1626,8 @@ def api_point_balance(card_id):
         return jsonify({'error': 'invalid amount'}), 400
     card_txs = Transaction.query.filter_by(user_id=uid, card=card.name).all()
     inc_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-    exp_now = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
-    converted_this_cycle = max(0, carryover - (card.point_carryover_baseline or 0))
-    card.account_balance = usable - inc_now + exp_now + converted_this_cycle
+    exp_now = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
+    card.account_balance = usable - inc_now + exp_now + (card.point_converted_cycle or 0)
     card.point_carryover = carryover
     db.session.commit()
     return jsonify({'ok': True})
@@ -1994,7 +2030,7 @@ def api_portfolio_pdf():
     for card in cards:
         card_txs = [tx for tx in all_txs if tx.card == card.name]
         c_inc = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-        c_exp = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        c_exp = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
         initial = card.account_balance or 0
         balance = initial + c_inc - c_exp
         spent = sum(tx.amount for tx in card_txs
@@ -2530,7 +2566,7 @@ def api_budget():
         else:
             card_txs = [tx for tx in all_txs if tx.card == card.name]
             all_income = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-            all_expense = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+            all_expense = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
             display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
             display_cashback = sum(tx.cashback or 0 for tx in card_txs if tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
@@ -2542,7 +2578,7 @@ def api_budget():
                 for lname in linked_names[card.id]:
                     ltxs = [tx for tx in all_txs if tx.card == lname]
                     all_income += sum(_net_amount(tx) for tx in ltxs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-                    all_expense += sum(_net_amount(tx) for tx in ltxs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+                    all_expense += sum(_net_amount(tx) for tx in ltxs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
                     display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_cashback += sum(tx.cashback or 0 for tx in ltxs if tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
@@ -2552,7 +2588,7 @@ def api_budget():
                 acc_initial = acc.account_balance or 0
                 acc_txs_names = [acc.name] + linked_names.get(linked_account_id, [])
                 acc_inc = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and tx.type == 'income' and _since_balance(tx.date, acc.balance_since))
-                acc_exp = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and tx.type == 'expense' and _since_balance(tx.date, acc.balance_since))
+                acc_exp = sum(_net_amount(tx) for tx in all_txs if tx.card in acc_txs_names and _is_account_expense(tx) and _since_balance(tx.date, acc.balance_since))
                 balance = acc_initial + acc_inc - acc_exp
             else:
                 # 포인트 카드는 "이번 주기에 새로 전환한 금액"만 사용 가능한 잔고에서
@@ -2561,8 +2597,7 @@ def api_budget():
                 # 아니라 baseline을 뺀 순증분만 빼야 지난 주기부터 있던 전환 포인트가
                 # 이번에 새로 충전된 금액까지 깎아먹지 않는다(_point_balance 참고).
                 # 일반 카드는 point_carryover가 항상 0이라 영향 없음.
-                converted_this_cycle = max(0, (card.point_carryover or 0) - (card.point_carryover_baseline or 0))
-                balance = initial_balance + all_income - all_expense - converted_this_cycle
+                balance = initial_balance + all_income - all_expense - (card.point_converted_cycle or 0)
                 # 포인트는 성격상 마이너스가 될 수 없다 — 가진 포인트보다 더 쓸 수는
                 # 없으므로, 어떤 이유로든 계산이 음수가 나오면 0으로 바닥을 둔다.
                 # 일반 계좌(마이너스 통장 등)는 실제로 음수일 수 있어 대상에서 뺀다.
@@ -3402,7 +3437,7 @@ def api_portfolio():
         initial_balance = card.account_balance or 0
         is_loan = initial_balance < 0
         all_income = sum(_net_amount(tx) for tx in card_txs if tx.type == 'income' and _since_balance(tx.date, card.balance_since))
-        all_expense = sum(_net_amount(tx) for tx in card_txs if tx.type == 'expense' and _since_balance(tx.date, card.balance_since))
+        all_expense = sum(_net_amount(tx) for tx in card_txs if _is_account_expense(tx) and _since_balance(tx.date, card.balance_since))
         display_income = sum(tx.amount for tx in card_txs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         display_expense = sum(tx.amount for tx in card_txs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_port))
         balance = initial_balance + all_income - all_expense
