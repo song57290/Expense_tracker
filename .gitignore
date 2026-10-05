@@ -11,3 +11,7 @@ firebase-adminsdk.json
 releases/*
 !releases/.gitkeep
 .vscode/
+
+# 증권사·간편결제 로고 (상표 문제로 저장소에서 제외, 로컬 파일만 유지)
+static/brokers/
+static/payments/
