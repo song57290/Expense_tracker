@@ -84,7 +84,7 @@ function YearDrum({ value, onChange }) {
   )
 }
 
-export default function DatePickerSheet({ value, onChange, error }) {
+export default function DatePickerSheet({ value, onChange, error, center = false }) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const [mode, setMode] = useState('day') // 'day' | 'year'
@@ -159,7 +159,7 @@ export default function DatePickerSheet({ value, onChange, error }) {
 
       {open && createPortal(
         <div onClick={e => e.target === e.currentTarget && close()}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '15vh 20px 0', opacity: visible ? 1 : 0, transition: 'opacity 0.22s' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 6000, display: 'flex', alignItems: center ? 'center' : 'flex-start', justifyContent: 'center', padding: center ? '0 20px' : '15vh 20px 0', opacity: visible ? 1 : 0, transition: 'opacity 0.22s' }}>
           <div style={{
             background: 'var(--bg-card)', borderRadius: 20, width: '100%', maxWidth: 340,
             boxShadow: '0 12px 40px rgba(0,0,0,0.22)',

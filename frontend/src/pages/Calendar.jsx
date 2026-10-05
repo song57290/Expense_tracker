@@ -17,6 +17,8 @@ import CardPicker from '../components/CardPicker.jsx'
 import TransferPicker from '../components/TransferPicker.jsx'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import YearDrum from '../components/YearDrum.jsx'
+import BulkBar, { SelectCircle, SelectSlot } from '../components/BulkBar.jsx'
+import useBulkSelect from '../hooks/useBulkSelect.js'
 
 function SlidingTabs({ options, value, onChange }) {
   const tabRefs = useRef([])
@@ -68,6 +70,9 @@ export default function Calendar() {
   const [txMenu, setTxMenu] = useState(null)
   const [txMenuVisible, setTxMenuVisible] = useState(false)
   const longPressTimer = useRef(null)
+  const bulk = useBulkSelect()
+  const { selectMode, selectedIds, setSelectedIds, rowProps, exit, selectAll } = bulk
+  const [bulkBusy, setBulkBusy] = useState(false)
   const calendarWrapRef = useRef(null)
   const dragTouchRef = useRef({ active: false, startDate: null, lastDate: null })
 
@@ -127,6 +132,9 @@ export default function Calendar() {
     }
   }, [])
   const [yearMonth, setYearMonth] = useState(() => {
+    // 내역 수정에서 날짜를 다른 달로 바꾸고 돌아온 경우 그 달을 보여준다
+    const focus = sessionStorage.getItem('calendar_focus_month')
+    if (focus && /^\d{4}-\d{2}$/.test(focus)) { sessionStorage.removeItem('calendar_focus_month'); return focus }
     const fromUrl = searchParams.get('month')
     if (fromUrl && /^\d{4}-\d{2}$/.test(fromUrl)) return fromUrl
     const d = new Date()
@@ -274,22 +282,21 @@ export default function Calendar() {
     }
   }
 
-  // 전환(또는 사용 가능) 잔고를 날짜들에 나눌 때 내림으로 남는 금액은 첫 날짜에 얹어서,
-  // 날짜 수로 안 나누어떨어져도 합계가 정확히 맞게 한다.
+  // 잔고를 날짜마다 나누지 않고 앞 날짜부터 채운다 — 날짜마다 금액이 쪼개지지 않고,
+  // 잔고가 모자라는 날짜부터 나머지 금액을 다른 카드/충전 잔고에서 뺀다.
   async function postSplitPerDate({ payload, amount, totalAvailable, dates, pool, otherCard }) {
-    const n = dates.length
-    const base = Math.floor(totalAvailable / n)
-    const extra = totalAvailable - base * n
+    let left = totalAvailable
     let firstId = null
-    for (let i = 0; i < n; i++) {
-      const c = Math.min(amount, base + (i === 0 ? extra : 0))
+    for (const d of dates) {
+      const c = Math.min(amount, left)
+      left -= c
       if (c > 0) {
-        const r = await api.post('/api/transactions', { ...payload, date: dates[i], amount: c, point_pool: pool })
+        const r = await api.post('/api/transactions', { ...payload, date: d, amount: c, point_pool: pool })
         if (!firstId) firstId = r?.id
       }
       const rest = amount - c
       if (rest > 0) {
-        const r = await api.post('/api/transactions', { ...payload, date: dates[i], amount: rest, card: otherCard || payload.card, point_pool: '', ...(c > 0 ? { cashback_manual: false, cashback_amount: 0 } : {}) })
+        const r = await api.post('/api/transactions', { ...payload, date: d, amount: rest, card: otherCard || payload.card, point_pool: '', ...(c > 0 ? { cashback_manual: false, cashback_amount: 0 } : {}) })
         if (!firstId) firstId = r?.id
       }
     }
@@ -373,6 +380,37 @@ export default function Calendar() {
   function closeTxMenu() {
     setTxMenuVisible(false)
     setTimeout(() => setTxMenu(null), 280)
+  }
+  // 선택 모드일 때 하단 네비를 숨기는 바디 클래스
+  useEffect(() => {
+    document.body.classList.toggle('select-mode', selectMode)
+    return () => document.body.classList.remove('select-mode')
+  }, [selectMode])
+  const txById = {}
+  Object.values(data?.day_transactions || {}).flat().forEach(t => { txById[t.id] = t })
+  const selectedTxs = selectedIds.map(id => txById[id]).filter(Boolean)
+  const perfAllExcluded = selectedTxs.length > 0 && selectedTxs.every(t => t.exclude_perf)
+  const statsAllExcluded = selectedTxs.length > 0 && selectedTxs.every(t => t.exclude_stats)
+  // 날짜 단위 전체 선택: 그 날 내역이 모두 선택돼 있으면 해제, 아니면 전부 선택
+  function isDayAllSelected(ids) {
+    return selectMode && ids.length > 0 && ids.every(id => selectedIds.includes(id))
+  }
+  function toggleDay(ids) {
+    if (!selectMode) return selectAll(ids)
+    if (isDayAllSelected(ids)) setSelectedIds(cur => cur.filter(x => !ids.includes(x)))
+    else setSelectedIds(cur => [...new Set([...cur, ...ids])])
+  }
+  async function runBulk(action, value) {
+    if (!selectedIds.length) return
+    setBulkBusy(true)
+    try {
+      await api.post('/api/transactions/bulk', { ids: selectedIds, action, value })
+      exit()
+      load(yearMonth)
+      syncWidget()
+    } finally {
+      setBulkBusy(false)
+    }
   }
   function startLongPress(tx) {
     longPressTimer.current = setTimeout(() => openTxMenu(tx), 500)
@@ -675,7 +713,7 @@ export default function Calendar() {
                               <div className={`ios-dot${addForm.point_pool === 'carryover' ? ' on' : ''}`} />
                             </div>
                           </div>
-                          {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: -4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number((carryoverError.amount - carryoverError.available) * carryoverError.dates.length).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
+                          {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number(carryoverError.amount * carryoverError.dates.length - carryoverError.totalAvailable).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
                         </div>
                       )
                     })()}
@@ -875,6 +913,11 @@ export default function Calendar() {
             <div className="d-flex justify-content-between align-items-center mb-2">
               <h3 className="mb-0 fw-bold">내역 목록</h3>
               <div className="d-flex align-items-center gap-2">
+                {selectMode && filtered.length > 0 && (
+                  <i className="bi bi-check2-all" role="button" aria-label="전체 선택" title="전체 선택"
+                    onClick={() => { const all = filtered.every(t => selectedIds.includes(t.id)); setSelectedIds(all ? [] : filtered.map(t => t.id)) }}
+                    style={{ fontSize: '1.15rem', color: '#b088f9', cursor: 'pointer', padding: '0 2px' }} />
+                )}
                 <FilterPopup title="금액 가리기"
                   trigger={open => (
                     <i className={`bi ${hiddenParts === 'all' || hiddenParts.length > 0 ? 'bi-eye-slash' : 'bi-eye'}`}
@@ -896,30 +939,46 @@ export default function Calendar() {
             ) : dates.map(date => (
               <div key={date} className="mb-2">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
-                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                  <div onClick={selectMode ? () => toggleDay(byDate[date].map(t => t.id)) : undefined} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: selectMode ? 'pointer' : undefined }}>
+                    {selectMode && <SelectCircle on={isDayAllSelected(byDate[date].map(t => t.id))} small />}
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                  </div>
                   <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
                   <span className={`amt-mask${hideSummary ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                     {(() => { const s = byDate[date].filter(t => !t.exclude_stats).reduce((a, t) => t.type === 'income' ? a + t.amount : a - t.amount, 0); return `${s >= 0 ? '+' : ''}${fmt(s)}원` })()}
                   </span>
                 </div>
-                <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  {byDate[date].map((tx, i) => (
-                    <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
-                      <div
-                        style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
-                        onTouchStart={() => startLongPress(tx)} onTouchEnd={cancelLongPress} onTouchMove={cancelLongPress}
-                        onMouseDown={() => startLongPress(tx)} onMouseUp={cancelLongPress} onMouseLeave={cancelLongPress}
-                        onContextMenu={e => { e.preventDefault(); openTxMenu(tx) }}>
-                        <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                <div data-manual-scroll style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', touchAction: 'none' }}>
+                  {byDate[date].map((tx, i) => {
+                    const body = (
+                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                        {selectMode && <SelectSlot on={selectedIds.includes(tx.id)} />}
+                        <div style={{ flex: 1, minWidth: 0, padding: '12px 14px' }}>
+                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                        </div>
                       </div>
-                    </SwipeItem>
-                  ))}
+                    )
+                    return (
+                      <div key={tx.id} {...rowProps(tx.id)} style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', cursor: selectMode ? 'pointer' : undefined }}>
+                        {selectMode
+                          ? body
+                          : <SwipeItem onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`, { state: { from: "calendar" } })}>{body}</SwipeItem>}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
           </div>
         )
       })()}
+
+      {selectMode && <div style={{ height: "calc((152px + max(32px, env(safe-area-inset-bottom) + 16px)) / 4)" }} />}
+      {selectMode && (
+        <BulkBar count={selectedIds.length} busy={bulkBusy} cards={homeData?.card_list || []}
+          expenseCats={homeData?.expense_cats} incomeCats={homeData?.income_cats}
+          perfAllExcluded={perfAllExcluded} statsAllExcluded={statsAllExcluded} onRun={runBulk} onExit={exit} />
+      )}
 
       {confirmSheet && createPortal(
         <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 6000, alignItems: 'center', justifyContent: 'center' }}>
@@ -985,7 +1044,7 @@ export default function Calendar() {
               {txMenu.description ? ` · ${txMenu.description}` : ''} · <span style={{ color: txMenu.type === 'income' ? '#34c759' : '#ff3b30', fontWeight: 600 }}>{txMenu.type === 'income' ? '+' : '-'}{fmt(txMenu.amount)}원</span>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => { closeTxMenu(); navigate(`/edit/${txMenu.id}`) }}
+              <button onClick={() => { closeTxMenu(); navigate(`/edit/${txMenu.id}`, { state: { from: 'calendar' } }) }}
                 style={{ flex: 1, padding: '14px 0', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer' }}>
                 ✏️ 수정
               </button>

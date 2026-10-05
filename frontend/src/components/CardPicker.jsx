@@ -1,14 +1,18 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cardLogo } from '../utils.js'
+import { ListToolbar, filterSortItems } from './ListTools.jsx'
 
 export default function CardPicker({ cards, value, onChange, error, placeholder = '카드/계좌 선택' }) {
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(false)
   const [drag, setDrag] = useState(0)
   const touchStartY = useRef(null)
+  const [query, setQuery] = useState('')
+  const [dir, setDir] = useState(null)
 
   function openSheet() {
+    setQuery('')
     setOpen(true)
     requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)))
   }
@@ -80,7 +84,8 @@ export default function CardPicker({ cards, value, onChange, error, placeholder 
             <div style={{ padding: '6px 20px 12px', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-light)' }}>
               카드/계좌 선택
             </div>
-            {cards.map(card => {
+            <ListToolbar query={query} onQuery={setQuery} dir={dir} onDir={setDir} placeholder="카드/계좌 이름 검색" />
+            {filterSortItems(cards, query, dir, c => c.name).map(card => {
               const isSelected = value === card.name
               const logo = cardLogo(card)
               return (

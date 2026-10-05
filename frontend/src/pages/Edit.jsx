@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import api from '../api.js'
 import { restoreCaretAfterFormat } from '../utils.js'
@@ -14,6 +14,7 @@ import { syncWidget } from '../widgetSync.js'
 export default function Edit() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [data, setData] = useState(null)
   const [form, setForm] = useState(null)
   const [amountDisplay, setAmountDisplay] = useState('')
@@ -133,6 +134,8 @@ export default function Edit() {
 
     await api.put(`/api/transactions/${id}`, payload)
     syncWidget()
+    // 캘린더에서 들어온 경우 날짜를 다른 달로 바꿨다면 돌아갔을 때 그 달을 보여준다
+    if (location.state?.from === 'calendar' && payload.date) sessionStorage.setItem('calendar_focus_month', payload.date.slice(0, 7))
     navigate(-1)
   }
 
@@ -335,7 +338,7 @@ export default function Edit() {
                     <div className={`ios-track${form.point_pool === 'carryover' ? ' on' : ''}`} />
                     <div className={`ios-dot${form.point_pool === 'carryover' ? ' on' : ''}`} />
                   </div>
-                {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number(carryoverError.amount - carryoverError.available).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
+                {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({Number(selectedCard.point_carryover).toLocaleString('ko-KR')}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {Number(carryoverError.amount - carryoverError.available).toLocaleString('ko-KR')}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
                 </div>
               )
             })()}

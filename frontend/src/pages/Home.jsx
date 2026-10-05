@@ -12,6 +12,8 @@ import TxListFilter from '../components/TxListFilter.jsx'
 import { syncWidget } from '../widgetSync.js'
 import CategoryPicker from '../components/CategoryPicker.jsx'
 import CardPicker from '../components/CardPicker.jsx'
+import BulkBar, { SelectCircle, SelectSlot } from '../components/BulkBar.jsx'
+import useBulkSelect from '../hooks/useBulkSelect.js'
 import FilterPopup from '../components/FilterPopup.jsx'
 
 import TransferPicker from '../components/TransferPicker.jsx'
@@ -86,6 +88,37 @@ export default function Home() {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
   const receiptInputRef = useRef(null)
   const [confirmSheet, setConfirmSheet] = useState(null) // tx.id
+  const bulk = useBulkSelect()
+  const { selectMode, selectedIds, setSelectedIds, rowProps, exit, selectAll } = bulk
+  const [bulkBusy, setBulkBusy] = useState(false)
+  // 선택 모드일 때 하단 네비를 숨기는 바디 클래스
+  useEffect(() => {
+    document.body.classList.toggle('select-mode', selectMode)
+    return () => document.body.classList.remove('select-mode')
+  }, [selectMode])
+  const selectedTxs = selectMode ? (data?.transactions || []).filter(tx => selectedIds.includes(tx.id)) : []
+  const perfAllExcluded = selectedTxs.length > 0 && selectedTxs.every(tx => tx.exclude_perf)
+  const statsAllExcluded = selectedTxs.length > 0 && selectedTxs.every(tx => tx.exclude_stats)
+  // 날짜 단위 전체 선택: 그 날 내역이 모두 선택돼 있으면 해제, 아니면 전부 선택
+  function isDayAllSelected(ids) {
+    return selectMode && ids.length > 0 && ids.every(id => selectedIds.includes(id))
+  }
+  function toggleDay(ids) {
+    if (!selectMode) return selectAll(ids)
+    if (isDayAllSelected(ids)) setSelectedIds(cur => cur.filter(x => !ids.includes(x)))
+    else setSelectedIds(cur => [...new Set([...cur, ...ids])])
+  }
+  async function runBulk(action, value) {
+    if (!selectedIds.length) return
+    setBulkBusy(true)
+    try {
+      await api.post('/api/transactions/bulk', { ids: selectedIds, action, value })
+      exit()
+      load()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
   const [cardFilter, setCardFilter] = useLocalStorageState('home_card_filter', 'all')
   const [cardSheet, setCardSheet] = useState(null) // card name
   const [cardSheetVisible, setCardSheetVisible] = useState(false)
@@ -809,7 +842,7 @@ export default function Home() {
                         <div className={`ios-dot${form.point_pool === 'carryover' ? ' on' : ''}`} />
                       </div>
                     </div>
-                    {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({fmt(selectedCard.point_carryover)}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {fmt(carryoverError.amount - carryoverError.available)}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
+                    {carryoverError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginTop: 8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span>전환 포인트({fmt(selectedCard.point_carryover)}원)보다 많이 쓸 수 없어요</span>{carryoverError.canSplit && <button type="button" onClick={confirmCarrySplit} style={{ background: 'rgba(176,136,249,0.12)', color: '#b088f9', border: '1px solid rgba(176,136,249,0.4)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>충전 포인트에서 나머지 {fmt(carryoverError.amount - carryoverError.available)}원 차감</button>}<button type="button" onClick={() => { setPointOverspend(carryoverError); setOverspendStep('pick'); setOverspendCardChoice('') }} style={{ background: 'rgba(220,53,69,0.1)', color: '#dc3545', border: '1px solid rgba(220,53,69,0.35)', borderRadius: 8, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>연결 카드로 결제</button></div>}
                   </div>
                 )
               })()}
@@ -838,6 +871,11 @@ export default function Home() {
               <span className="s-arrow" style={{ transform: txOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
             </div>
             <div className="d-flex align-items-center gap-2">
+              {selectMode && filtered.length > 0 && (
+                <i className="bi bi-check2-all" role="button" aria-label="전체 선택" title="전체 선택"
+                  onClick={() => { const all = filtered.every(t => selectedIds.includes(t.id)); setSelectedIds(all ? [] : filtered.map(t => t.id)) }}
+                  style={{ fontSize: '1.15rem', color: '#b088f9', cursor: 'pointer', padding: '0 2px' }} />
+              )}
               <TxListFilter sortAsc={sortAsc} onSortChange={setSortAsc} showBalance={showBalance} onShowBalanceChange={setShowBalance} showTime={showTime} onShowTimeChange={setShowTime}
                 cards={allCards} cardFilter={cardFilter} onCardFilterChange={setCardFilter} />
               <SlidingTabs options={[['all', '전체'], ['income', '수입'], ['expense', '지출']]} value={filter} onChange={setFilter} />
@@ -857,7 +895,10 @@ export default function Home() {
               return dates.map(date => (
                 <div key={date} className="mb-2">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                    <div onClick={selectMode ? () => toggleDay(byDate[date].map(t => t.id)) : undefined} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: selectMode ? 'pointer' : undefined }}>
+                      {selectMode && <SelectCircle on={isDayAllSelected(byDate[date].map(t => t.id))} small />}
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                    </div>
                     <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
                     <span className={`amt-mask${hideTx ? ' amt-hidden' : ''}`} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0) >= 0
@@ -865,14 +906,24 @@ export default function Home() {
                         : `${fmt(byDate[date].reduce((s,t) => t.type==='income' ? s+t.amount : s-t.amount, 0))}원`}
                     </span>
                   </div>
-                  <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                    {byDate[date].map((tx, i) => (
-                      <SwipeItem key={tx.id} onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>
-                        <div style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
-                          <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                  <div data-manual-scroll style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', touchAction: 'none' }}>
+                    {byDate[date].map((tx, i) => {
+                      const body = (
+                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                          {selectMode && <SelectSlot on={selectedIds.includes(tx.id)} />}
+                          <div style={{ flex: 1, minWidth: 0, padding: '12px 14px' }}>
+                            <TxItem tx={tx} emojiMap={data.emoji_map} showBalance={showBalance} showTime={showTime} getCardColor={getCardColor} hideAmounts={hideTx} onPhotoClick={tx.has_receipt ? () => setPhotoViewerTxId(tx.id) : undefined} />
+                          </div>
                         </div>
-                      </SwipeItem>
-                    ))}
+                      )
+                      return (
+                        <div key={tx.id} {...rowProps(tx.id)} style={{ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', cursor: selectMode ? 'pointer' : undefined }}>
+                          {selectMode
+                            ? body
+                            : <SwipeItem onDelete={() => setConfirmSheet(tx.id)} onEdit={() => navigate(`/edit/${tx.id}`)}>{body}</SwipeItem>}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))
@@ -981,6 +1032,13 @@ export default function Home() {
           </div>
         </div>,
         document.body
+      )}
+
+      {selectMode && <div style={{ height: "calc((152px + max(32px, env(safe-area-inset-bottom) + 16px)) / 4)" }} />}
+      {selectMode && (
+        <BulkBar count={selectedIds.length} busy={bulkBusy} cards={data.card_list || []}
+          expenseCats={data.expense_cats} incomeCats={data.income_cats}
+          perfAllExcluded={perfAllExcluded} statsAllExcluded={statsAllExcluded} onRun={runBulk} onExit={exit} />
       )}
 
       {/* 삭제 확인 */}

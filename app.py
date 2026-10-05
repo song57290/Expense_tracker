@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from functools import wraps
 
 from sqlalchemy import func
-from models import db, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood, SavingsGoal, CashbackRule
+from models import db, InvestYear, InvestSnapshot, Transaction, Budget, Category, Card, User, Savings, Investment, Notice, HelpItem, AppConfig, SalaryConfig, BudgetAllocation, FixedExpense, SavingsDeposit, LoanRepayment, Routine, RoutineItem, Mood, SavingsGoal, CashbackRule, InvestAccount, InvestmentTrade
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import openpyxl
@@ -198,6 +198,12 @@ with app.app_context():
         pass
     try:
         with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE savings_goal ADD COLUMN savings_ids VARCHAR(300)"))
+            conn.commit()
+    except Exception:
+        pass
+    try:
+        with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE savings ADD COLUMN auto_tx_card VARCHAR(50) DEFAULT ''"))
             conn.commit()
     except Exception:
@@ -272,6 +278,15 @@ with app.app_context():
         'ALTER TABLE "transaction" ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE category ADD COLUMN exclude_perf BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE investment ADD COLUMN account_type VARCHAR(20) NOT NULL DEFAULT '일반'",
+        "ALTER TABLE investment ADD COLUMN account_id INTEGER",
+        "ALTER TABLE invest_account ADD COLUMN cash FLOAT NOT NULL DEFAULT 0",
+        "ALTER TABLE invest_account ADD COLUMN cash_set BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE invest_account ADD COLUMN broker VARCHAR(30)",
+        "ALTER TABLE invest_account ADD COLUMN has_custom_icon BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE invest_account ADD COLUMN broker_name VARCHAR(60)",
+        "ALTER TABLE investment_trade ADD COLUMN fee FLOAT NOT NULL DEFAULT 0",
+        "ALTER TABLE invest_account ADD COLUMN opened_at VARCHAR(10)",
+        "ALTER TABLE invest_account ADD COLUMN principal FLOAT",
         "ALTER TABLE card ADD COLUMN linked_account_id INTEGER",
         'ALTER TABLE "transaction" ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0',
         "ALTER TABLE category ADD COLUMN exclude_stats BOOLEAN NOT NULL DEFAULT 0",
@@ -1061,6 +1076,31 @@ def _fetch_investment_prices_sync(todo):
     if changed:
         db.session.commit()
 
+def _invest_account_list(uid, stats_list):
+    # 투자 계좌 잔고 = 계좌에 든 종목들의 현재 평가금액 합 + 예수금
+    accts = InvestAccount.query.filter_by(user_id=uid).order_by(InvestAccount.position, InvestAccount.id).all()
+    out = []
+    for a in accts:
+        held = [st for st in stats_list if st.get('account_id') == a.id]
+        holdings_value = sum(st['current_value'] for st in held)
+        out.append({
+            'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '',
+            'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a),
+            'cash': int(a.cash or 0),
+            'cash_set': bool(a.cash_set),
+            'broker': a.broker or '',
+            'holdings_value': holdings_value,
+            'balance': holdings_value + (int(a.cash or 0) if a.cash_set else 0),
+            'purchase_value': sum(st['purchase_value'] for st in held),
+            'holding_count': len(held),
+        })
+    return out
+
+def _inv_realized(inv_id):
+    # 매도 금액 누계 (원화 환산)
+    sells = InvestmentTrade.query.filter_by(investment_id=inv_id, side='sell').all()
+    return int(sum(t.quantity * t.price * (t.exchange_rate or 1) - (t.fee or 0) for t in sells))
+
 def _investment_stats(inv):
     qty = inv.quantity or 0
     avg = inv.avg_price or 0
@@ -1088,6 +1128,8 @@ def _investment_stats(inv):
         'account_type': getattr(inv, 'account_type', '일반') or '일반',
         'price_updated_at': updated_at,
         'exclude_stats': bool(getattr(inv, 'exclude_stats', False)),
+        'account_id': inv.account_id,
+        'realized_sales': _inv_realized(inv.id),
     }
 
 # ── JSON API routes ───────────────────────────────────────────────────────────
@@ -1136,7 +1178,7 @@ def api_home():
     by_routine = _routine_items(uid)
     running_balances = _running_balances_for_user(uid)
     goals = SavingsGoal.query.filter_by(user_id=uid).order_by(SavingsGoal.position, SavingsGoal.id).all()
-    goals_savings_by_id = {s.id: s for s in Savings.query.filter_by(user_id=uid).all()}
+    goals_savings_by_id, goals_inv_by_id, goals_acct_by_id = _goal_maps(uid)
     return jsonify({
         'transactions': [{'id': tx.id, 'date': tx.date, 'time': tx.time or '', 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or '',
@@ -1161,7 +1203,7 @@ def api_home():
         'excl_stat_cat_names': list(excl_stat_cats),
         'routines': [{'id': r.id, 'name': r.name, 'icon': r.icon or '', 'card': r.card or '', 'items': by_routine.get(r.id, [])} for r in routines],
         'budget_limits': {a.category_name: a.monthly_limit for a in BudgetAllocation.query.filter_by(user_id=uid).all() if a.monthly_limit},
-        'savings_goals': [_savings_goal_json(g, goals_savings_by_id) for g in goals],
+        'savings_goals': [_savings_goal_json(g, goals_savings_by_id, goals_inv_by_id, goals_acct_by_id) for g in goals],
     })
 
 def _sync_salary_if_needed(uid, category, tx_type, amount):
@@ -1236,6 +1278,69 @@ def api_add_transaction():
     db.session.commit()
     _sync_salary_if_needed(uid, tx.category, tx.type, tx.amount)
     return jsonify({'ok': True, 'id': tx.id})
+
+@app.route('/api/transactions/bulk', methods=['POST'])
+@login_required
+def api_transactions_bulk():
+    # 내역 목록 다중 선택에서 한 번에 처리. 계좌 이체 짝 거래와 전환 포인트 지출의
+    # 카드 변경은 개별 수정 흐름을 그대로 따라가기 어려워 건너뛰고 건수만 돌려준다.
+    uid = session['user_id']
+    data = request.json or {}
+    ids = [int(i) for i in data.get('ids', [])]
+    action = data.get('action')
+    value = data.get('value')
+    txs = Transaction.query.filter(Transaction.user_id == uid, Transaction.id.in_(ids)).all()
+    done = 0
+    skipped = 0
+    for tx in txs:
+        if action == 'delete':
+            if tx.category == '계좌 이체':
+                sibling = Transaction.query.filter(
+                    Transaction.user_id == uid, Transaction.id != tx.id,
+                    Transaction.category == '계좌 이체', Transaction.description == tx.description,
+                    Transaction.amount == tx.amount, Transaction.date == tx.date,
+                    Transaction.type != tx.type,
+                ).first()
+                if sibling:
+                    db.session.delete(sibling)
+            linked_saving = Savings.query.filter_by(user_id=uid, withdraw_transaction_id=tx.id).first()
+            if linked_saving:
+                db.session.delete(linked_saving)
+            _adjust_point_carryover(uid, tx.card, tx.point_pool, tx.type, tx.amount, 1)
+            db.session.delete(tx)
+            done += 1
+        elif action == 'set_card':
+            if tx.category == '계좌 이체' or tx.point_pool == 'carryover':
+                skipped += 1
+                continue
+            tx.card = value or None
+            if not tx.cashback_manual:
+                tx.cashback, tx.cashback_rule_id = _compute_cashback(uid, tx.card, tx.type, tx.amount, tx.exclude_cashback, tx.description, tx.date, exclude_tx_id=tx.id)
+            done += 1
+        elif action == 'set_category':
+            if tx.category == '계좌 이체':
+                skipped += 1
+                continue
+            tx.category = value
+            done += 1
+        elif action == 'set_date':
+            if tx.category == '계좌 이체' or not value:
+                skipped += 1
+                continue
+            tx.date = value
+            if not tx.cashback_manual:
+                tx.cashback, tx.cashback_rule_id = _compute_cashback(uid, tx.card, tx.type, tx.amount, tx.exclude_cashback, tx.description, tx.date, exclude_tx_id=tx.id)
+            done += 1
+        elif action == 'set_exclude_perf':
+            tx.exclude_perf = bool(value)
+            done += 1
+        elif action == 'set_exclude_stats':
+            tx.exclude_stats = bool(value)
+            done += 1
+        else:
+            return jsonify({'error': 'invalid action'}), 400
+    db.session.commit()
+    return jsonify({'ok': True, 'done': done, 'skipped': skipped})
 
 @app.route('/api/transactions/<int:tx_id>', methods=['GET', 'PUT', 'DELETE'])
 @login_required
@@ -2632,6 +2737,7 @@ def api_budget():
         'card_stats': card_stats,
         'savings': [_savings_stats(s, extra_deposits.get(s.id, 0)) for s in savings],
         'investments': [_investment_stats(i) for i in investments],
+        'invest_accounts': _invest_account_list(session['user_id'], [_investment_stats(i) for i in investments]),
     })
 
 @app.route('/api/savings', methods=['GET', 'POST'])
@@ -2748,17 +2854,81 @@ def api_saving(sid):
     return jsonify({'ok': True})
 
 # ─── 저축 목표 ────────────────────────────────────────────────────────────────
-def _savings_goal_json(g, savings_by_id):
-    # 예·적금 계좌에 연결돼 있으면 그 계좌 잔액이 진행률, 아니면 직접 입력해둔
-    # manual_amount가 진행률이 된다.
-    linked = savings_by_id.get(g.savings_id) if g.savings_id else None
-    current = linked.amount if linked else g.manual_amount
+def _check_invest_account(uid, aid):
+    # 모든 종목은 투자 계좌에 속해야 한다 — 없거나 남의 계좌면 None
+    if not aid:
+        return None
+    return InvestAccount.query.filter_by(id=int(aid), user_id=uid).first()
+
+def _investment_current_value(inv):
+    # 통계 · 투자 탭과 같은 평가액 계산 (해외주식은 환율 적용)
+    price = inv.current_price if inv.current_price is not None else (inv.avg_price or 0)
+    fx = (inv.exchange_rate or 1) if inv.itype == '해외주식' else 1
+    return int((inv.quantity or 0) * price * fx)
+
+def _holding_value(inv):
+    # 목표 진행률에 들어가는 한 종목의 값 = 현재 평가액 + 지금까지 판 금액
+    return _investment_current_value(inv) + _inv_realized(inv.id)
+
+def _goal_link_tokens(g):
+    # 연결 항목 토큰: 's{id}' 예·적금, 'i{id}' 투자 종목, 'a{id}' 투자 계좌(계좌 안 종목 전체).
+    # 예전 데이터는 숫자만 있어 예·적금으로 본다.
+    if g.savings_ids:
+        return [('s' + t.strip()) if t.strip().isdigit() else t.strip() for t in g.savings_ids.split(',') if t.strip()]
+    return ['s%d' % g.savings_id] if g.savings_id else []
+
+def _goal_maps(uid):
+    return (
+        {s.id: s for s in Savings.query.filter_by(user_id=uid).all()},
+        {i.id: i for i in Investment.query.filter_by(user_id=uid).all()},
+        {a.id: a for a in InvestAccount.query.filter_by(user_id=uid).all()},
+    )
+
+def _savings_goal_json(g, savings_by_id, inv_by_id=None, acct_by_id=None):
+    # 연결된 항목 값의 합이 진행률, 연결이 없으면 직접 입력해둔 manual_amount가 진행률이 된다.
+    inv_by_id = inv_by_id or {}
+    acct_by_id = acct_by_id or {}
+    tokens = _goal_link_tokens(g)
+    account_ids = {int(t[1:]) for t in tokens if t[0] == 'a'}
+    linked = []
+    for t in tokens:
+        rid = int(t[1:])
+        if t[0] == 's' and rid in savings_by_id:
+            s = savings_by_id[rid]
+            linked.append((f'{s.bank} {s.name}'.strip(), s.amount))
+        elif t[0] == 'a' and rid in acct_by_id:
+            held = [i for i in inv_by_id.values() if i.account_id == rid]
+            acct = acct_by_id[rid]
+            linked.append((acct.name, sum(_investment_current_value(i) for i in held) + int(acct.cash or 0)))
+        elif t[0] == 'i' and rid in inv_by_id:
+            inv = inv_by_id[rid]
+            if inv.account_id in account_ids:
+                continue  # 연결된 계좌에 이미 들어간 종목은 중복으로 더하지 않는다
+            linked.append((inv.name, _holding_value(inv)))
+    current = sum(v for _, v in linked) if linked else g.manual_amount
+    first_savings = next((int(t[1:]) for t in tokens if t[0] == 's'), None)
     return {
         'id': g.id, 'name': g.name, 'target_amount': g.target_amount, 'target_date': g.target_date or '',
-        'savings_id': g.savings_id, 'savings_name': (f'{linked.bank} {linked.name}'.strip() if linked else ''),
-        'current_amount': current, 'manual': g.savings_id is None,
+        'link_ids': tokens, 'savings_id': first_savings,
+        'savings_name': ', '.join(n for n, _ in linked),
+        'current_amount': current, 'manual': not tokens,
         'position': g.position,
     }
+
+def _links_from_request(data):
+    if 'link_ids' in data:
+        return [str(t) for t in (data['link_ids'] or [])]
+    if 'savings_ids' in data:
+        return ['s%s' % i for i in (data['savings_ids'] or [])]
+    if data.get('savings_id'):
+        return ['s%s' % data['savings_id']]
+    return []
+
+def _set_goal_links(g, tokens):
+    tokens = [t for t in tokens if len(t) > 1 and t[0] in 'sia' and t[1:].isdigit()]
+    g.savings_ids = ','.join(tokens) if tokens else None
+    first_savings = next((int(t[1:]) for t in tokens if t[0] == 's'), None)
+    g.savings_id = first_savings
 
 @app.route('/api/savings-goals', methods=['GET', 'POST'])
 @login_required
@@ -2767,21 +2937,20 @@ def api_savings_goals():
     if request.method == 'POST':
         data = request.json or {}
         max_pos = db.session.query(db.func.max(SavingsGoal.position)).filter_by(user_id=uid).scalar() or 0
-        savings_id = data.get('savings_id')
         g = SavingsGoal(
             user_id=uid, name=(data.get('name') or '').strip(),
             target_amount=int(data.get('target_amount') or 0),
             target_date=data.get('target_date') or None,
-            savings_id=int(savings_id) if savings_id else None,
             manual_amount=int(data.get('manual_amount') or 0),
             position=max_pos + 1,
         )
+        _set_goal_links(g, _links_from_request(data))
         db.session.add(g)
         db.session.commit()
         return jsonify({'ok': True, 'id': g.id})
     goals = SavingsGoal.query.filter_by(user_id=uid).order_by(SavingsGoal.position, SavingsGoal.id).all()
-    savings_by_id = {s.id: s for s in Savings.query.filter_by(user_id=uid).all()}
-    return jsonify([_savings_goal_json(g, savings_by_id) for g in goals])
+    savings_by_id, inv_by_id, acct_by_id = _goal_maps(uid)
+    return jsonify([_savings_goal_json(g, savings_by_id, inv_by_id, acct_by_id) for g in goals])
 
 @app.route('/api/savings-goals/<int:gid>', methods=['PUT', 'DELETE'])
 @login_required
@@ -2796,9 +2965,8 @@ def api_savings_goal(gid):
     if 'name' in data: g.name = (data['name'] or '').strip()
     if 'target_amount' in data: g.target_amount = int(data['target_amount'] or 0)
     if 'target_date' in data: g.target_date = data['target_date'] or None
-    if 'savings_id' in data:
-        sid = data['savings_id']
-        g.savings_id = int(sid) if sid else None
+    if any(k in data for k in ('link_ids', 'savings_ids', 'savings_id')):
+        _set_goal_links(g, _links_from_request(data))
     if 'manual_amount' in data: g.manual_amount = int(data['manual_amount'] or 0)
     db.session.commit()
     return jsonify({'ok': True})
@@ -2810,7 +2978,7 @@ def api_savings_goal_add(gid):
     # 목표는 진행률이 계좌 잔액을 그대로 따라가므로 여기서 건드릴 게 없다.
     uid = session['user_id']
     g = SavingsGoal.query.filter_by(id=gid, user_id=uid).first_or_404()
-    if g.savings_id:
+    if _goal_link_tokens(g):
         return jsonify({'error': '계좌에 연결된 목표는 직접 추가할 수 없습니다'}), 400
     amount = int((request.json or {}).get('amount') or 0)
     g.manual_amount = max(0, g.manual_amount + amount)
@@ -2830,12 +2998,285 @@ def get_usd_rate():
     except Exception:
         return jsonify({'ok': True, 'rate': 1380})
 
+def _acct_icon_path(uid, aid):
+    return os.path.join(CARD_ICONS_DIR, f'acct_{uid}_{aid}.png')
+
+def _acct_icon_version(a):
+    p = _acct_icon_path(a.user_id, a.id)
+    return int(os.path.getmtime(p)) if a.has_custom_icon and os.path.exists(p) else 0
+
+@app.route('/api/invest-accounts/<int:aid>/icon', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_invest_account_icon(aid):
+    uid = session['user_id']
+    a = InvestAccount.query.filter_by(id=aid, user_id=uid).first_or_404()
+    path = _acct_icon_path(uid, aid)
+
+    if request.method == 'GET':
+        if not os.path.exists(path):
+            abort(404)
+        return send_file(path, mimetype='image/png')
+
+    if request.method == 'POST':
+        file = request.files.get('icon')
+        if not file:
+            return jsonify({'error': 'no file'}), 400
+        file.seek(0, os.SEEK_END)
+        upload_size = file.tell()
+        file.seek(0)
+        if upload_size > _MAX_IMAGE_UPLOAD_BYTES:
+            return jsonify({'error': '이미지 용량이 너무 큽니다. 8MB 이하 파일로 올려주세요.'}), 400
+        try:
+            if _PIL_OK:
+                img = PILImage.open(file)
+                if img.width * img.height > _MAX_IMAGE_PIXELS:
+                    return jsonify({'error': '이미지 해상도가 너무 큽니다. 더 작은 이미지로 올려주세요.'}), 400
+                img.draft('RGBA', (256, 256))
+                img = img.convert('RGBA')
+                img.thumbnail((256, 256), PILImage.LANCZOS)
+                img.save(path, 'PNG', optimize=True)
+            else:
+                file.save(path)
+            a.has_custom_icon = True
+            db.session.commit()
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    if os.path.exists(path):
+        os.remove(path)
+    a.has_custom_icon = False
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/invest-accounts', methods=['GET', 'POST'])
+@login_required
+def api_invest_accounts():
+    uid = session['user_id']
+    if request.method == 'POST':
+        body = request.json or {}
+        name = (body.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': '계좌 이름을 입력해 주세요'}), 400
+        max_pos = db.session.query(db.func.max(InvestAccount.position)).filter_by(user_id=uid).scalar() or 0
+        a = InvestAccount(user_id=uid, name=name, position=max_pos + 1, broker=(body.get('broker') or '')[:30] or None,
+                          broker_name=(body.get('broker_name') or '').strip()[:60] or None,
+                          opened_at=body.get('opened_at') or None,
+                          principal=float(body['principal']) if body.get('principal') not in (None, '') else None)
+        db.session.add(a)
+        db.session.commit()
+        return jsonify({'ok': True, 'id': a.id})
+    accts = InvestAccount.query.filter_by(user_id=uid).order_by(InvestAccount.position, InvestAccount.id).all()
+    return jsonify([{'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '', 'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a)} for a in accts])
+
+@app.route('/api/invest-accounts/<int:aid>', methods=['PUT', 'DELETE'])
+@login_required
+def api_invest_account(aid):
+    uid = session['user_id']
+    a = InvestAccount.query.filter_by(id=aid, user_id=uid).first_or_404()
+    if request.method == 'DELETE':
+        # 계좌를 지워도 보유 종목은 남기고 계좌 연결만 푼다
+        Investment.query.filter_by(user_id=uid, account_id=aid).update({'account_id': None})
+        if os.path.exists(_acct_icon_path(uid, aid)):
+            os.remove(_acct_icon_path(uid, aid))
+        db.session.delete(a)
+        db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': '계좌 이름을 입력해 주세요'}), 400
+        a.name = name
+    if 'broker' in data:
+        a.broker = (data.get('broker') or '')[:30] or None
+    if 'broker_name' in data:
+        a.broker_name = (data.get('broker_name') or '').strip()[:60] or None
+    if 'opened_at' in data:
+        a.opened_at = data.get('opened_at') or None
+    if 'principal' in data:
+        a.principal = float(data['principal']) if data.get('principal') not in (None, '') else None
+    if 'cash' in data:
+        a.cash = float(data.get('cash') or 0)
+        a.cash_set = True
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/investments/<int:iid>/trades', methods=['GET', 'POST'])
+@login_required
+def api_investment_trades(iid):
+    uid = session['user_id']
+    inv = Investment.query.filter_by(id=iid, user_id=uid).first_or_404()
+    if request.method == 'GET':
+        trades = InvestmentTrade.query.filter_by(investment_id=iid).order_by(InvestmentTrade.date.desc(), InvestmentTrade.id.desc()).all()
+        return jsonify([{'id': t.id, 'date': t.date, 'side': t.side, 'quantity': t.quantity, 'price': t.price} for t in trades])
+    data = request.json or {}
+    side = data.get('side')
+    qty = float(data.get('quantity') or 0)
+    price = float(data.get('price') or 0)
+    fee = float(data.get('fee') or 0)
+    if side not in ('buy', 'sell') or qty <= 0 or price <= 0:
+        return jsonify({'error': '수량과 단가를 확인해 주세요'}), 400
+    if fee < 0:
+        return jsonify({'error': '수수료는 0원 이상이어야 해요'}), 400
+    if not inv.account_id:
+        return jsonify({'error': '투자 계좌를 먼저 지정해 주세요'}), 400
+    held = inv.quantity or 0
+    fx = inv.exchange_rate if inv.itype == '해외주식' else None
+    krw = qty * price * (fx or 1)
+    acct = InvestAccount.query.filter_by(id=inv.account_id, user_id=uid).first()
+    if side == 'buy' and acct and acct.cash_set and krw + fee > (acct.cash or 0) + 0.5:
+        return jsonify({'error': f'예수금이 부족합니다 (잔액 {int(acct.cash or 0):,}원 · 필요 {int(krw + fee):,}원)'}), 400
+    if side == 'buy':
+        # 매수는 평균 매수가를 가중 평균으로 다시 계산
+        new_qty = held + qty
+        inv.avg_price = (held * (inv.avg_price or 0) + qty * price) / new_qty
+        inv.quantity = new_qty
+    else:
+        if qty > held + 1e-9:
+            return jsonify({'error': '보유 수량보다 많이 팔 수 없습니다'}), 400
+        # 매도는 수량만 줄이고 평균 매수가는 그대로 둔다
+        inv.quantity = held - qty
+    date = data.get('date') or datetime.now(_KST).strftime('%Y-%m-%d')
+    if acct and acct.cash_set:
+        # 예수금을 입력한 계좌면 거래 금액과 수수료만큼 예수금이 움직인다 (매수는 빠지고, 매도는 정산되어 들어온다)
+        acct.cash = (acct.cash or 0) + ((krw - fee) if side == 'sell' else -(krw + fee))
+    db.session.add(InvestmentTrade(user_id=uid, investment_id=iid, date=date, side=side, quantity=qty, price=price, exchange_rate=fx, fee=fee))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+def _account_balance_now(a):
+    # 계좌 잔고 = 종목 평가액 + 예수금 (예수금은 입력한 계좌만)
+    held = Investment.query.filter_by(user_id=a.user_id, account_id=a.id).all()
+    return sum(_investment_current_value(i) for i in held) + (int(a.cash or 0) if a.cash_set else 0)
+
+def _snapshot_account(a):
+    today = datetime.now(_KST).strftime('%Y-%m-%d')
+    bal = _account_balance_now(a)
+    row = InvestSnapshot.query.filter_by(account_id=a.id, date=today).first()
+    if row:
+        row.balance = bal
+    else:
+        db.session.add(InvestSnapshot(user_id=a.user_id, account_id=a.id, date=today, balance=bal))
+    db.session.commit()
+
+def _snapshot_all_accounts():
+    with app.app_context():
+        for a in InvestAccount.query.all():
+            _snapshot_account(a)
+
+def _yearly_returns(a, balance):
+    # 연도별 수익금·수익률. 전년 연말 잔고(첫해는 원금)와 순입금으로 계산한다
+    cy = datetime.now(_KST).year
+    records = InvestYear.query.filter_by(account_id=a.id).order_by(InvestYear.year).all()
+    prev = a.principal
+    out = []
+    for r in records:
+        if r.year >= cy:
+            continue
+        gain = rate = None
+        if prev is not None:
+            gain = r.end_balance - prev - r.net_deposit
+            base = prev + r.net_deposit
+            rate = round(gain / base * 100, 2) if base > 0 else None
+            gain = int(gain)
+        out.append({'year': r.year, 'end_balance': int(r.end_balance), 'net_deposit': int(r.net_deposit), 'gain': gain, 'rate': rate})
+        prev = r.end_balance
+    cur = next((r for r in records if r.year == cy), None)
+    cur_net = cur.net_deposit if cur else 0
+    gain = rate = None
+    if prev is not None:
+        gain = int(balance - prev - cur_net)
+        base = prev + cur_net
+        rate = round(gain / base * 100, 2) if base > 0 else None
+    live = {'year': cy, 'live': True, 'end_balance': int(balance), 'net_deposit': int(cur_net), 'gain': gain, 'rate': rate}
+    return out, live
+
+def _portfolio_invest_accounts(uid):
+    # 포트폴리오 PDF용 계좌별 요약: 잔고, 예수금, 원금 대비 손익, 연도별 수익
+    out = []
+    for a in InvestAccount.query.filter_by(user_id=uid).order_by(InvestAccount.position, InvestAccount.id).all():
+        bal = _account_balance_now(a)
+        years, live = _yearly_returns(a, bal)
+        principal = a.principal or 0
+        out.append({
+            'name': a.name, 'broker_name': a.broker_name or '', 'opened_at': a.opened_at or '',
+            'balance': int(bal), 'cash': int(a.cash or 0) if a.cash_set else None,
+            'principal': int(principal), 'since_gain': int(bal - principal) if principal else None,
+            'since_pct': round((bal - principal) / principal * 100, 2) if principal else None,
+            'years': years + [live],
+        })
+    return out
+
+@app.route('/api/invest-accounts/<int:aid>/years/<int:year>', methods=['PUT', 'DELETE'])
+@login_required
+def api_invest_account_year(aid, year):
+    uid = session['user_id']
+    InvestAccount.query.filter_by(id=aid, user_id=uid).first_or_404()
+    row = InvestYear.query.filter_by(account_id=aid, year=year).first()
+    if request.method == 'DELETE':
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+        return jsonify({'ok': True})
+    data = request.json or {}
+    if not row:
+        row = InvestYear(user_id=uid, account_id=aid, year=year)
+        db.session.add(row)
+    row.end_balance = float(data.get('end_balance') or 0)
+    row.net_deposit = float(data.get('net_deposit') or 0)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/invest-accounts/<int:aid>/detail')
+@login_required
+def api_invest_account_detail(aid):
+    uid = session['user_id']
+    a = InvestAccount.query.filter_by(id=aid, user_id=uid).first_or_404()
+    invs = Investment.query.filter_by(user_id=uid, account_id=aid).order_by(Investment.position, Investment.id).all()
+    stats = [_investment_stats(i) for i in invs]
+    holdings_value = sum(st['current_value'] for st in stats)
+    purchase = sum(st['purchase_value'] for st in stats)
+    names = {i.id: i.name for i in invs}
+    trades = []
+    if names:
+        trades = InvestmentTrade.query.filter(InvestmentTrade.user_id == uid, InvestmentTrade.investment_id.in_(list(names)))\
+            .order_by(InvestmentTrade.date.desc(), InvestmentTrade.id.desc()).limit(50).all()
+    balance = holdings_value + (int(a.cash or 0) if a.cash_set else 0)
+    _snapshot_account(a)
+    years, live_year = _yearly_returns(a, balance)
+    days_open = None
+    if a.opened_at:
+        try:
+            days_open = (datetime.now(_KST).date() - datetime.strptime(a.opened_at, '%Y-%m-%d').date()).days
+        except ValueError:
+            days_open = None
+    principal = a.principal or 0
+    return jsonify({
+        'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '',
+        'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a),
+        'cash': int(a.cash or 0), 'cash_set': bool(a.cash_set),
+        'opened_at': a.opened_at or '', 'days_open': days_open,
+        'years': years, 'live_year': live_year,
+        'principal': int(principal), 'since_gain': int(balance - principal) if principal else None,
+        'since_pct': round((balance - principal) / principal * 100, 2) if principal else None,
+        'holdings_value': holdings_value, 'purchase_value': purchase, 'gain': holdings_value - purchase,
+        'balance': balance,
+        'holdings': [{'id': st['id'], 'name': st['name'], 'itype': st['itype'], 'quantity': st['quantity'],
+                      'avg_price': st['avg_price'], 'current_value': st['current_value'],
+                      'profit': st['profit'], 'profit_pct': st['profit_pct']} for st in stats],
+        'trades': [{'date': t.date, 'side': t.side, 'name': names.get(t.investment_id, ''), 'quantity': t.quantity,
+                    'price': t.price, 'fee': t.fee or 0} for t in trades],
+    })
+
 @app.route('/api/investments', methods=['GET', 'POST'])
 @login_required
 def api_investments():
     uid = session['user_id']
     if request.method == 'POST':
         data = request.json or {}
+        if not _check_invest_account(uid, data.get('account_id')):
+            return jsonify({'error': '투자 계좌를 선택해 주세요'}), 400
         max_pos = db.session.query(db.func.max(Investment.position)).filter_by(user_id=uid).scalar() or 0
         inv = Investment(
             user_id=uid,
@@ -2848,6 +3289,7 @@ def api_investments():
             exchange_rate=float(data['exchange_rate']) if data.get('exchange_rate') not in (None, '') else None,
             memo=data.get('memo', ''),
             account_type=data.get('account_type', '일반'),
+            account_id=int(data['account_id']),
             position=max_pos + 1,
             exclude_stats=bool(data.get('exclude_stats', False)),
         )
@@ -2889,6 +3331,12 @@ def api_investment(iid):
     inv.memo = data.get('memo', inv.memo)
     if 'account_type' in data:
         inv.account_type = data['account_type']
+    if 'account_id' in data:
+        if not _check_invest_account(uid, data['account_id']):
+            return jsonify({'error': '투자 계좌를 선택해 주세요'}), 400
+        inv.account_id = int(data['account_id'])
+    elif not inv.account_id:
+        return jsonify({'error': '투자 계좌를 선택해 주세요'}), 400
     if 'exclude_stats' in data:
         inv.exclude_stats = bool(data['exclude_stats'])
     db.session.commit()
@@ -3124,10 +3572,12 @@ def api_savings_deposit_delete(did):
 @login_required
 def api_pending_registers():
     uid = session['user_id']
-    today = datetime.now()
+    today = datetime.now(_KST)
     today_day = today.day
     current_month = today.strftime('%Y-%m')
     pending = []
+    business_today = _is_business_day(today.date())
+    auto_check = _get_notif_prefs(uid)['auto_transfer_check']
     # 고정 지출 (auto_silent=True인 항목은 여기서 조용히 등록)
     for f in FixedExpense.query.filter_by(user_id=uid, auto_register=True).all():
         if f.day_of_month != today_day:
@@ -3151,7 +3601,7 @@ def api_pending_registers():
                             'tx_card': f.tx_card or ''})
     # 적금/청약 자동이체
     for s in Savings.query.filter_by(user_id=uid, auto_tx=True).all():
-        if s.stype not in ('적금', '청약'):
+        if s.stype not in ('적금', '청약') or not business_today or not auto_check:
             continue
         if bool(getattr(s, 'is_paused', False)):
             continue
@@ -3481,6 +3931,7 @@ def api_portfolio():
         },
         'investments': investments,
         'investments_summary': {'total_value': inv_total, 'total_gain': inv_gain_total, 'count': len(investments_ct), 'return_rate': inv_return_rate, 'total_cost': inv_cost_total},
+        'invest_accounts': _portfolio_invest_accounts(uid),
         'budget': budget_amount_port,
         'transactions': [{'date': tx.date, 'type': tx.type, 'category': tx.category,
                           'description': tx.description or '', 'amount': tx.amount, 'card': tx.card or ''}
@@ -4369,6 +4820,43 @@ def _scheduled_price_update():
         except Exception as e:
             app.logger.error('Scheduled price update error: %s', e)
 
+_NOTIF_DEFAULTS = {'savings_day': True, 'savings_holiday': 'skip', 'auto_transfer_check': True}
+
+def _get_notif_prefs(uid):
+    prefs = dict(_NOTIF_DEFAULTS)
+    cfg = AppConfig.query.get(f'notif_prefs_{uid}') if uid else None
+    if cfg:
+        try:
+            prefs.update(json.loads(cfg.value))
+        except Exception:
+            pass
+    return prefs
+
+@app.route('/api/notification-prefs', methods=['GET', 'PUT'])
+@login_required
+def api_notification_prefs():
+    uid = session['user_id']
+    prefs = _get_notif_prefs(uid)
+    if request.method == 'GET':
+        return jsonify(prefs)
+    data = request.json or {}
+    for k in ('savings_day', 'auto_transfer_check'):
+        if k in data:
+            prefs[k] = bool(data[k])
+    if 'savings_holiday' in data:
+        if data['savings_holiday'] not in ('skip', 'next'):
+            return jsonify({'error': 'invalid option'}), 400
+        prefs['savings_holiday'] = data['savings_holiday']
+    key = f'notif_prefs_{uid}'
+    cfg = AppConfig.query.get(key)
+    value = json.dumps(prefs, ensure_ascii=False)
+    if cfg:
+        cfg.value = value
+    else:
+        db.session.add(AppConfig(key=key, value=value))
+    db.session.commit()
+    return jsonify(prefs)
+
 def _send_push_notifications():
     try:
         from datetime import timezone, timedelta
@@ -4395,27 +4883,38 @@ def _send_savings_notifications():
             from datetime import timezone, timedelta
             KST = timezone(timedelta(hours=9))
             now = datetime.now(KST)
-            today_day = now.day
             savings_list = Savings.query.filter(Savings.stype.in_(['청약', '적금'])).all()
             subs = _load_subs()
             for s in savings_list:
                 nd = getattr(s, 'notify_day', None)
-                if nd and nd == today_day:
-                    icon = '🏠' if s.stype == '청약' else '🏦'
-                    title = f'{icon} {s.stype} 납입일 알림'
-                    body = f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.'
-                    user_subs = [sub for sub in subs if sub.get('user_id') == s.user_id]
-                    for sub in user_subs:
-                        try:
-                            _do_send_push(sub, title=title, body=body)
-                        except Exception as e:
-                            app.logger.error('Savings push failed uid=%s: %s', s.user_id, e)
-                    user_tokens = [t for t in _load_fcm_tokens() if t.get('user_id') == s.user_id]
-                    for tok in user_tokens:
-                        try:
-                            _do_send_fcm(tok['token'], title=title, body=body)
-                        except Exception as e:
-                            app.logger.error('Savings FCM failed uid=%s: %s', s.user_id, e)
+                if not nd:
+                    continue
+                prefs = _get_notif_prefs(s.user_id)
+                if not prefs['savings_day']:
+                    continue
+                if prefs['savings_holiday'] == 'skip':
+                    # 쉬는 날이면 그날 알림은 보내지 않는다 (다음 영업일로 미루지 않음)
+                    if nd != now.day or not _is_business_day(now.date()):
+                        continue
+                else:
+                    # 쉬는 날이면 다음 영업일에 알림
+                    if now.date() != _effective_withdrawal_date(now.year, now.month, nd, 'next'):
+                        continue
+                icon = '🏠' if s.stype == '청약' else '🏦'
+                title = f'{icon} {s.stype} 납입일 알림'
+                body = f'{s.name} 납입일입니다! {s.amount:,}원을 납입해 주세요.'
+                user_subs = [sub for sub in subs if sub.get('user_id') == s.user_id]
+                for sub in user_subs:
+                    try:
+                        _do_send_push(sub, title=title, body=body)
+                    except Exception as e:
+                        app.logger.error('Savings push failed uid=%s: %s', s.user_id, e)
+                user_tokens = [t for t in _load_fcm_tokens() if t.get('user_id') == s.user_id]
+                for tok in user_tokens:
+                    try:
+                        _do_send_fcm(tok['token'], title=title, body=body)
+                    except Exception as e:
+                        app.logger.error('Savings FCM failed uid=%s: %s', s.user_id, e)
         except Exception as e:
             app.logger.error('Savings notification error: %s', e)
 
@@ -4479,6 +4978,7 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         _scheduler.add_job(_apply_point_resets, 'cron', hour=0, minute=5)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='mon-fri', hour=6, minute=35)
         _scheduler.add_job(_scheduled_price_update, 'cron', day_of_week='tue-sat', hour=2, minute=15)
+        _scheduler.add_job(_snapshot_all_accounts, 'cron', hour=23, minute=55)
         _scheduler.start()
         atexit.register(lambda: _scheduler.shutdown(wait=False))
     except ImportError:

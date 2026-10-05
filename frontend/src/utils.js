@@ -28,7 +28,16 @@ const BANK_COLORS = [
   ['현대', '#1A1A1A', 'white'], ['롯데', '#CC0000', 'white'], ['삼성', '#005BAB', 'white'],
 ]
 
+// 간편결제 로고 (static/payments). 카드 이름이 이 이름을 포함하면 해당 로고를 쓴다. 긴 이름을 먼저 둔다
+export const PAYMENT_LOGOS = [
+  ['카카오페이', '/static/payments/kakaopay.svg'], ['네이버페이', '/static/payments/naverpay.svg'],
+  ['토스페이', '/static/payments/tosspay.svg'], ['삼성페이', '/static/payments/samsungpay.svg'],
+  ['스마일페이', '/static/payments/smilepay.svg'], ['11페이', '/static/payments/11pay.svg'],
+  ['페이코', '/static/payments/payco.svg'],
+]
+
 const BANK_LOGOS = [
+  ...PAYMENT_LOGOS,
   ['신한', '/static/cards/sinhanbank.png'], ['KB', '/static/cards/kbbank.png'],
   ['국민', '/static/cards/kbbank.png'], ['농협', '/static/cards/nhbank.png'],
   ['NH', '/static/cards/nhbank.png'], ['하나', '/static/cards/hanabank.png'],
@@ -56,8 +65,9 @@ export function bankColor(name) {
 
 export function bankLogo(name) {
   if (!name) return null
+  const compact = name.replace(/\s/g, '') // '네이버 페이'와 '네이버페이'를 같게 본다
   for (const [k, path] of BANK_LOGOS) {
-    if (name.includes(k)) return path
+    if (compact.includes(k)) return path
   }
   return null
 }

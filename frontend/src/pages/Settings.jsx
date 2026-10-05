@@ -254,6 +254,28 @@ function buildPortfolioHTML(d, sections) {
       <div class="sc"><div class="l">종목 수</div><div class="v cn">${invSummary.count}개</div></div>
     </div>` : ''}`
 
+  // 투자 계좌별 요약 (잔고·예수금·원금 대비 손익·연도별 수익)
+  const invAccounts = d.invest_accounts || []
+  const accountsHtml = invAccounts.length === 0 ? '' : invAccounts.map(a => {
+    const name = a.broker_name && a.name !== a.broker_name ? `${a.broker_name} · ${a.name}` : a.name
+    const pct = a.since_pct == null ? '-' : `${a.since_pct >= 0 ? '+' : ''}${a.since_pct.toFixed(2)}%`
+    const color = (a.since_gain || 0) >= 0 ? '#dc3545' : '#0d6efd'
+    const yearRows = a.years.filter(y => y.gain != null).map(y => {
+      const c = y.gain >= 0 ? '#dc3545' : '#0d6efd'
+      const label = y.live ? `${y.year} (현재)` : `${y.year}`
+      return `<tr><td>${label}</td><td style="text-align:right;color:${c}">${y.gain >= 0 ? '+' : ''}${f(y.gain)}원</td><td style="text-align:right;color:${c}">${y.rate == null ? '-' : `${y.rate >= 0 ? '+' : ''}${y.rate}%`}</td></tr>`
+    }).join('')
+    return `
+    <div style="margin-top:14px"><div style="font-weight:700;margin-bottom:6px">${name}${a.opened_at ? ` <span style="font-size:11px;color:#888">개설 ${a.opened_at}</span>` : ''}</div>
+      <div class="sg">
+        <div class="sc"><div class="l">잔고</div><div class="v cn">${f(a.balance)}원</div></div>
+        <div class="sc"><div class="l">예수금</div><div class="v cn">${a.cash == null ? '미입력' : `${f(a.cash)}원`}</div></div>
+        <div class="sc"><div class="l">원금 대비</div><div class="v" style="color:${color}">${pct}</div></div>
+      </div>
+      ${yearRows ? `<table style="margin-top:8px"><thead><tr><th>연도</th><th style="text-align:right">수익금</th><th style="text-align:right">수익률</th></tr></thead><tbody>${yearRows}</tbody></table>` : ''}
+    </div>`
+  }).join('')
+
   // 자산 구성 도넛
   const netWorth = d.net_worth || 0
   const isCashCard = name => name.includes('현금') || name.includes('지갑')
@@ -345,6 +367,7 @@ ${sec.savings !== false ? `<div class="sec">
 ${sec.investments !== false ? `<div class="sec">
   <h2>투자 (${investments.length}개 종목)</h2>
   <div class="si">${invHtml}</div>
+  ${accountsHtml ? `<h2 style="margin-top:16px">투자 계좌</h2><div class="si">${accountsHtml}</div>` : ''}
 </div>` : ''}
 
 ${sec.transactions !== false ? `<div class="sec">

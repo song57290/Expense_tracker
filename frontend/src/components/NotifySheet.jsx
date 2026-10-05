@@ -171,6 +171,21 @@ export default function NotifySheet() {
   const [testState, setTestState] = useState('idle') // idle | sending | ok | fail
   const [testError, setTestError] = useState('')
   const [permWarning, setPermWarning] = useState('')
+  const [notifPrefs, setNotifPrefs] = useState(null)
+
+  useEffect(() => {
+    if (open) api.get('/api/notification-prefs').then(setNotifPrefs).catch(() => {})
+  }, [open])
+
+  async function saveNotifPref(key, value) {
+    const prev = notifPrefs
+    setNotifPrefs(p => ({ ...p, [key]: value }))
+    try {
+      setNotifPrefs(await api.put('/api/notification-prefs', { [key]: value }))
+    } catch {
+      setNotifPrefs(prev)
+    }
+  }
 
   useEffect(() => {
     window.openNotifySheet = () => { setOpen(true); setTimeout(() => setVisible(true), 10) }
@@ -368,6 +383,37 @@ export default function NotifySheet() {
               </>
             )}
           </div>
+          {notifPrefs && (
+            <div style={{ background: 'var(--bg-section)', borderRadius: 14, overflow: 'hidden', marginTop: 12 }}>
+              {[
+                ['savings_day', '예·적금 납입일 알림', 'bi-piggy-bank'],
+                ['auto_transfer_check', '앱에서 자동이체 확인 목록 보기', 'bi-arrow-repeat'],
+              ].map(([key, label, icon], idx) => (
+                <div key={key} style={{ borderTop: idx > 0 ? '1px solid var(--border-light)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px' }}>
+                    <div style={{ width: 32, height: 32, background: 'var(--bg-accent)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={`bi ${icon}`} style={{ fontSize: '0.85rem', color: '#b088f9' }} />
+                    </div>
+                    <span style={{ flex: 1, marginLeft: 12, fontSize: '0.95rem' }}>{label}</span>
+                    <div className="ios-toggle" onClick={() => saveNotifPref(key, !notifPrefs[key])}>
+                      <div className={`ios-track${notifPrefs[key] ? ' on' : ''}`} />
+                      <div className={`ios-dot${notifPrefs[key] ? ' on' : ''}`} />
+                    </div>
+                  </div>
+                  {key === 'savings_day' && notifPrefs.savings_day && (
+                    <div style={{ display: 'flex', gap: 8, padding: '0 16px 14px' }}>
+                      {[['skip', '쉬는 날이면 알림 안 함'], ['next', '다음 영업일에 알림']].map(([val, text]) => (
+                        <button key={val} type="button" onClick={() => saveNotifPref('savings_holiday', val)}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${notifPrefs.savings_holiday === val ? '#b088f9' : 'var(--border-light)'}`, background: notifPrefs.savings_holiday === val ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: notifPrefs.savings_holiday === val ? '#b088f9' : 'var(--text-muted)', fontWeight: notifPrefs.savings_holiday === val ? 600 : 400, fontSize: '0.78rem', cursor: 'pointer' }}>
+                          {text}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {permWarning && (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, padding: '10px 12px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a' }}>
               <i className="bi bi-exclamation-triangle-fill" style={{ color: '#b45309', fontSize: '0.9rem', marginTop: 1, flexShrink: 0 }} />

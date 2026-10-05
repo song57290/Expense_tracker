@@ -216,6 +216,58 @@ class Investment(db.Model):
     position = db.Column(db.Integer, nullable=False, default=0)
     # 통계 탭 자산 구성·자산 추이 등 집계에서 이 항목을 제외할지
     exclude_stats = db.Column(db.Boolean, nullable=False, default=False)
+    # 증권사 투자 계좌 (InvestAccount) 연결 — 없으면 계좌 미지정
+    account_id = db.Column(db.Integer, nullable=True)
+
+class InvestAccount(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    # 예수금(원화). 매수·매도 기록 시 자동으로 줄거나 늘고, 직접 고칠 수도 있다
+    cash = db.Column(db.Float, nullable=False, default=0)
+    # 예수금을 한 번이라도 입력했는지. 입력한 계좌만 매수 시 잔액 부족을 막는다
+    cash_set = db.Column(db.Boolean, nullable=False, default=False)
+    # 증권사 키 (BROKERS 목록의 key). 로고는 static/brokers/{key}.png 를 쓰고, 없으면 이름 배지
+    broker = db.Column(db.String(30), nullable=True)
+    # 증권사 이름 (목록에 없으면 직접 입력한 이름)
+    broker_name = db.Column(db.String(60), nullable=True)
+    # 계좌 개설일(YYYY-MM-DD)과 투자 원금 — 둘 다 선택 입력
+    opened_at = db.Column(db.String(10), nullable=True)
+    principal = db.Column(db.Float, nullable=True)
+    # 직접 올린 로고 여부 (증권사가 '기타'일 때 사용)
+    has_custom_icon = db.Column(db.Boolean, nullable=False, default=False)
+
+class InvestYear(db.Model):
+    # 연도별 기록: 그 해 연말 잔고와 순입금(입금-출금). 과거 연도는 직접 입력한다
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    account_id = db.Column(db.Integer, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    end_balance = db.Column(db.Float, nullable=False, default=0)
+    net_deposit = db.Column(db.Float, nullable=False, default=0)
+
+class InvestSnapshot(db.Model):
+    # 매일 저장하는 계좌 잔고 (야간 작업과 상세 화면 열 때 갱신)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    account_id = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    balance = db.Column(db.Float, nullable=False, default=0)
+    __table_args__ = (db.UniqueConstraint('account_id', 'date', name='uq_invest_snapshot'),)
+
+class InvestmentTrade(db.Model):
+    # 매수·매도 기록. quantity·price는 종목 통화 기준, exchange_rate는 해외주식일 때만 저장
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    investment_id = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    side = db.Column(db.String(4), nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=0)
+    price = db.Column(db.Float, nullable=False, default=0)
+    exchange_rate = db.Column(db.Float, nullable=True)
+    # 수수료·세금 (원화). 매수는 예수금에서 더 빠지고, 매도는 정산 금액에서 빠진다
+    fee = db.Column(db.Float, nullable=False, default=0)
 
 class Routine(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -247,6 +299,8 @@ class SavingsGoal(db.Model):
     # 예·적금 계좌에 연결하면 그 계좌 잔액(Savings.amount)이 진행률이 된다(자동) —
     # 비워두면 manual_amount를 직접 입력/추가해서 진행률을 관리한다(수동).
     savings_id = db.Column(db.Integer, nullable=True)
+    # 여러 계좌를 연결할 때 쉼표로 구분한 id 목록 (진행률은 연결된 계좌 잔액의 합)
+    savings_ids = db.Column(db.String(300), nullable=True)
     manual_amount = db.Column(db.Integer, nullable=False, default=0)
     position = db.Column(db.Integer, nullable=False, default=0)
 

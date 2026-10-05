@@ -253,6 +253,7 @@ html, body {
 body.sheet-open { overflow: hidden; }
 [data-scroll-x] { touch-action: pan-x; }
 body.sheet-open .bottom-nav { display: none !important; }
+body.select-mode .bottom-nav { display: none !important; }
 body.sheet-open .bot-fade,
 body.sheet-open .top-fade { display: none !important; }
 .bottom-nav a {
@@ -593,3 +594,9 @@ button:active {
   transform: none;
   opacity: 1;
 }
+
+/* 다중 선택 진입 시 행 왼쪽 동그라미 자리가 밀려 들어오는 애니메이션 */
+.select-slot { width: 46px; flex-shrink: 0; overflow: hidden; animation: select-slot-in 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+.select-slot > div { animation: select-circle-in 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+@keyframes select-slot-in { from { width: 0; } to { width: 46px; } }
+@keyframes select-circle-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
