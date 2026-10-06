@@ -621,6 +621,7 @@ export default function Calendar() {
                       {addForm.category === '계좌 이체' ? (
                         <TransferPicker
                           accounts={homeData.card_list || []}
+                          investAccounts={homeData.invest_accounts || []}
                           from={addTransferFrom}
                           to={addTransferTo}
                           onFromChange={v => { setAddTransferFrom(v); setAddForm(f => ({ ...f, description: v && addTransferTo ? `${v} → ${addTransferTo}` : '' })) }}

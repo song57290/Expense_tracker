@@ -736,6 +736,7 @@ export default function Home() {
                 {form.category === '계좌 이체' ? (
                   <TransferPicker
                     accounts={data.card_list}
+                    investAccounts={data.invest_accounts || []}
                     from={transferFrom}
                     to={transferTo}
                     onFromChange={v => { setTransferFrom(v); setForm(f => ({ ...f, description: v && transferTo ? `${v} → ${transferTo}` : '' })) }}

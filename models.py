@@ -75,6 +75,8 @@ class Card(db.Model):
     cashback_type = db.Column(db.String(10), nullable=True)  # None/'' = off, 'payment', 'charge'
     cashback_rate = db.Column(db.Float, nullable=True)  # percent
     has_custom_icon = db.Column(db.Boolean, nullable=False, default=False)
+    # 별칭: 예산 탭에서 보여주는 표시용 이름 (거래 내역은 실제 이름으로 연결)
+    alias = db.Column(db.String(40), nullable=True)
     position = db.Column(db.Integer, nullable=False, default=0)
     # 복지 포인트처럼 잔고를 이월하지 않고 매달 정해진 날짜에 고정 금액으로 리셋하는 카드용.
     # point_reset_day가 null이면 평소처럼(이월) 동작 — 완전히 별개의 선택적 기능.
@@ -121,6 +123,8 @@ class Savings(db.Model):
     interest_rate = db.Column(db.Float, nullable=False, default=0.0)
     interest_type = db.Column(db.String(10), nullable=False, default='단리')
     tax_type = db.Column(db.String(10), nullable=False, default='일반과세')
+    # 이 예·적금이 들어 있는 ISA 투자 계좌 (ISA 연간 납입액 계산에 포함)
+    invest_account_id = db.Column(db.Integer, nullable=True)
     start_date = db.Column(db.String(10), nullable=False)
     end_date = db.Column(db.String(10), nullable=False)
     notify_day = db.Column(db.Integer, nullable=True)
@@ -232,6 +236,8 @@ class InvestAccount(db.Model):
     broker = db.Column(db.String(30), nullable=True)
     # 증권사 이름 (목록에 없으면 직접 입력한 이름)
     broker_name = db.Column(db.String(60), nullable=True)
+    # 계좌 종류: 종합 · ISA · 연금저축 · IRP · 일반 (같은 증권사에 여러 개 가능)
+    kind = db.Column(db.String(20), nullable=True)
     # 계좌 개설일(YYYY-MM-DD)과 투자 원금 — 둘 다 선택 입력
     opened_at = db.Column(db.String(10), nullable=True)
     principal = db.Column(db.Float, nullable=True)
@@ -246,6 +252,15 @@ class InvestYear(db.Model):
     year = db.Column(db.Integer, nullable=False)
     end_balance = db.Column(db.Float, nullable=False, default=0)
     net_deposit = db.Column(db.Float, nullable=False, default=0)
+
+class InvestDeposit(db.Model):
+    # 입금(양수)·출금(음수) 기록. 예수금에 그대로 반영되고, ISA 한도와 연도별 순입금 계산에 쓴다
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    account_id = db.Column(db.Integer, nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    amount = db.Column(db.Float, nullable=False, default=0)
+    memo = db.Column(db.String(60), nullable=True)
 
 class InvestSnapshot(db.Model):
     # 매일 저장하는 계좌 잔고 (야간 작업과 상세 화면 열 때 갱신)

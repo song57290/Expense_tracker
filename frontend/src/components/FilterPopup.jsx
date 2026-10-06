@@ -119,7 +119,6 @@ function GridSection({ options, value, onChange, marginBottom }) {
           const checked = isAll || selected.includes(val)
           return (
             <button key={val} onClick={() => toggleOne(val)} style={chipStyle(checked, color || '#b088f9', bg || 'rgba(176,136,249,0.12)', hasLogo ? 'flex-start' : 'center')}>
-              <i className={`bi ${checked ? 'bi-check-circle-fill' : 'bi-circle'}`} style={{ fontSize: '0.72rem', flexShrink: 0 }} />
               {logo && <img src={logo} style={{ width: 22, height: 22, objectFit: 'contain', borderRadius: 5, flexShrink: 0 }} />}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
             </button>

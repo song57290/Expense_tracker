@@ -1,8 +1,9 @@
+import React from 'react'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
 import { syncWidget } from '../widgetSync.js'
@@ -90,6 +91,17 @@ function useDragScrollX() {
 // on the item starts a reorder-drag; a quick swipe within that window is released to the
 // item's own edit/delete swipe gesture instead. Passes {listeners, isDragging} down so the
 // item can attach the activator to its own swipeable content and suppress swipe while dragging.
+// 증권 계좌 카드 한 장 — 순서 변경 모드일 때만 끌 수 있다
+function SortableAccountCard({ id, enabled, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled })
+  return (
+    <div ref={setNodeRef} {...(enabled ? { ...attributes, ...listeners } : {})}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1, flexShrink: 0, touchAction: enabled ? 'none' : undefined, cursor: enabled ? 'grab' : undefined }}>
+      {children}
+    </div>
+  )
+}
+
 function SortableWrap({ id, children }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const style = {
@@ -250,7 +262,8 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   const [bankDir, setBankDir] = useState(null)
   const [cardCoDir, setCardCoDir] = useState(null)
   const [payDir, setPayDir] = useState(null)
-  const [nameErr, setNameErr] = useState(false) // 이름 미입력 시 빨간 테두리와 문구 (브라우저 기본 경고 대신)
+  const [nameErr, setNameErr] = useState(false)
+  const [alias, setAlias] = useState('') // 이름 미입력 시 빨간 테두리와 문구 (브라우저 기본 경고 대신)
   const [assetType, setAssetType] = useState('card')
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
@@ -276,7 +289,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
 
   function switchType(t) {
     setAssetType(t)
-    setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl('')
+    setSelected(''); setName(t === 'cash' ? '현금' : ''); setUrl(''); setAlias('')
     setInitialBalance(t === 'loan' ? '-' : '')
     setLinkedAccountId(''); setAddInterestRate('')
     setCashbackType(''); setCashbackRate('')
@@ -304,7 +317,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
     const t = parseInt(target.replace(/,/g, '')) || 0
     const ib = parseInt(initialBalance.replace(/,/g, '')) || 0
     const res = await api.post('/api/cards', {
-      name, target: t, url, tier1, tier2, tier3, account_balance: ib,
+      name, alias: alias.trim() || null, target: t, url, tier1, tier2, tier3, account_balance: ib,
       linked_account_id: linkedAccountId ? Number(linkedAccountId) : null,
       interest_rate: addInterestRate ? parseFloat(addInterestRate) : null,
       cashback_type: cashbackType || null,
@@ -426,6 +439,9 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
                 {assetType === 'card' ? '카드/은행 이름을 입력해 주세요' : assetType === 'point' ? '포인트명을 입력해 주세요' : '이름을 입력해 주세요'}
               </div>
             )}
+            <div className="mb-2">
+              <input type="text" className="form-control" placeholder="별칭 (선택, 예산 탭에 함께 표시)" value={alias} onChange={e => setAlias(e.target.value)} style={{ borderRadius: 10 }} />
+            </div>
             <div className="mb-2" style={{ position: 'relative' }}>
               <input type="text" className="form-control" placeholder={assetType === 'loan' ? '부채 금액 (예: -5,000,000)' : assetType === 'point' ? '초기 포인트 잔액 (선택)' : '초기 잔고 (계좌 등록 시점 잔고, 선택)'} inputMode={assetType === 'loan' ? 'text' : 'numeric'}
                 value={initialBalance} onChange={e => {
@@ -657,6 +673,7 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onPointInfo, onPerfClick
             {isCash && <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>💵</span>}
             {isLoan && <span style={{ fontSize: '1.3rem', lineHeight: 1, flexShrink: 0 }}>💸</span>}
             <span className="fw-semibold" style={{ wordBreak: 'keep-all' }}>{card.name}</span>
+            {card.alias && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', wordBreak: 'keep-all' }}>· {card.alias}</span>}
             {linkedAccountName && (
               <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 8, background: '#f0e8ff', color: '#b088f9', flexShrink: 0, whiteSpace: 'nowrap' }}>🔗 {linkedAccountName}</span>
             )}
@@ -1097,11 +1114,12 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd, hideAmounts
   )
 }
 
-function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
+function SavingsSheet({ open, visible, onClose, onSaved, editItem, isaAccounts = [] }) {
   const bankScrollRef = useDragScrollX()
   const [stype, setStype] = useState('예금')
   const [itype, setItype] = useState('단리')
   const [taxType, setTaxType] = useState('일반과세')
+  const [isaId, setIsaId] = useState(null) // 연결한 ISA 투자 계좌
   const [selected, setSelected] = useState('')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
@@ -1129,7 +1147,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setStype(editItem.stype || '예금')
       setItype(editItem.interest_type || '단리')
       const _tt = editItem.tax_type || '일반과세'
-      setTaxType(['ISA', 'ISA(신탁형)', 'ISA(중개형)', 'ISA(일임형)'].includes(_tt) ? 'ISA(일반형)' : _tt)
+      setTaxType(_tt.startsWith('ISA') ? '비과세' : _tt); setIsaId(editItem.invest_account_id || null)
       setSelected(editItem.bank || '')
       setName(editItem.name || '')
       setAmount(editItem.amount ? String(editItem.amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')
@@ -1144,7 +1162,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       setExcludeStats(!!editItem.exclude_stats)
       setBonusAmount(editItem.bonus_amount ? String(editItem.bonus_amount) : '')
     } else {
-      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard(''); setWeekendAdjust('next'); setExcludeStats(false); setBonusAmount(''); setWithdrawCard('')
+      setStype('예금'); setItype('단리'); setTaxType('일반과세'); setIsaId(null); setSelected(''); setName(''); setAmount(''); setRate(''); setStartDate(today()); setEndDate(''); setNotifyDay(''); setAutoTx(false); setAutoTxDay(''); setAutoTxCard(''); setWeekendAdjust('next'); setExcludeStats(false); setBonusAmount(''); setWithdrawCard('')
     }
   }, [open, editItem])
 
@@ -1164,6 +1182,7 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
       stype,
       interest_type: itype,
       tax_type: taxType,
+      invest_account_id: isaId,
       bank: selected,
       name: name.trim(),
       amount: parseInt(amount.replace(/,/g, '')) || 0,
@@ -1254,32 +1273,29 @@ function SavingsSheet({ open, visible, onClose, onSaved, editItem }) {
               ))}
             </div>
             <div className="d-flex gap-2 mb-2">
-              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['ISA', '9.9%'], ['비과세', '0%']].map(([t, label]) => {
-                const isISA = t === 'ISA'
-                const active = isISA ? taxType.startsWith('ISA') : taxType === t
+              {[['일반과세', '15.4%'], ['세금우대', '9.9%'], ['비과세', '0%']].map(([t, label]) => {
+                const active = taxType === t
                 return (
-                  <button key={t} type="button" onClick={() => setTaxType(isISA ? (taxType.startsWith('ISA') ? taxType : 'ISA(신탁형)') : t)}
+                  <button key={t} type="button" onClick={() => setTaxType(t)}
                     style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `2px solid ${active ? '#7baff0' : 'var(--border-light)'}`, background: active ? 'rgba(123,175,240,0.1)' : 'var(--bg-card)', color: active ? '#5a9fd4' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
                     {t}<br /><span style={{ fontSize: '0.68rem', fontWeight: 400 }}>{label}</span>
                   </button>
                 )
               })}
             </div>
-            {taxType.startsWith('ISA') && (
+            {isaAccounts.length > 0 && (
               <div className="mb-3">
-                <div className="d-flex gap-2 mb-2">
-                  {[['일반형', '비과세 200만원'], ['서민형', '비과세 400만원']].map(([sub, desc]) => (
-                    <button key={sub} type="button" onClick={() => setTaxType(`ISA(${sub})`)}
-                      style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: `2px solid ${taxType === `ISA(${sub})` ? '#7baff0' : 'var(--border-light)'}`, background: taxType === `ISA(${sub})` ? 'rgba(123,175,240,0.1)' : 'var(--bg-card)', color: taxType === `ISA(${sub})` ? '#5a9fd4' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
-                      {sub}<br /><span style={{ fontSize: '0.66rem', fontWeight: 400 }}>{desc}</span>
-                    </button>
-                  ))}
+                <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>ISA 계좌 (선택)</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {[{ id: null, name: '연결 안 함' }, ...isaAccounts].map(acc => {
+                    const on = (acc.id ?? null) === (isaId ?? null)
+                    return (
+                      <button key={acc.id ?? 'none'} type="button" onClick={() => setIsaId(acc.id)}
+                        style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${on ? '#7baff0' : 'var(--border-light)'}`, background: on ? 'rgba(123,175,240,0.1)' : 'var(--bg-card)', color: on ? '#5a9fd4' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>{acc.name}</button>
+                    )
+                  })}
                 </div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.6, padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                  <span style={{ fontWeight: 600, color: '#5a9fd4' }}>ISA 계좌 내 예금·적금</span>은 <span style={{ fontWeight: 600 }}>신탁형 ISA</span>에서만 가입 가능<br />
-                  (중개형·일임형은 주식·ETF·펀드만 가능, 예금·적금 불가)<br />
-                  비과세 한도 초과분에만 9.9% 분리과세 적용
-                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6 }}>연결하면 이 예·적금의 입금도 ISA 연간 납입 한도에 포함돼요</div>
               </div>
             )}
             <div className="d-flex gap-2 mb-2">
@@ -1574,8 +1590,9 @@ const INV_TYPE_FILTERS = ['국내주식', '해외주식', '펀드', '코인', 'E
 const INV_TYPE_FILTER_SHORT = { '국내주식': '국내', '해외주식': '해외' }
 const INV_ACCOUNT_FILTERS = ['ISA', '연금저축', 'IRP']
 const INV_FILTERS = [...INV_TYPE_FILTERS, ...INV_ACCOUNT_FILTERS]
-function matchesInvFilter(item, filter) {
-  return filter === 'all' || filter.includes(item.itype) || filter.includes(item.account_type)
+function matchesInvFilter(item, filter, kindById) {
+  // 종목 종류, 또는 연결된 계좌의 종류가 선택에 들어 있으면 보인다
+  return filter === 'all' || filter.includes(item.itype) || filter.includes((kindById || {})[item.account_id])
 }
 
 function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
@@ -1682,7 +1699,7 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
             )}
           </div>
         </div>
-        <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+        <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 14 }}>
           <span className={am}>
             {item.itype === '해외주식'
               ? item.current_price
@@ -1708,16 +1725,51 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
   )
 }
 
+// 투자 계좌 종류 (사용자가 직접 고른다)
+const INVEST_KINDS = ['종합', '신탁형 ISA', '중개형 ISA', '일반형 ISA', '서민형 ISA', '연금저축', 'IRP', '퇴직연금', '외화(달러)', '기타']
+
+// 계좌 종류 드롭박스 — 누르면 입력칸 바로 아래로 목록이 펼쳐지고, 고르거나 바깥을 누르면 닫힌다
+function KindSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative', marginBottom: 12 }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', border: '1.5px solid var(--border-light)', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', minHeight: 40, color: value ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'left' }}>
+        <span style={{ flex: 1 }}>{value || '계좌 종류 선택'}</span>
+        <i className={`bi ${open ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0 }} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 2600 }} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 2601, background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
+            {INVEST_KINDS.map(k => {
+              const on = k === value
+              return (
+                <div key={k} onClick={() => { onChange(k); setOpen(false) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', cursor: 'pointer', background: on ? 'rgba(176,136,249,0.08)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}>
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: on ? 600 : 400, color: on ? '#b088f9' : 'var(--text-primary)' }}>{k}</span>
+                  {on && <i className="bi bi-check" style={{ color: '#b088f9', fontSize: '1rem' }} />}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // 증권사(투자 계좌) 추가 — 투자 추가 창과 분리해서 따로 연다. 증권사 이름은 직접 입력하거나 목록에서 고른다
 function AccountAddSheet({ open, onClose, onCreated }) {
   const [brokerName, setBrokerName] = useState('')
   const [nameError, setNameError] = useState(false)
+  const [kind, setKind] = useState('')
   const [cash, setCash] = useState('')
   const [openedAt, setOpenedAt] = useState('')
   const [principal, setPrincipal] = useState('')
 
   useEffect(() => {
-    if (open) { setBrokerName(''); setNameError(false); setCash(''); setOpenedAt(''); setPrincipal('') }
+    if (open) { setBrokerName(''); setNameError(false); setKind(''); setCash(''); setOpenedAt(''); setPrincipal('') }
   }, [open])
 
   async function save() {
@@ -1725,7 +1777,9 @@ function AccountAddSheet({ open, onClose, onCreated }) {
     const bn = brokerName.trim()
     if (!bn) { setNameError(true); return }
     const principalNum = parseInt(principal.replace(/,/g, '')) || 0
-    const r = await api.post('/api/invest-accounts', { name: bn, broker: keyOfName(bn), broker_name: bn, opened_at: openedAt || null, principal: principalNum || null })
+    // 계좌 이름 = 증권사 이름 + 별칭 (예: 신한투자증권 ISA). 로고는 증권사 선택으로만 정해진다
+    const nm = [bn, kind].filter(Boolean).join(' ')
+    const r = await api.post('/api/invest-accounts', { name: nm, broker: keyOfName(bn), broker_name: bn, kind: kind || null, opened_at: openedAt || null, principal: principalNum || null })
     const cashNum = parseInt(cash.replace(/,/g, '')) || 0
     if (cash.trim()) await api.put(`/api/invest-accounts/${r.id}`, { cash: cashNum })
     onCreated?.(r.id)
@@ -1743,9 +1797,11 @@ function AccountAddSheet({ open, onClose, onCreated }) {
         </div>
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사</p>
         <div style={{ marginBottom: 6 }}>
-          <BrokerSearch value={brokerName} onChange={v => { setBrokerName(v); setNameError(false) }} />
+          <BrokerSearch value={brokerName} error={nameError} onChange={v => { setBrokerName(v); setNameError(false) }} />
         </div>
         {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>위 증권사 칸에 목록에서 고르거나 이름을 입력해 주세요</div>}
+        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 종류</p>
+        <KindSelect value={kind} onChange={setKind} />
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 개설일 (선택)</p>
         <div style={{ marginBottom: 10 }}><DatePickerSheet value={openedAt} onChange={setOpenedAt} center /></div>
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>투자 원금 (선택)</p>
@@ -1757,7 +1813,7 @@ function AccountAddSheet({ open, onClose, onCreated }) {
         </div>
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>예수금 (선택)</p>
         <div style={{ position: 'relative', marginBottom: 8 }}>
-          <input type="text" inputMode="numeric" value={cash} placeholder="지금 계좌에 있는 현금"
+          <input type="text" inputMode="numeric" value={cash} placeholder="지금 계좌에 있는 예수금"
             onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setCash(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
             style={{ width: '100%', borderRadius: 10, padding: '9px 36px 9px 12px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
           <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
@@ -1775,11 +1831,13 @@ function AccountAddSheet({ open, onClose, onCreated }) {
 }
 
 // 계좌 상세 — 잔고·예수금·평가손익, 보유 종목, 최근 매매 기록
-function AccountDetailSheet({ accountId, onClose }) {
+function AccountDetailSheet({ accountId, onClose, onCashEdit }) {
   const [d, setD] = useState(null)
   const [err, setErr] = useState('')
 
   const [yearForm, setYearForm] = useState(null) // { year, end, net, editing } 연도별 기록 입력
+  const [depositForm, setDepositForm] = useState({ date: today(), amount: '', kind: 'in', memo: '' })
+  const [depositErr, setDepositErr] = useState('')
   function refresh() {
     return api.get(`/api/invest-accounts/${accountId}/detail`).then(setD).catch(e => setErr(e?.message || '불러오지 못했습니다'))
   }
@@ -1788,6 +1846,23 @@ function AccountDetailSheet({ accountId, onClose }) {
     setD(null); setErr(''); setYearForm(null)
     refresh()
   }, [accountId])
+
+  async function addDeposit() {
+    const n = parseInt(depositForm.amount.replace(/,/g, '')) || 0
+    if (!n) { setDepositErr('금액을 입력해 주세요'); return }
+    try {
+      await api.post(`/api/invest-accounts/${accountId}/deposits`, { date: depositForm.date, amount: n, kind: depositForm.kind, memo: depositForm.memo })
+      setDepositForm(f => ({ ...f, amount: '', memo: '' }))
+      setDepositErr('')
+      refresh()
+    } catch (e) {
+      setDepositErr(e?.message || '기록하지 못했습니다')
+    }
+  }
+  async function deleteDeposit(id) {
+    await api.delete(`/api/invest-accounts/${accountId}/deposits/${id}`)
+    refresh()
+  }
 
   async function saveYear() {
     const y = parseInt(yearForm.year)
@@ -1825,7 +1900,8 @@ function AccountDetailSheet({ accountId, onClose }) {
           <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
               {[['잔고', `${fmt(d.balance)}원`], ['예수금', d.cash_set ? `${fmt(d.cash)}원` : '미입력'], ['평가금액', `${fmt(d.holdings_value)}원`], ['매입금액', `${fmt(d.purchase_value)}원`]].map(([l, v]) => (
-                <div key={l} style={{ background: 'var(--bg-section)', borderRadius: 12, padding: '10px 12px' }}>
+                <div key={l} onClick={l === '예수금' && onCashEdit ? () => onCashEdit({ id: d.id, name: d.name, value: d.cash ? Math.round(d.cash).toLocaleString('ko-KR') : '' }) : undefined}
+                  style={{ background: 'var(--bg-section)', borderRadius: 12, padding: '10px 12px', cursor: l === '예수금' && onCashEdit ? 'pointer' : undefined }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{l}</div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{v}</div>
                 </div>
@@ -1834,6 +1910,82 @@ function AccountDetailSheet({ accountId, onClose }) {
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>평가손익</span>
                 <span style={{ fontSize: '0.9rem', fontWeight: 700, color: gainColor }}>{sign(d.gain)}{fmt(d.gain)}원 ({sign(d.gain)}{gainPct}%)</span>
               </div>
+            </div>
+
+            {d.pension && (
+              <div style={{ background: 'var(--bg-section)', borderRadius: 12, padding: '10px 12px', marginBottom: 14 }}>
+                <p className="fw-semibold mb-2" style={{ fontSize: '0.85rem' }}>{d.kind} 납입 현황</p>
+                <div className="d-flex justify-content-between" style={{ fontSize: '0.78rem', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>올해 납입</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{fmt(d.pension.year_deposits)}원 / {fmt(d.pension.limit)}원</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--border-light)', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.min(100, (d.pension.year_deposits / d.pension.limit) * 100)}%`, height: '100%', background: '#b088f9' }} />
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>연금저축 세액공제 기준 연 600만원, IRP와 합산하면 연 900만원까지 공제 대상이에요</div>
+              </div>
+            )}
+            {d.isa && (
+              <div style={{ background: 'var(--bg-section)', borderRadius: 12, padding: '10px 12px', marginBottom: 14 }}>
+                <p className="fw-semibold mb-2" style={{ fontSize: '0.85rem' }}>ISA 한도</p>
+                <div className="d-flex justify-content-between" style={{ fontSize: '0.78rem', marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>의무 가입 기간</span>
+                  <span style={{ color: 'var(--text-primary)' }}>{d.isa.years_left == null ? '개설일을 입력하면 표시돼요' : d.isa.years_left > 0 ? `${d.isa.years_left}년 남음` : '충족'}</span>
+                </div>
+                <div className="d-flex justify-content-between" style={{ fontSize: '0.78rem', marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>비과세 한도</span>
+                  <span style={{ color: 'var(--text-primary)' }}>순이익 {fmt(d.isa.tax_free)}원까지</span>
+                </div>
+                {[['올해 납입', d.isa.year_deposits, d.isa.annual_limit, '연 한도'], ['총 납입', d.isa.total_deposits, d.isa.total_limit, '총 한도 · 일반형']].map(([label, used, limit, lim]) => {
+                  const pct = Math.min(100, Math.max(0, (used / limit) * 100))
+                  return (
+                    <div key={label} style={{ marginBottom: 8 }}>
+                      <div className="d-flex justify-content-between" style={{ fontSize: '0.78rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                        <span style={{ color: 'var(--text-primary)' }}>{fmt(used)}원 / {fmt(limit)}원</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: 'var(--border-light)', overflow: 'hidden', marginTop: 4 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: pct >= 100 ? '#dc3545' : '#b088f9' }} />
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{lim}</div>
+                    </div>
+                  )
+                })}
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>한도는 기본 기준이며 법령 개정에 따라 달라질 수 있어요</div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <p className="fw-semibold mb-2" style={{ fontSize: '0.85rem' }}>입금 · 출금</p>
+              <div className="d-flex gap-2 mb-2">
+                {[['in', '입금'], ['out', '출금']].map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setDepositForm(f => ({ ...f, kind: v }))}
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 10, border: `1.5px solid ${depositForm.kind === v ? '#b088f9' : 'var(--border-light)'}`, background: depositForm.kind === v ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: depositForm.kind === v ? '#b088f9' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.84rem' }}>{label}</button>
+                ))}
+              </div>
+              <div className="d-flex gap-2 mb-2">
+                <div style={{ flex: 1, minWidth: 0 }}><DatePickerSheet value={depositForm.date} onChange={v => setDepositForm(f => ({ ...f, date: v }))} center /></div>
+                <input type="text" inputMode="numeric" value={depositForm.amount} placeholder="금액 (원)"
+                  onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setDepositForm(f => ({ ...f, amount: r ? parseInt(r).toLocaleString('ko-KR') : '' })) }}
+                  style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: '8px 10px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.88rem' }} />
+              </div>
+              <div className="d-flex gap-2 mb-2">
+                <input type="text" value={depositForm.memo} placeholder="메모 (선택)" onChange={e => setDepositForm(f => ({ ...f, memo: e.target.value }))}
+                  style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: '8px 10px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.88rem' }} />
+                <button type="button" onClick={addDeposit} className="btn btn-sm" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10, whiteSpace: 'nowrap' }}>기록</button>
+              </div>
+              {depositErr && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 6 }}>{depositErr}</div>}
+              {d.deposits.length === 0 ? (
+                <p className="text-muted" style={{ fontSize: '0.8rem' }}>입금·출금 기록이 없어요</p>
+              ) : d.deposits.map(x => (
+                <div key={x.id} className="d-flex justify-content-between align-items-center" style={{ padding: '7px 2px', borderBottom: '1px solid var(--border-light)' }}>
+                  <div style={{ fontSize: '0.84rem', color: 'var(--text-primary)', minWidth: 0 }}>{x.date}{x.memo ? ` · ${x.memo}` : ''}</div>
+                  <div className="d-flex align-items-center gap-2" style={{ flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.86rem', fontWeight: 700, color: x.amount >= 0 ? '#b088f9' : '#7baff0' }}>{x.amount >= 0 ? '+' : ''}{fmt(x.amount)}원</span>
+                    <button type="button" onClick={() => deleteDeposit(x.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem' }}>삭제</button>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {(d.opened_at || d.principal) && (
@@ -1879,12 +2031,12 @@ function AccountDetailSheet({ accountId, onClose }) {
                   <input type="text" inputMode="numeric" value={yearForm.net} placeholder="그 해 순입금 (입금 - 출금, 없으면 비움)"
                     onChange={e => { const r = e.target.value.replace(/[^0-9-]/g, ''); setYearForm(f => ({ ...f, net: r ? parseInt(r).toLocaleString('ko-KR') : '' })) }}
                     style={{ width: '100%', borderRadius: 10, padding: '8px 10px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.88rem', marginBottom: 8 }} />
-                  <div className="d-flex gap-2">
+                  <div className="d-flex gap-2" style={{ justifyContent: 'flex-end' }}>
                     {yearForm.editing && (
                       <button type="button" onClick={deleteYear} style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.82rem', fontWeight: 600, marginRight: 'auto' }}>삭제</button>
                     )}
-                    <button type="button" onClick={() => setYearForm(null)} className="btn btn-outline-secondary btn-sm" style={{ borderRadius: 10 }}>취소</button>
                     <button type="button" onClick={saveYear} className="btn btn-sm" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>저장</button>
+                    <button type="button" onClick={() => setYearForm(null)} className="btn btn-outline-secondary btn-sm" style={{ borderRadius: 10 }}>취소</button>
                   </div>
                 </div>
               )}
@@ -1977,6 +2129,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
   // current_price를 덮어쓴다(app.py _needs_price_update) — 펀드·코인은 그런 자동
   // 갱신이 없어 직접 입력이 그 항목의 유일한 갱신 수단이므로 잠글 필요가 없다.
   const autoFetchApplies = ['국내주식', '해외주식', 'ETF'].includes(itype)
+  const isUsd = itype === '해외주식'
   const currentPriceLocked = autoFetchApplies && !currentPriceUnlocked
 
   useEffect(() => {
@@ -2121,15 +2274,6 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
                 )
               })}
             </div>
-            {/* 계좌 종류 */}
-            <div className="d-flex gap-2 mb-3">
-              {[['일반', null], ['ISA', '#5a9fd4'], ['연금저축', '#8b5cf6'], ['IRP', '#e87000']].map(([at, color]) => (
-                <button key={at} type="button" onClick={() => setAccountType(at)}
-                  style={{ flex: 1, padding: '5px 0', borderRadius: 10, border: `2px solid ${accountType === at ? (color || '#888') : 'var(--border-light)'}`, background: accountType === at ? `${color || '#888'}18` : 'var(--bg-card)', color: accountType === at ? (color || 'var(--text-secondary)') : 'var(--text-muted)', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}>
-                  {at}
-                </button>
-              ))}
-            </div>
 
             <input type="text" placeholder="종목명" value={name} onChange={e => { setName(e.target.value); setNameError(false) }}
               style={{ ...inp, marginBottom: nameError ? 4 : 10, border: nameError ? '1.5px solid #dc3545' : inp.border }} />
@@ -2222,7 +2366,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
                 return (
                   <button key={a.id} type="button" onClick={() => { setAccountId(a.id); setAccountError(false) }}
                     style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, background: on ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: on ? '#b088f9' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, lineHeight: 1.2, paddingTop: 6, paddingBottom: 1 }}>
                       {a.broker && <BrokerBadge brokerKey={a.broker} size={18} customSrc={a.has_custom_icon ? `/api/invest-accounts/${a.id}/icon?v=${a.icon_v}` : null} label={a.broker_name} />}
                       {a.name}
                     </span>
@@ -2235,7 +2379,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 10 }}>투자 계좌가 없어요 — 투자 탭의 "증권사 추가"에서 먼저 추가해 주세요</div>
             )}
             {editItem && (
-              <div style={{ marginBottom: 12 }}>
+              <div style={{ marginTop: 18, marginBottom: 12 }}>
                 <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>매수 · 매도 기록</p>
                 <div className="d-flex gap-2 mb-2">
                   {[['buy', '매수', '#b088f9'], ['sell', '매도', '#7baff0']].map(([v, label, c]) => (
@@ -2399,7 +2543,7 @@ function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick })
 // 마지막으로 받아온 데이터를 모듈 스코프에 캐시해두고 재마운트 시 즉시 보여준다.
 let _budgetCache = null
 
-export default function Budget() {
+function BudgetInner() {
   const [searchParams] = useSearchParams()
   const [data, setData] = useState(() => _budgetCache)
   const [confirmCard, setConfirmCard] = useState(null)
@@ -2420,6 +2564,7 @@ export default function Budget() {
   const [editInitial, setEditInitial] = useState('')
   const [editBalanceDate, setEditBalanceDate] = useState('')
   const [editTarget, setEditTarget] = useState('')
+  const [editAlias, setEditAlias] = useState('')
   const [editUrl, setEditUrl] = useState('')
   const [editTier1, setEditTier1] = useState(20)
   const [editTier2, setEditTier2] = useState(50)
@@ -2461,6 +2606,24 @@ export default function Budget() {
   const [cashEdit, setCashEdit] = useState(null) // { id, name, value } 예수금 수정 창
   const [acctAddOpen, setAcctAddOpen] = useState(false)
   const [detailId, setDetailId] = useState(null) // 계좌 상세 창
+  const [detailRev, setDetailRev] = useState(0) // 예수금 저장 후 상세 창을 다시 불러오기 위한 번호
+  const accountStripRef = useDragScrollX()
+  const [acctOrderMode, setAcctOrderMode] = useState(false)
+  const acctSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
+  )
+  function handleAccountDragEnd(e) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const list = data.invest_accounts || []
+    const oi = list.findIndex(x => x.id === active.id)
+    const ni = list.findIndex(x => x.id === over.id)
+    if (oi < 0 || ni < 0) return
+    const next = arrayMove(list, oi, ni)
+    setData(d => ({ ...d, invest_accounts: next }))
+    api.post('/api/invest-accounts/order', { ids: next.map(x => x.id) }).then(load).catch(console.error)
+  }
   const [acctEdit, setAcctEdit] = useState(null) // { id, name, broker, confirmDelete, hasIcon, iconPreview, iconBlob, removeIcon, cropFile } 계좌 수정·삭제 창
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
@@ -2566,6 +2729,10 @@ export default function Budget() {
   const hideGoal = hiddenParts === 'all' || hiddenParts.includes('goal')
   const hideInvest = hiddenParts === 'all' || hiddenParts.includes('invest')
   const [invFilter, setInvFilter] = useLocalStorageState('budget_inv_filter', 'all')
+  // 실제로 있는 계좌 종류만 필터에 보여준다
+  const accountKinds = [...new Set((data?.invest_accounts || []).map(a => a.kind).filter(Boolean))]
+  const kindById = Object.fromEntries((data?.invest_accounts || []).map(a => [a.id, a.kind || '']))
+  const invAllCount = INV_TYPE_FILTERS.length + accountKinds.length
   const [cardSort, setCardSort] = useLocalStorageState('budget_card_sort', '기본')
   const [cardSortDir, setCardSortDir] = useLocalStorageState('budget_card_sort_dir', 'desc')
   const [savingsSort, setSavingsSort] = useLocalStorageState('budget_savings_sort', '기본')
@@ -2696,6 +2863,7 @@ export default function Budget() {
     setEditInitial((card.initial_balance || 0).toLocaleString('ko-KR'))
     setEditBalanceDate(card.balance_since || today())
     setEditTarget((card.target || 0).toLocaleString('ko-KR'))
+    setEditAlias(card.alias || '')
     setEditUrl(card.url || '')
     setEditTier1(card.tier1 || 20)
     setEditTier2(card.tier2 || 50)
@@ -2738,7 +2906,7 @@ export default function Budget() {
     const initial = parseInt(editInitial.replace(/,/g, '')) || 0
     const target = parseInt(editTarget.replace(/,/g, '')) || 0
     await api.put(`/api/cards/${editCard.id}`, {
-      name: editCard.name, target,
+      name: editCard.name, alias: editAlias.trim() || null, target,
       tier1: editTier1, tier2: editTier2, tier3: editTier3,
       account_balance: initial, balance_since: editBalanceDate, url: editUrl,
       interest_rate: editInterestRate ? parseFloat(editInterestRate) : null,
@@ -3298,21 +3466,21 @@ export default function Budget() {
               }),
               value: invFilter === 'all' ? 'all' : invFilter.filter(v => INV_TYPE_FILTERS.includes(v)),
               onChange: next => {
-                const accSel = invFilter === 'all' ? INV_ACCOUNT_FILTERS : invFilter.filter(v => INV_ACCOUNT_FILTERS.includes(v))
+                const accSel = invFilter === 'all' ? accountKinds : invFilter.filter(v => accountKinds.includes(v))
                 const typeSel = next === 'all' ? INV_TYPE_FILTERS : next
                 const merged = [...typeSel, ...accSel]
-                setInvFilter(merged.length === INV_FILTERS.length ? 'all' : merged)
+                setInvFilter(merged.length === invAllCount ? 'all' : merged)
               },
             },
             {
               label: '계좌', type: 'grid',
-              options: INV_ACCOUNT_FILTERS.map(f => [f, f, INV_ACCOUNT_COLORS[f], `${INV_ACCOUNT_COLORS[f]}18`]),
-              value: invFilter === 'all' ? 'all' : invFilter.filter(v => INV_ACCOUNT_FILTERS.includes(v)),
+              options: accountKinds.map(f => [f, f, INV_ACCOUNT_COLORS[f] || '#888888', `${INV_ACCOUNT_COLORS[f] || '#888888'}18`]),
+              value: invFilter === 'all' ? 'all' : invFilter.filter(v => accountKinds.includes(v)),
               onChange: next => {
                 const typeSel = invFilter === 'all' ? INV_TYPE_FILTERS : invFilter.filter(v => INV_TYPE_FILTERS.includes(v))
-                const accSel = next === 'all' ? INV_ACCOUNT_FILTERS : next
+                const accSel = next === 'all' ? accountKinds : next
                 const merged = [...typeSel, ...accSel]
-                setInvFilter(merged.length === INV_FILTERS.length ? 'all' : merged)
+                setInvFilter(merged.length === invAllCount ? 'all' : merged)
               },
             },
           ]} />
@@ -3327,9 +3495,18 @@ export default function Budget() {
             {!acctEdit.confirmDelete ? (<>
               <div className="fw-bold mb-3">계좌 수정</div>
               <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사</p>
-              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사</p>
               <div style={{ marginBottom: 12 }}>
                 <BrokerSearch value={acctEdit.brokerName || ''} onChange={v => setAcctEdit(c => ({ ...c, brokerName: v, broker: keyOfName(v) }))} />
+              </div>
+              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 종류</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {INVEST_KINDS.map(k => {
+                  const on = acctEdit.kind === k
+                  return (
+                    <button key={k} type="button" onClick={() => setAcctEdit(c => ({ ...c, kind: on ? '' : k }))}
+                      style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, background: on ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: on ? '#b088f9' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>{k}</button>
+                  )
+                })}
               </div>
               {(
                 <div style={{ marginBottom: 12 }}>
@@ -3367,7 +3544,7 @@ export default function Budget() {
               <div className="d-flex gap-2 mb-3">
                 <button className="btn flex-fill" disabled={!acctEdit.name.trim()} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}
                   onClick={async () => {
-                    await api.put(`/api/invest-accounts/${acctEdit.id}`, { name: acctEdit.name.trim(), broker: acctEdit.broker, broker_name: (acctEdit.brokerName || '').trim(), opened_at: acctEdit.openedAt || null, principal: parseInt((acctEdit.principal || '').replace(/,/g, '')) || null })
+                    await api.put(`/api/invest-accounts/${acctEdit.id}`, { name: acctEdit.name.trim(), broker: acctEdit.broker, broker_name: (acctEdit.brokerName || '').trim(), kind: acctEdit.kind || null, opened_at: acctEdit.openedAt || null, principal: parseInt((acctEdit.principal || '').replace(/,/g, '')) || null })
                     if (acctEdit.iconBlob) {
                       const fd = new FormData()
                       fd.append('icon', acctEdit.iconBlob)
@@ -3383,7 +3560,7 @@ export default function Budget() {
                 style={{ width: '100%', background: 'none', border: 'none', color: '#dc3545', fontSize: '0.85rem', fontWeight: 600, padding: '6px 0', cursor: 'pointer' }}>계좌 삭제</button>
             </>) : (<>
               <p className="text-center fw-semibold mb-1">"{acctEdit.name}" 계좌를 삭제할까요?</p>
-              <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>계좌 안 종목은 지워지지 않고 "계좌 없음"이 돼요. 다시 계좌를 지정해야 매매 기록을 할 수 있어요.</p>
+              <p className="text-center text-muted mb-3" style={{ fontSize: '0.8rem' }}>계좌 안 종목은 지워지지 않고 "계좌 없음"이 돼요.<br />다시 계좌를 지정해야 매매 기록을 할 수 있어요.</p>
               <div className="d-flex gap-2">
                 <button className="btn flex-fill" style={{ background: '#dc3545', color: 'white', border: 'none', borderRadius: 10 }}
                   onClick={async () => { await api.delete(`/api/invest-accounts/${acctEdit.id}`); setAcctEdit(null); load() }}>삭제</button>
@@ -3396,7 +3573,7 @@ export default function Budget() {
       )}
 
       <AccountAddSheet open={acctAddOpen} onClose={() => setAcctAddOpen(false)} onCreated={() => load()} />
-      <AccountDetailSheet accountId={detailId} onClose={() => setDetailId(null)} />
+      <AccountDetailSheet key={`${detailId}-${detailRev}`} accountId={detailId} onClose={() => setDetailId(null)} onCashEdit={c => setCashEdit(c)} />
 
       <ImageCropper file={acctEdit?.cropFile || null}
         onCancel={() => setAcctEdit(c => c && ({ ...c, cropFile: null }))}
@@ -3406,7 +3583,7 @@ export default function Budget() {
         <div onClick={e => e.target === e.currentTarget && setCashEdit(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '22px 20px', width: 'min(88vw,320px)' }}>
             <div className="fw-bold mb-1">{cashEdit.name} 예수금</div>
-            <p className="text-muted mb-3" style={{ fontSize: '0.78rem' }}>매수·매도를 기록하면 자동으로 바뀌어요. 실제 금액과 다르면 여기서 고쳐 주세요.</p>
+            <p className="text-muted mb-3" style={{ fontSize: '0.78rem' }}>매수·매도를 기록하면 자동으로 바뀌어요.<br />실제 금액과 다르면 여기서 고쳐 주세요.</p>
             <div style={{ position: 'relative', marginBottom: 14 }}>
               <input type="text" inputMode="numeric" value={cashEdit.value} placeholder="0"
                 onChange={e => { const r = e.target.value.replace(/[^0-9-]/g, ''); setCashEdit(c => ({ ...c, value: r ? parseInt(r).toLocaleString('ko-KR') : '' })) }}
@@ -3414,9 +3591,9 @@ export default function Budget() {
               <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#ccc', fontSize: '0.83rem', pointerEvents: 'none' }}>원</span>
             </div>
             <div className="d-flex gap-2">
-              <button className="btn btn-outline-secondary flex-fill" onClick={() => setCashEdit(null)} style={{ borderRadius: 10 }}>취소</button>
               <button className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}
-                onClick={async () => { const n = parseInt(String(cashEdit.value).replace(/,/g, '')) || 0; await api.put(`/api/invest-accounts/${cashEdit.id}`, { cash: n }); setCashEdit(null); load() }}>저장</button>
+                onClick={async () => { const n = parseInt(String(cashEdit.value).replace(/,/g, '')) || 0; await api.put(`/api/invest-accounts/${cashEdit.id}`, { cash: n }); setCashEdit(null); setDetailRev(r => r + 1); load() }}>저장</button>
+              <button className="btn btn-outline-secondary flex-fill" onClick={() => setCashEdit(null)} style={{ borderRadius: 10 }}>취소</button>
             </div>
           </div>
         </div>,
@@ -3430,37 +3607,54 @@ export default function Budget() {
       )}
       {(
 
-        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, marginBottom: 10, scrollbarWidth: 'none' }}>
+        <div>
+        <div className="d-flex justify-content-end mb-2">
+          {(data.invest_accounts || []).length > 1 && (
+            <button type="button" onClick={() => setAcctOrderMode(v => !v)}
+              style={{ padding: '6px 14px', borderRadius: 12, border: `1.5px solid ${acctOrderMode ? '#b088f9' : 'var(--border-light)'}`, background: acctOrderMode ? 'rgba(176,136,249,0.1)' : 'transparent', color: acctOrderMode ? '#b088f9' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', marginRight: 8 }}>
+              {acctOrderMode ? '완료' : '순서 변경'}
+            </button>
+          )}
+          <button type="button" onClick={() => setAcctAddOpen(true)}
+            style={{ padding: '6px 14px', borderRadius: 12, border: '1.5px dashed #b088f9', background: 'transparent', color: '#b088f9', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <i className="bi bi-plus-lg" style={{ fontSize: '0.85rem' }} />
+            <span>증권사 추가</span>
+          </button>
+        </div>
+        <div ref={accountStripRef} data-scroll-x style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, marginBottom: 10, scrollbarWidth: 'none' }}>
+          <DndContext sensors={acctSensors} collisionDetection={closestCenter} onDragEnd={handleAccountDragEnd}>
+          <SortableContext items={(data.invest_accounts || []).map(x => x.id)} strategy={horizontalListSortingStrategy}>
           {(data.invest_accounts || []).map(a => {
             // 손익은 종목 평가액 기준 (예수금은 투자 원금이 아니므로 제외)
             const gain = a.holdings_value - a.purchase_value
             const pct = a.purchase_value ? (gain / a.purchase_value * 100).toFixed(1) : '0.0'
             return (
-              <div key={a.id} onClick={e => { if (e.target.closest('button')) return; setDetailId(a.id) }} style={{ cursor: 'pointer', minWidth: 170, padding: '12px 14px', borderRadius: 14, background: 'linear-gradient(135deg,rgba(176,136,249,0.12),rgba(123,175,240,0.12))', border: '1px solid var(--border-light)', flexShrink: 0, position: 'relative' }}>
-                <button type="button" onClick={() => setAcctEdit({ id: a.id, name: a.name, broker: a.broker || '', brokerName: a.broker_name || brokerOf(a.broker)?.name || '', openedAt: a.opened_at || '', principal: a.principal ? Math.round(a.principal).toLocaleString('ko-KR') : '', confirmDelete: false, hasIcon: !!a.has_custom_icon, iconVersion: a.icon_v, iconPreview: null, iconBlob: null, removeIcon: false, cropFile: null })}
+              <SortableAccountCard key={a.id} id={a.id} enabled={acctOrderMode}>
+              <div onClick={e => { if (e.target.closest('button')) return; setDetailId(a.id) }} style={{ cursor: 'pointer', minWidth: 170, padding: '12px 14px', borderRadius: 14, background: 'linear-gradient(135deg,rgba(176,136,249,0.12),rgba(123,175,240,0.12))', border: '1px solid var(--border-light)', flexShrink: 0, position: 'relative' }}>
+                <button type="button" onClick={() => setAcctEdit({ id: a.id, name: a.name, kind: a.kind || '', broker: a.broker || '', brokerName: a.broker_name || brokerOf(a.broker)?.name || '', openedAt: a.opened_at || '', principal: a.principal ? Math.round(a.principal).toLocaleString('ko-KR') : '', confirmDelete: false, hasIcon: !!a.has_custom_icon, iconVersion: a.icon_v, iconPreview: null, iconBlob: null, removeIcon: false, cropFile: null })}
                   style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.9rem', padding: 2, cursor: 'pointer' }} aria-label="계좌 수정">
                   <i className="bi bi-gear" />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, minWidth: 0, paddingRight: 24 }}>
                   <BrokerBadge brokerKey={a.broker} size={22} customSrc={a.has_custom_icon ? `/api/invest-accounts/${a.id}/icon?v=${a.icon_v}` : null} label={a.broker_name} />
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b088f9', whiteSpace: 'normal', wordBreak: 'keep-all', lineHeight: 1.35 }}>{a.name || a.broker_name || '계좌'}</span>
                 </div>
                 <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>{fmt(a.balance)}원</div>
                 <button type="button" onClick={() => setCashEdit({ id: a.id, name: a.name, value: a.cash ? Math.round(a.cash).toLocaleString('ko-KR') : '' })}
                   style={{ background: 'none', border: 'none', padding: 0, marginTop: 2, fontSize: '0.72rem', color: 'var(--text-muted)', cursor: 'pointer', textAlign: 'left' }}>
-                  {a.cash_set ? <>예수금 {fmt(a.cash)}원</> : <>예수금 입력</>} <i className="bi bi-pencil" style={{ fontSize: '0.65rem' }} />
+                  {a.cash_set ? <>예수금 {fmt(a.cash)}원</> : <>예수금 입력</>}
                 </button>
                 <div style={{ fontSize: '0.72rem', color: gain >= 0 ? '#e74c3c' : '#3b82f6', marginTop: 2, fontWeight: 600 }}>
                   {gain >= 0 ? '+' : ''}{fmt(gain)}원 ({gain >= 0 ? '+' : ''}{pct}%) · 종목 {a.holding_count}개
                 </div>
               </div>
+              </SortableAccountCard>
             )
           })}
-          <button type="button" onClick={() => setAcctAddOpen(true)}
-            style={{ minWidth: 120, padding: '12px 14px', borderRadius: 14, border: '1.5px dashed #b088f9', background: 'transparent', color: '#b088f9', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0, cursor: 'pointer' }}>
-            <i className="bi bi-plus-lg me-1" />증권사 추가
-          </button>
+          </SortableContext>
+          </DndContext>
         </div>
+      </div>
       )}
       {(data.investments || []).length === 0 ? (
         <div className="card mb-4 text-center">
@@ -3471,7 +3665,7 @@ export default function Budget() {
           </div>
         </div>
       ) : (() => {
-        let filteredInv = (data.investments || []).filter(i => matchesInvFilter(i, invFilter))
+        let filteredInv = (data.investments || []).filter(i => matchesInvFilter(i, invFilter, kindById))
         if (invSort === '평가금액순') filteredInv = [...filteredInv].sort(sortByNullable(i => i.current_value, invSortDir))
         else if (invSort === '수익률순') filteredInv = [...filteredInv].sort(sortByNullable(i => i.profit_pct, invSortDir))
         return (
@@ -3528,7 +3722,7 @@ export default function Budget() {
 
       <AddSheet open={addSheetOpen} visible={addSheetVisible} onClose={closeAdd} onSaved={load} cards={data?.card_stats || []} />
 
-      <SavingsSheet open={savingsSheetOpen} visible={savingsSheetVisible} onClose={closeSavingsSheet} onSaved={load} editItem={editSavings} />
+      <SavingsSheet open={savingsSheetOpen} visible={savingsSheetVisible} onClose={closeSavingsSheet} onSaved={load} editItem={editSavings} isaAccounts={(data?.invest_accounts || []).filter(acc => (acc.kind || '').includes('신탁형'))} />
 
       <InvestmentSheet open={invSheetOpen} visible={invSheetVisible} onClose={closeInvSheet} onSaved={load} editItem={editInv} accounts={data?.invest_accounts || []} onAccountsChanged={load} />
 
@@ -3932,6 +4126,11 @@ export default function Budget() {
                   </div>
                 )}
                 <ImageCropper file={editCropFile} onCancel={() => setEditCropFile(null)} onConfirm={onEditCropConfirm} />
+                <div className="mb-2">
+                  <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>별칭 (선택, 예산 탭에 함께 표시)</label>
+                  <input type="text" className="form-control" style={{ borderRadius: 10, fontSize: '1rem' }} placeholder="예: 생활비 카드"
+                    value={editAlias} onChange={e => setEditAlias(e.target.value)} />
+                </div>
                 {!editCard?.is_loan && (
                   <div className="mb-2">
                     <label className="text-muted mb-1" style={{ fontSize: '0.8rem' }}>혜택 사이트 URL (선택)</label>
@@ -4044,4 +4243,28 @@ export default function Budget() {
       )}
     </div>
   )
+}
+
+// 예산 화면에서 오류가 나면 흰 화면 대신 오류 내용을 보여준다 (원인 확인용)
+class BudgetErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    if (this.state.error) {
+      const stack = String(this.state.error?.stack || '').split('\n').slice(0, 6).join('\n')
+      return (
+        <div style={{ padding: 16, fontSize: '0.8rem', color: '#dc3545', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>예산 화면 오류</div>
+          {String(this.state.error?.message || this.state.error)}
+          {'\n\n'}
+          {stack}
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+export default function Budget() {
+  return <BudgetErrorBoundary><BudgetInner /></BudgetErrorBoundary>
 }

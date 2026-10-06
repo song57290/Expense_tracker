@@ -156,12 +156,12 @@ export function BrokerPicker({ value, onChange, allowNone = false, placeholder =
 }
 
 // 입력한 글자로 증권사 목록을 걸러 보여주는 입력칸. 목록을 누르면 그 이름이 들어가고, 목록에 없으면 직접 입력한 이름이 쓰인다
-export function BrokerSearch({ value, onChange, placeholder = '증권사 검색 또는 직접 입력' }) {
+export function BrokerSearch({ value, onChange, placeholder = '증권사 검색 또는 직접 입력', error = false }) {
   const items = filterSortItems(BROKERS, value, null, b => b.name)
   return (
     <div>
       <input type="text" value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+        style={{ width: '100%', borderRadius: 10, padding: '9px 12px', border: `1.5px solid ${error ? '#dc3545' : 'var(--border-light)'}`, background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
       <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', borderRadius: 12, border: '1px solid var(--border-light)' }}>
         {items.length === 0 && (
           <div style={{ padding: '10px 14px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>목록에 없어요 — 입력한 이름으로 추가돼요</div>

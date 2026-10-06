@@ -54,7 +54,9 @@ function AccountSheet({ title, accounts, value, onChange, onClose, visible, drag
   )
 }
 
-export default function TransferPicker({ accounts, from, to, onFromChange, onToChange }) {
+export default function TransferPicker({ accounts, investAccounts = [], from, to, onFromChange, onToChange }) {
+  // 증권사(투자) 계좌도 이체 상대로 함께 보여준다
+  const allAccounts = [...accounts, ...investAccounts.map(a => ({ id: `inv${a.id}`, name: a.name }))]
   const [openSheet, setOpenSheet] = useState(null) // 'from' | 'to' | null
   const [visible, setVisible] = useState(false)
   const [drag, setDrag] = useState(0)
@@ -87,7 +89,7 @@ export default function TransferPicker({ accounts, from, to, onFromChange, onToC
   }
 
   function AccountCard({ value, which }) {
-    const acc = accounts.find(a => a.name === value)
+    const acc = allAccounts.find(a => a.name === value)
     const logo = cardLogo(acc)
     return (
       <button type="button" onClick={() => open(which)} style={{
@@ -124,7 +126,7 @@ export default function TransferPicker({ accounts, from, to, onFromChange, onToC
       {openSheet && (
         <AccountSheet
           title={openSheet === 'from' ? '📤 보내는 계좌' : '📥 받는 계좌'}
-          accounts={accounts}
+          accounts={allAccounts}
           value={openSheet === 'from' ? from : to}
           onChange={openSheet === 'from' ? onFromChange : onToChange}
           onClose={close}
