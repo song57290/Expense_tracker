@@ -7,7 +7,7 @@ import { SortableContext, verticalListSortingStrategy, horizontalListSortingStra
 import { CSS } from '@dnd-kit/utilities'
 import api from '../api.js'
 import { syncWidget } from '../widgetSync.js'
-import { PAYMENT_LOGOS, fmt, bankLogo, cardLogo, fmtMonth, fmtDate, today, restoreCaretAfterFormat, useLocalStorageState } from '../utils.js'
+import { PAYMENT_LOGOS, fmt, bankLogo, cardLogo, fmtMonth, fmtDate, today, restoreCaretAfterFormat, formatDecimalComma, useLocalStorageState } from '../utils.js'
 import DatePickerSheet from '../components/DatePickerSheet.jsx'
 import CardPicker from '../components/CardPicker.jsx'
 import { ListToolbar, filterSortItems } from '../components/ListTools.jsx'
@@ -91,12 +91,12 @@ function useDragScrollX() {
 // on the item starts a reorder-drag; a quick swipe within that window is released to the
 // item's own edit/delete swipe gesture instead. Passes {listeners, isDragging} down so the
 // item can attach the activator to its own swipeable content and suppress swipe while dragging.
-// 증권 계좌 카드 한 장 — 순서 변경 모드일 때만 끌 수 있다
-function SortableAccountCard({ id, enabled, children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !enabled })
+// 증권 계좌 카드 한 장 — 아래 투자 목록과 같은 방식으로, 따로 모드 전환 없이 꾹 누르면 바로 끌 수 있다
+function SortableAccountCard({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
-    <div ref={setNodeRef} {...(enabled ? { ...attributes, ...listeners } : {})}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1, flexShrink: 0, touchAction: enabled ? 'none' : undefined, cursor: enabled ? 'grab' : undefined }}>
+    <div ref={setNodeRef} {...attributes} {...listeners}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1, flexShrink: 0, touchAction: 'none' }}>
       {children}
     </div>
   )
@@ -554,7 +554,7 @@ function AddSheet({ open, visible, onClose, onSaved, cards = [] }) {
   )
 }
 
-function SwipeCard({ card, onEdit, onDelete, onConvert, onPointInfo, onPerfClick, onRepayChange, linkedAccountName, accountCards = [], dnd, hideAmounts = false }) {
+function SwipeCard({ card, onEdit, onDelete, onConvert, onPointInfo, onPerfClick, onIncomeClick, onExpenseClick, onRepayChange, linkedAccountName, accountCards = [], dnd, hideAmounts = false }) {
   const startX = useRef(null)
   const startY = useRef(null)
   const [offsetX, setOffsetX] = useState(0)
@@ -715,32 +715,34 @@ function SwipeCard({ card, onEdit, onDelete, onConvert, onPointInfo, onPerfClick
         )}
         <div className="d-flex mb-3" style={{ gap: 1 }}>
           {isLoan ? (<>
-            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+            <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>초기 대출금액</div>
               <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(Math.abs(card.initial_balance))}</div>
             </div>
-            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+            <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>상환 금액</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#198754' }}>{fmt(card.total_repaid || 0)}</div>
             </div>
-            <div className="text-center flex-fill">
+            <div className="text-center" style={{ flex: '1 1 0%', minWidth: 0 }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>상환률</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#b088f9' }}>
                 {card.initial_balance ? Math.min(100, Math.round((card.total_repaid || 0) / Math.abs(card.initial_balance) * 100)) : 0}%
               </div>
             </div>
           </>) : (<>
-            {card.cashback_type && (
-              <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+            {(card.cashback_type || card.cashback_rule_count > 0) && (
+              <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
                 <div className="text-muted" style={{ fontSize: '0.8rem' }}>캐시백 금액</div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#b08900' }}>{fmt(card.total_cashback || 0)}</div>
               </div>
             )}
-            <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+            <div className="text-center" onClick={e => { e.stopPropagation(); onIncomeClick?.() }}
+              style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0, cursor: onIncomeClick ? 'pointer' : 'default' }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 수입</div>
               <div className="text-success" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_income)}</div>
             </div>
-            <div className="text-center flex-fill">
+            <div className="text-center" onClick={e => { e.stopPropagation(); onExpenseClick?.() }}
+              style={{ flex: '1 1 0%', minWidth: 0, cursor: onExpenseClick ? 'pointer' : 'default' }}>
               <div className="text-muted" style={{ fontSize: '0.8rem' }}>이달 지출</div>
               <div className="text-danger" style={{ fontSize: '0.9rem', fontWeight: 600 }}>{fmt(card.total_expense)}</div>
             </div>
@@ -981,18 +983,18 @@ function SavingsItem({ item, onEdit, onDelete, onDepositChange, dnd, hideAmounts
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: dDayColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{dDayText}</span>
         </div>
         <div className="d-flex mb-2" style={{ gap: 1 }}>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.stype === '예금' ? '예치금액' : '월 납입액'}</div>
-            <div className={am} style={{ fontSize: '0.85rem', fontWeight: 600 }}>{fmt(item.amount)}원</div>
+            <div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, wordBreak: 'break-all' }}>{fmt(item.amount)}원</div>
           </div>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isCheongYak ? '납입 회차' : '연 이율'}</div>
             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{isCheongYak ? `${item.months_elapsed}회` : `${item.interest_rate}%`}</div>
           </div>
-          <div className="text-center flex-fill">
+          <div className="text-center" style={{ flex: '1 1 0%', minWidth: 0 }}>
             {isCheongYak
-              ? (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>총 납입액</div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.current_paid)}원</div></>)
-              : (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754' }}>{fmt(item.maturity_after_tax)}원</div></>)
+              ? (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>총 납입액</div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754', wordBreak: 'break-all' }}>{fmt(item.current_paid)}원</div></>)
+              : (<><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>만기 수령 <span style={{ fontSize: '0.65rem', color: '#b088f9' }}>(세후)</span></div><div className={am} style={{ fontSize: '0.85rem', fontWeight: 600, color: '#198754', wordBreak: 'break-all' }}>{fmt(item.maturity_after_tax)}원</div></>)
             }
           </div>
         </div>
@@ -1585,7 +1587,10 @@ const ITYPE_COLORS = {
 }
 const ITYPE_ICONS = { '국내주식': '🇰🇷', '해외주식': '🌎', '펀드': '💼', '코인': '₿', 'ETF': '📊', '기타': '📦' }
 const ITYPE_UNITS = { '국내주식': '주', '해외주식': '주', '펀드': '좌', '코인': '개', 'ETF': '주', '기타': '' }
-const INV_ACCOUNT_COLORS = { ISA: '#5a9fd4', '연금저축': '#8b5cf6', IRP: '#e87000' }
+const INV_ACCOUNT_COLORS = {
+  '신탁형 ISA': '#5a9fd4', '중개형 ISA': '#5a9fd4', '일반형 ISA': '#5a9fd4', '서민형 ISA': '#5a9fd4',
+  '연금저축': '#8b5cf6', IRP: '#e87000', '퇴직연금': '#0ea5a0', '외화(달러)': '#6b7280',
+}
 const INV_TYPE_FILTERS = ['국내주식', '해외주식', '펀드', '코인', 'ETF', '기타']
 const INV_TYPE_FILTER_SHORT = { '국내주식': '국내', '해외주식': '해외' }
 const INV_ACCOUNT_FILTERS = ['ISA', '연금저축', 'IRP']
@@ -1595,7 +1600,7 @@ function matchesInvFilter(item, filter, kindById) {
   return filter === 'all' || filter.includes(item.itype) || filter.includes((kindById || {})[item.account_id])
 }
 
-function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
+function InvestmentItem({ item, onEdit, onDelete, onTrade, dnd, hideAmounts = false, kind }) {
   const am = `amt-mask${hideAmounts ? ' amt-hidden' : ''}`
   const startX = useRef(null)
   const startY = useRef(null)
@@ -1603,9 +1608,11 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
   const horiz = useRef(false)
   const cardRef = useRef(null)
   const mouseDown = useRef(false)
+  const movedRef = useRef(false) // 실제로 밀었는지 — 그냥 탭한 거면 매매 기록 창을 연다
 
   const onDragStart = e => {
     if (dnd?.isDragging) return
+    movedRef.current = false
     if (e.touches) {
       const cx = e.touches[0].clientX
       const wrap = e.currentTarget.closest('.page-wrap')
@@ -1623,6 +1630,7 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
     const cx = e.touches ? e.touches[0].clientX : e.clientX
     const cy = e.touches ? e.touches[0].clientY : e.clientY
     const dx = startX.current - cx; const dy = startY.current - cy
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) movedRef.current = true
     if (!horiz.current) {
       if (Math.abs(dy) > Math.abs(dx)) { startX.current = null; return }
       if (Math.abs(dx) > 8) horiz.current = true; else return
@@ -1660,38 +1668,39 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
       </div>
       <div data-item-swipe style={{ position: 'relative', zIndex: 1, background: 'var(--bg-card)', padding: 16, transform: `translateX(${offsetX}px)`, transition: offsetX === 0 ? 'transform 0.22s ease' : 'none', cursor: 'grab', userSelect: 'none' }}
         onTouchStart={onSwipeTouchStart} onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}>
+        onMouseDown={onSwipeMouseDown} onMouseMove={e => { if (mouseDown.current) onDragMove(e) }} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}
+        onClick={() => { if (movedRef.current || dnd?.isDragging) return; onTrade?.() }}>
         <div className="d-flex justify-content-between align-items-center mb-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
           <div className="d-flex align-items-center gap-2" style={{ flexWrap: 'wrap', rowGap: 4 }}>
             <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{icon}</span>
             <span className="fw-semibold" style={{ fontSize: '0.95rem', wordBreak: 'keep-all' }}>{item.name}</span>
             <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: tc.bg, color: tc.color, flexShrink: 0, whiteSpace: 'nowrap' }}>{item.itype}</span>
-            {item.account_type && item.account_type !== '일반' && (() => {
-              const atColor = INV_ACCOUNT_COLORS[item.account_type] || '#888'
-              return <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: `${atColor}18`, color: atColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{item.account_type}</span>
+            {kind && kind !== '종합' && (() => {
+              const atColor = INV_ACCOUNT_COLORS[kind] || '#888'
+              return <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 7px', borderRadius: 8, background: `${atColor}18`, color: atColor, flexShrink: 0, whiteSpace: 'nowrap' }}>{kind}</span>
             })()}
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>(수량 {item.quantity})</span>
           </div>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{item.ticker || ''}</span>
         </div>
-        <div className="d-flex mb-2" style={{ gap: 1 }}>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+        <div className="d-flex" style={{ gap: 1 }}>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>매수금액</div>
-            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(item.purchase_value)}원</div>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{fmt(item.purchase_value)}원</div>
             {item.itype === '해외주식' && item.exchange_rate && (
               <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.avg_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
-          <div className="text-center flex-fill" style={{ borderRight: '1px solid var(--border-light)' }}>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>평가금액</div>
-            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 700 }}>{fmt(item.current_value)}원</div>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 700, wordBreak: 'break-all' }}>{fmt(item.current_value)}원</div>
             {item.itype === '해외주식' && item.exchange_rate && (
               <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${(item.current_price * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
             )}
           </div>
-          <div className="text-center flex-fill">
+          <div className="text-center" style={{ flex: '1 1 0%', minWidth: 0 }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>수익</div>
-            <div className={am} style={{ fontSize: '0.9rem', fontWeight: 700, color: isProfit ? '#198754' : '#dc3545' }}>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 700, color: isProfit ? '#e74c3c' : '#3b82f6', wordBreak: 'break-all' }}>
               {isProfit ? '+' : ''}{fmt(item.profit)}원
             </div>
             {item.itype === '해외주식' && item.exchange_rate && (
@@ -1699,20 +1708,37 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
             )}
           </div>
         </div>
-        <div className="d-flex justify-content-between" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 14 }}>
-          <span className={am}>
-            {item.itype === '해외주식'
-              ? item.current_price
-                ? `평단가 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · 현재가 $${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : `평단가 $${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-              : item.current_price
-                ? `평단가 ${fmt(item.avg_price)}원 · 현재가 ${fmt(item.current_price)}원`
-                : item.avg_price ? `평단가 ${fmt(item.avg_price)}원` : ''
-            }
-          </span>
-          <span style={{ color: isProfit ? '#198754' : '#dc3545', fontWeight: 600 }}>
-            {isProfit ? '▲' : '▼'} {Math.abs(item.profit_pct).toFixed(2)}%
-          </span>
+        <div className="d-flex mb-2" style={{ gap: 1, borderTop: '1px solid var(--border-light)', marginTop: 8, paddingTop: 8 }}>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>평단가</div>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+              {item.itype === '해외주식'
+                ? `${fmt(Math.round(item.purchase_value / (item.quantity || 1)))}원`
+                : `${fmt(item.avg_price)}원`}
+            </div>
+            {item.itype === '해외주식' && item.exchange_rate && (
+              <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${item.avg_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
+          </div>
+          <div className="text-center" style={{ borderRight: '1px solid var(--border-light)', flex: '1 1 0%', minWidth: 0 }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>현재가</div>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 700, color: item.current_price ? 'var(--text-primary)' : '#ffb347', wordBreak: 'break-all' }}>
+              {item.current_price
+                ? (item.itype === '해외주식'
+                    ? `${fmt(Math.round(item.current_value / (item.quantity || 1)))}원`
+                    : `${fmt(item.current_price)}원`)
+                : '미입력'}
+            </div>
+            {item.itype === '해외주식' && item.exchange_rate && item.current_price && (
+              <div className={am} style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(${item.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</div>
+            )}
+          </div>
+          <div className="text-center" style={{ flex: '1 1 0%', minWidth: 0 }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>수익률</div>
+            <div className={am} style={{ fontSize: '0.88rem', fontWeight: 700, color: isProfit ? '#e74c3c' : '#3b82f6', wordBreak: 'break-all' }}>
+              {isProfit ? '+' : ''}{item.profit_pct.toFixed(2)}%
+            </div>
+          </div>
         </div>
         <div className="d-flex justify-content-between mt-1" style={{ fontSize: '0.68rem', color: '#ccc' }}>
           {item.memo ? <span>{item.memo}</span> : <span />}
@@ -1729,6 +1755,45 @@ function InvestmentItem({ item, onEdit, onDelete, dnd, hideAmounts = false }) {
 const INVEST_KINDS = ['종합', '신탁형 ISA', '중개형 ISA', '일반형 ISA', '서민형 ISA', '연금저축', 'IRP', '퇴직연금', '외화(달러)', '기타']
 
 // 계좌 종류 드롭박스 — 누르면 입력칸 바로 아래로 목록이 펼쳐지고, 고르거나 바깥을 누르면 닫힌다
+// 투자 계좌 선택 — 계좌 종류 드롭박스와 같은 방식. 칩 목록 대신 눌러서 펼치는 드롭박스로 고른다
+function AccountSelect({ accounts, value, onChange, error = false }) {
+  const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const sel = accounts.find(a => a.id === value)
+
+  function openList() { setOpen(true); requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true))) }
+  function closeList() { setVisible(false); setTimeout(() => setOpen(false), 160) }
+
+  return (
+    <div style={{ position: 'relative', marginBottom: 10 }}>
+      <button type="button" onClick={() => (open ? closeList() : openList())}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', border: `1.5px solid ${error ? '#dc3545' : 'var(--border-light)'}`, borderRadius: 10, padding: '9px 12px', cursor: 'pointer', minHeight: 40, color: sel ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'left' }}>
+        {sel?.broker !== undefined && sel && <BrokerBadge brokerKey={sel.broker} size={20} customSrc={sel.has_custom_icon ? `/api/invest-accounts/${sel.id}/icon?v=${sel.icon_v}` : null} label={sel.broker_name} />}
+        <span style={{ flex: 1 }}>{sel ? sel.name : '투자 계좌 선택'}</span>
+        <i className="bi bi-chevron-down" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0, transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+      </button>
+      {open && (
+        <>
+          <div onClick={closeList} style={{ position: 'fixed', inset: 0, zIndex: 2600 }} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 2601, background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto', transformOrigin: 'top', opacity: visible ? 1 : 0, transform: visible ? 'translateY(0) scaleY(1)' : 'translateY(-6px) scaleY(0.96)', transition: 'opacity 0.16s ease, transform 0.16s ease' }}>
+            {accounts.map(a => {
+              const on = a.id === value
+              return (
+                <div key={a.id} onClick={() => { onChange(a.id); closeList() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', background: on ? 'rgba(176,136,249,0.08)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}>
+                  <BrokerBadge brokerKey={a.broker} size={22} customSrc={a.has_custom_icon ? `/api/invest-accounts/${a.id}/icon?v=${a.icon_v}` : null} label={a.broker_name} />
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: on ? 600 : 400, color: on ? '#b088f9' : 'var(--text-primary)' }}>{a.name}</span>
+                  {on && <i className="bi bi-check" style={{ color: '#b088f9', fontSize: '1rem' }} />}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function KindSelect({ value, onChange }) {
   const [open, setOpen] = useState(false)
   return (
@@ -1759,17 +1824,142 @@ function KindSelect({ value, onChange }) {
   )
 }
 
+// 은행 선택 — 펀드처럼 은행에 연결된 투자 계좌를 위한 것. 증권사 검색과 겹치지 않게 별도의 창(바텀시트)으로 연다
+function BankPicker({ value, onChange, placeholder = '은행 선택' }) {
+  const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [query, setQuery] = useState('')
+  const [dir, setDir] = useState(null)
+  const sel = BANKS.find(b => b[0] === value)
+
+  function openSheet() { setQuery(''); setOpen(true); requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true))) }
+  function closeSheet() { setVisible(false); setTimeout(() => setOpen(false), 300) }
+  function pick(name) { onChange(name); closeSheet() }
+
+  return (
+    <>
+      <button type="button" onClick={openSheet} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', border: '1.5px solid var(--border-light)', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', minHeight: 40, color: sel ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+        {sel && <img src={sel[1]} style={{ width: 24, height: 24, objectFit: 'contain', borderRadius: 6, flexShrink: 0 }} />}
+        <span style={{ flex: 1, textAlign: 'left' }}>{sel ? sel[0] : placeholder}</span>
+        <i className="bi bi-chevron-down" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0 }} />
+      </button>
+      {open && createPortal(
+        <div onClick={e => e.target === e.currentTarget && closeSheet()}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72dvh', overflowY: 'auto', overscrollBehavior: 'contain', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)', paddingBottom: 'max(40px, calc(env(safe-area-inset-bottom) + 24px))' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
+            </div>
+            <div style={{ padding: '6px 20px 12px', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-light)' }}>
+              은행 선택
+            </div>
+            <ListToolbar query={query} onQuery={setQuery} dir={dir} onDir={setDir} placeholder="은행 이름 검색" />
+            {filterSortItems(BANKS, query, dir, b => b[0]).map(b => {
+              const on = b[0] === value
+              return (
+                <div key={b[0]} onClick={() => pick(b[0])} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 20px', cursor: 'pointer', background: on ? 'rgba(176,136,249,0.08)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}>
+                  <div style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <img src={b[1]} style={{ width: 30, height: 30, objectFit: 'contain', borderRadius: 6 }} />
+                  </div>
+                  <span style={{ flex: 1, fontSize: '0.95rem', fontWeight: on ? 600 : 400, color: on ? '#b088f9' : 'var(--text-primary)' }}>{b[0]}</span>
+                  {on && <i className="bi bi-check-circle-fill" style={{ color: '#b088f9', fontSize: '1.1rem', flexShrink: 0 }} />}
+                </div>
+              )
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+// 증권사 선택 — 은행 선택과 같이 평소엔 닫아두고, 누르면 검색창이 있는 시트가 열린다
+// 은행을 고르면 예산 탭에 이미 등록된 같은 은행 계좌가 있는지 찾아서 연결할지 물어본다 — 표시용 연결이고 잔고는 합치지 않는다
+function LinkedCardSuggest({ bankName, cards, value, onChange }) {
+  if (!bankName) return null
+  const logo = bankLogo(bankName)
+  if (!logo) return null
+  const matches = cards.filter(c => !c.is_loan && !c.linked_account_id && bankLogo(c.name) === logo)
+  if (matches.length === 0) return null
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <p className="mb-1 text-muted" style={{ fontSize: '0.75rem' }}>예산 탭에 등록된 같은 은행 계좌를 찾았어요 — 연결할까요?</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <button type="button" onClick={() => onChange(null)}
+          style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${!value ? '#b088f9' : 'var(--border-light)'}`, background: !value ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: !value ? '#b088f9' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+          연결 안 함
+        </button>
+        {matches.map(c => {
+          const on = value === c.id
+          return (
+            <button key={c.id} type="button" onClick={() => onChange(c.id)}
+              style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, background: on ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: on ? '#b088f9' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+              {c.name}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function BrokerSearchPicker({ value, onChange, error = false, placeholder = '증권사 선택' }) {
+  const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
+
+  function openSheet() { setOpen(true); requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true))) }
+  function closeSheet() { setVisible(false); setTimeout(() => setOpen(false), 300) }
+
+  return (
+    <>
+      <button type="button" onClick={openSheet} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', border: `1.5px solid ${error ? '#dc3545' : 'var(--border-light)'}`, borderRadius: 10, padding: '9px 12px', cursor: 'pointer', minHeight: 40, color: value ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+        {value && <BrokerBadge brokerKey={keyOfName(value)} size={22} label={value} />}
+        <span style={{ flex: 1, textAlign: 'left' }}>{value || placeholder}</span>
+        <i className="bi bi-chevron-down" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0 }} />
+      </button>
+      {open && createPortal(
+        <div onClick={e => e.target === e.currentTarget && closeSheet()}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', opacity: visible ? 1 : 0, transition: 'opacity 0.25s ease' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '72dvh', overflowY: 'auto', overscrollBehavior: 'contain', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)', padding: '0 20px max(24px, calc(env(safe-area-inset-bottom) + 16px))' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-light)' }} />
+            </div>
+            <div style={{ padding: '0 0 12px', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>증권사 선택</div>
+            <BrokerSearch value={value} onChange={onChange} onPick={closeSheet} />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+// 기관 종류(증권사/은행) 고르는 토글 — 펀드처럼 은행에 연결된 계좌를 위해 증권사 검색과 분리했다
+function InstTypeToggle({ value, onChange }) {
+  return (
+    <div className="d-flex gap-2 mb-2">
+      {[['broker', '증권사'], ['bank', '은행']].map(([v, label]) => (
+        <button key={v} type="button" onClick={() => onChange(v)}
+          style={{ flex: 1, padding: '6px 0', borderRadius: 8, border: `1.5px solid ${value === v ? '#b088f9' : 'var(--border-light)'}`, background: value === v ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: value === v ? '#b088f9' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>{label}</button>
+      ))}
+    </div>
+  )
+}
+
 // 증권사(투자 계좌) 추가 — 투자 추가 창과 분리해서 따로 연다. 증권사 이름은 직접 입력하거나 목록에서 고른다
-function AccountAddSheet({ open, onClose, onCreated }) {
+function AccountAddSheet({ open, onClose, onCreated, cards = [] }) {
   const [brokerName, setBrokerName] = useState('')
+  const [instType, setInstType] = useState('broker')
   const [nameError, setNameError] = useState(false)
   const [kind, setKind] = useState('')
   const [cash, setCash] = useState('')
   const [openedAt, setOpenedAt] = useState('')
   const [principal, setPrincipal] = useState('')
+  const [linkedCardId, setLinkedCardId] = useState(null)
 
   useEffect(() => {
-    if (open) { setBrokerName(''); setNameError(false); setKind(''); setCash(''); setOpenedAt(''); setPrincipal('') }
+    if (open) { setBrokerName(''); setNameError(false); setKind(''); setCash(''); setOpenedAt(''); setPrincipal(''); setInstType('broker'); setLinkedCardId(null) }
   }, [open])
 
   async function save() {
@@ -1779,7 +1969,7 @@ function AccountAddSheet({ open, onClose, onCreated }) {
     const principalNum = parseInt(principal.replace(/,/g, '')) || 0
     // 계좌 이름 = 증권사 이름 + 별칭 (예: 신한투자증권 ISA). 로고는 증권사 선택으로만 정해진다
     const nm = [bn, kind].filter(Boolean).join(' ')
-    const r = await api.post('/api/invest-accounts', { name: nm, broker: keyOfName(bn), broker_name: bn, kind: kind || null, opened_at: openedAt || null, principal: principalNum || null })
+    const r = await api.post('/api/invest-accounts', { name: nm, broker: keyOfName(bn), broker_name: bn, kind: kind || null, opened_at: openedAt || null, principal: principalNum || null, linked_card_id: linkedCardId })
     const cashNum = parseInt(cash.replace(/,/g, '')) || 0
     if (cash.trim()) await api.put(`/api/invest-accounts/${r.id}`, { cash: cashNum })
     onCreated?.(r.id)
@@ -1795,11 +1985,15 @@ function AccountAddSheet({ open, onClose, onCreated }) {
           <h6 className="mb-0 fw-bold">증권사 추가</h6>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1 }}>&times;</button>
         </div>
-        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사</p>
+        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사 · 은행</p>
+        <InstTypeToggle value={instType} onChange={v => { setInstType(v); setBrokerName(''); setNameError(false) }} />
         <div style={{ marginBottom: 6 }}>
-          <BrokerSearch value={brokerName} error={nameError} onChange={v => { setBrokerName(v); setNameError(false) }} />
+          {instType === 'bank'
+            ? <BankPicker value={brokerName} onChange={v => { setBrokerName(v); setNameError(false); setLinkedCardId(null) }} />
+            : <BrokerSearchPicker value={brokerName} error={nameError} onChange={v => { setBrokerName(v); setNameError(false) }} />}
         </div>
-        {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>위 증권사 칸에 목록에서 고르거나 이름을 입력해 주세요</div>}
+        {nameError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>위 칸에서 {instType === 'bank' ? '은행' : '증권사'}을 목록에서 고르거나 이름을 입력해 주세요</div>}
+        {instType === 'bank' && <LinkedCardSuggest bankName={brokerName} cards={cards} value={linkedCardId} onChange={setLinkedCardId} />}
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 종류</p>
         <KindSelect value={kind} onChange={setKind} />
         <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 개설일 (선택)</p>
@@ -1898,6 +2092,11 @@ function AccountDetailSheet({ accountId, onClose, onCashEdit }) {
         {!d && !err && <div className="text-muted py-4 text-center">불러오는 중…</div>}
         {d && (
           <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+            {d.linked_card_name && (
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                <i className="bi bi-link-45deg me-1" />예산 탭의 <b style={{ color: 'var(--text-secondary)' }}>{d.linked_card_name}</b> 계좌와 연결됨
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
               {[['잔고', `${fmt(d.balance)}원`], ['예수금', d.cash_set ? `${fmt(d.cash)}원` : '미입력'], ['평가금액', `${fmt(d.holdings_value)}원`], ['매입금액', `${fmt(d.purchase_value)}원`]].map(([l, v]) => (
                 <div key={l} onClick={l === '예수금' && onCashEdit ? () => onCashEdit({ id: d.id, name: d.name, value: d.cash ? Math.round(d.cash).toLocaleString('ko-KR') : '' }) : undefined}
@@ -2360,20 +2559,10 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
               </div>
             </>)}
             <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>투자 계좌</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {accounts.map(a => {
-                const on = a.id === accountId
-                return (
-                  <button key={a.id} type="button" onClick={() => { setAccountId(a.id); setAccountError(false) }}
-                    style={{ padding: '6px 12px', borderRadius: 16, border: `1.5px solid ${on ? '#b088f9' : 'var(--border-light)'}`, background: on ? 'rgba(176,136,249,0.1)' : 'var(--bg-card)', color: on ? '#b088f9' : 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, lineHeight: 1.2, paddingTop: 6, paddingBottom: 1 }}>
-                      {a.broker && <BrokerBadge brokerKey={a.broker} size={18} customSrc={a.has_custom_icon ? `/api/invest-accounts/${a.id}/icon?v=${a.icon_v}` : null} label={a.broker_name} />}
-                      {a.name}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+            {accounts.length > 0 && (
+              <AccountSelect accounts={accounts} value={accountId} error={accountError}
+                onChange={v => { setAccountId(v); setAccountError(false) }} />
+            )}
             {accountError && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>투자 계좌를 선택해 주세요{accounts.length === 0 ? ' — 먼저 계좌를 추가해 주세요' : ''}</div>}
             {accounts.length === 0 && (
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 10 }}>투자 계좌가 없어요 — 투자 탭의 "증권사 추가"에서 먼저 추가해 주세요</div>
@@ -2382,7 +2571,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
               <div style={{ marginTop: 18, marginBottom: 12 }}>
                 <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>매수 · 매도 기록</p>
                 <div className="d-flex gap-2 mb-2">
-                  {[['buy', '매수', '#b088f9'], ['sell', '매도', '#7baff0']].map(([v, label, c]) => (
+                  {[['buy', '매수', '#dc3545'], ['sell', '매도', '#0d6efd']].map(([v, label, c]) => (
                     <button key={v} type="button" onClick={() => { setTradeSide(tradeSide === v ? '' : v); setTradeError('') }}
                       style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `2px solid ${tradeSide === v ? c : 'var(--border-light)'}`, background: tradeSide === v ? `${c}18` : 'var(--bg-card)', color: tradeSide === v ? c : 'var(--text-muted)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>{label}</button>
                   ))}
@@ -2391,7 +2580,7 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
                   <div style={{ background: 'var(--bg-section)', borderRadius: 12, padding: 12 }}>
                     <div className="d-flex gap-2 mb-2">
                       <input type="text" inputMode="decimal" placeholder="수량" value={tradeQty} onChange={e => setTradeQty(e.target.value.replace(/[^0-9.]/g, ''))} style={{ ...inp, flex: 1 }} />
-                      <input type="text" inputMode="decimal" placeholder={isUsd ? '단가 (달러)' : '단가 (원)'} value={tradePrice} onChange={e => setTradePrice(e.target.value.replace(/[^0-9.]/g, ''))} style={{ ...inp, flex: 1 }} />
+                      <input type="text" inputMode="decimal" placeholder={isUsd ? '단가 (달러)' : '단가 (원)'} value={tradePrice} onChange={e => setTradePrice(formatDecimalComma(e.target.value.replace(/[^0-9.]/g, '')))} style={{ ...inp, flex: 1 }} />
                     </div>
                     <div style={{ position: 'relative', marginBottom: 8 }}>
                       <input type="text" inputMode="numeric" placeholder="수수료·세금 (선택)" value={tradeFee}
@@ -2410,12 +2599,29 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
                       const acct = accounts.find(x => x.id === editItem?.account_id)
                       const short = acct?.cash_set && tradeSide === 'buy' && total > acct.cash
                       return (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '2px 0 8px', lineHeight: 1.6 }}>
-                          {tradeSide === 'buy' ? '예상 차감' : '예상 정산'} <b>{fmt(total)}원</b>
-                          {acct?.cash_set && (
-                            <> · 예수금 {fmt(acct.cash)}원{tradeSide === 'buy' && <> → {fmt(Math.round(acct.cash - total))}원</>}</>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 10, padding: '10px 12px', margin: '2px 0 8px' }}>
+                          <div className="d-flex justify-content-between align-items-center" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>주문 금액</span><span>{fmt(Math.round(krw))}원</span>
+                          </div>
+                          {fee > 0 && (
+                            <div className="d-flex justify-content-between align-items-center mt-1" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              <span>수수료·세금</span><span>{tradeSide === 'buy' ? '+' : '-'}{fmt(fee)}원</span>
+                            </div>
                           )}
-                          {short && <div style={{ color: '#dc3545' }}>예수금이 부족해요</div>}
+                          {acct?.cash_set && (<>
+                            <div style={{ borderTop: '1px solid var(--border-light)', margin: '8px 0' }} />
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>예수금 잔고</span>
+                              <span style={{ fontSize: '1.05rem', fontWeight: 700, color: short ? '#dc3545' : 'var(--text-primary)' }}>
+                                {fmt(Math.round(tradeSide === 'buy' ? acct.cash - total : acct.cash + total))}원
+                              </span>
+                            </div>
+                          </>)}
+                          {short && (
+                            <div className="d-flex align-items-center" style={{ marginTop: 8, fontSize: '0.76rem', color: '#dc3545', background: 'rgba(220,53,69,0.1)', borderRadius: 8, padding: '6px 10px' }}>
+                              <i className="bi bi-exclamation-triangle-fill me-1" />예수금이 부족해요
+                            </div>
+                          )}
                         </div>
                       )
                     })()}
@@ -2474,6 +2680,110 @@ function InvestmentSheet({ open, visible, onClose, onSaved, editItem, accounts =
   </>
 }
 
+// 종목 목록에서 바로 매수·매도만 기록하는 작은 창 — 전체 수정 창을 거치지 않는다
+function TradeQuickSheet({ item, accounts = [], onClose, onSaved }) {
+  const [side, setSide] = useState('buy')
+  const [qty, setQty] = useState('')
+  const [price, setPrice] = useState('')
+  const [date, setDate] = useState(today())
+  const [fee, setFee] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!item) return
+    setSide('buy'); setQty(''); setDate(today()); setFee(''); setError('')
+    setPrice(formatDecimalComma(item.current_price ? String(item.current_price) : (item.avg_price ? String(item.avg_price) : '')))
+  }, [item])
+
+  if (!item) return null
+  const isUsd = item.itype === '해외주식'
+  const account = accounts.find(a => a.id === item.account_id)
+  const q = parseFloat(qty.replace(/,/g, '')) || 0
+  const p = parseFloat(price.replace(/,/g, '')) || 0
+  const feeNum = parseFloat(fee.replace(/,/g, '')) || 0
+  const krw = q * p * (isUsd ? (item.exchange_rate || 1) : 1)
+  const total = Math.round(side === 'buy' ? krw + feeNum : krw - feeNum)
+  const short = account?.cash_set && side === 'buy' && total > account.cash
+
+  async function submit() {
+    if (!q || !p) { setError('수량과 단가를 입력해 주세요'); return }
+    try {
+      await api.post(`/api/investments/${item.id}/trades`, { side, quantity: q, price: p, date, fee: feeNum })
+      onSaved?.()
+      onClose()
+    } catch (e) {
+      setError(e?.message || '기록하지 못했습니다')
+    }
+  }
+
+  return createPortal(
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 20, width: 'min(92vw,400px)', maxHeight: '85dvh', overflowY: 'auto', padding: 20 }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="mb-0 fw-bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name} 매매 기록</h6>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, flexShrink: 0 }}>&times;</button>
+        </div>
+        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>거래 종류</p>
+        <div className="d-flex gap-2 mb-2">
+          {[['buy', '매수', '#dc3545'], ['sell', '매도', '#0d6efd']].map(([v, label, c]) => (
+            <button key={v} type="button" onClick={() => setSide(v)}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `2px solid ${side === v ? c : 'var(--border-light)'}`, background: side === v ? `${c}18` : 'var(--bg-card)', color: side === v ? c : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem' }}>{label}</button>
+          ))}
+        </div>
+        <div className="d-flex gap-2 mb-1">
+          <p className="mb-1 text-muted flex-fill" style={{ fontSize: '0.78rem', fontWeight: 600 }}>수량</p>
+          <p className="mb-1 text-muted flex-fill" style={{ fontSize: '0.78rem', fontWeight: 600 }}>단가</p>
+        </div>
+        <div className="d-flex gap-2 mb-3">
+          <input type="text" inputMode="decimal" placeholder="예: 10" value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9.]/g, ''))}
+            style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+          <input type="text" inputMode="decimal" placeholder={isUsd ? '달러' : '원'} value={price} onChange={e => setPrice(formatDecimalComma(e.target.value.replace(/[^0-9.]/g, '')))}
+            style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+        </div>
+        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>거래일</p>
+        <div style={{ marginBottom: 12 }}><DatePickerSheet value={date} onChange={setDate} center /></div>
+        <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>수수료·세금 (선택)</p>
+        <input type="text" inputMode="numeric" placeholder="0" value={fee}
+          onChange={e => { const r = e.target.value.replace(/[^0-9]/g, ''); setFee(r ? parseInt(r).toLocaleString('ko-KR') : '') }}
+          style={{ width: '100%', borderRadius: 10, padding: '9px 12px', border: '1.5px solid var(--border-light)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: 8 }} />
+        {q > 0 && p > 0 && (
+          <div style={{ background: 'var(--bg-section)', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+            <div className="d-flex justify-content-between align-items-center" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <span>주문 금액</span><span>{fmt(Math.round(krw))}원</span>
+            </div>
+            {feeNum > 0 && (
+              <div className="d-flex justify-content-between align-items-center mt-1" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <span>수수료·세금</span><span>{side === 'buy' ? '+' : '-'}{fmt(feeNum)}원</span>
+              </div>
+            )}
+            {account?.cash_set && (<>
+              <div style={{ borderTop: '1px solid var(--border-light)', margin: '8px 0' }} />
+              <div className="d-flex justify-content-between align-items-center">
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>예수금 잔고</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 700, color: short ? '#dc3545' : 'var(--text-primary)' }}>
+                  {fmt(Math.round(side === 'buy' ? account.cash - total : account.cash + total))}원
+                </span>
+              </div>
+            </>)}
+            {short && (
+              <div className="d-flex align-items-center" style={{ marginTop: 8, fontSize: '0.76rem', color: '#dc3545', background: 'rgba(220,53,69,0.1)', borderRadius: 8, padding: '6px 10px' }}>
+                <i className="bi bi-exclamation-triangle-fill me-1" />예수금이 부족해요
+              </div>
+            )}
+          </div>
+        )}
+        {error && <div style={{ color: '#dc3545', fontSize: '0.78rem', marginBottom: 8 }}>{error}</div>}
+        <div className="d-flex gap-2">
+          <button type="button" onClick={submit} className="btn flex-fill" style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}>기록</button>
+          <button type="button" onClick={onClose} className="btn btn-outline-secondary flex-fill" style={{ borderRadius: 10 }}>취소</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // 예산 탭 평소 화면 — 은행/예·적금/저축 목표/투자 4개 섹션을 요약 카드 2x2
 // 그리드로만 보여주고, 하나를 탭하면 그 섹션의 상세 화면(기존 목록·필터·추가
 // 버튼 등)으로 전환된다. 섹션이 길어서 밑에 있는 걸 찾기 힘들다는 피드백 —
@@ -2497,7 +2807,7 @@ function BudgetSectionGrid({ data, goals, hiddenParts, setHiddenParts, onPick })
     { key: 'bank', icon: '🏦', title: '은행별 잔고', value: `${fmt(bankTotal)}원`, hide: hideBalance, sub: `카드 ${(data.card_stats || []).length}개` },
     { key: 'savings', icon: '💰', title: '예·적금', value: `${fmt(savingsTotal)}원`, hide: hideSavings, sub: `${(data.savings || []).length}개 가입 중` },
     { key: 'goal', icon: '🎯', title: '저축 목표', value: goalCount ? `평균 ${goalAvgPct}%` : '없음', hide: hideGoal, sub: goalCount ? `${goalCount}개 진행 중` : '목표를 추가해 보세요' },
-    { key: 'invest', icon: '📈', title: '투자', value: `${fmt(invTotal)}원`, hide: hideInvest, sub: `${invPct >= 0 ? '+' : ''}${invPct.toFixed(1)}%`, subColor: invPct >= 0 ? '#198754' : '#dc3545' },
+    { key: 'invest', icon: '📈', title: '투자', value: `${fmt(invTotal)}원`, hide: hideInvest, sub: `${invPct >= 0 ? '+' : ''}${invPct.toFixed(1)}%`, subColor: invPct >= 0 ? '#e74c3c' : '#3b82f6' },
   ]
 
   return (
@@ -2553,9 +2863,20 @@ function BudgetInner() {
   const [convertLoading, setConvertLoading] = useState(false)
   const [pointInfoCard, setPointInfoCard] = useState(null)
   const [perfTxCard, setPerfTxCard] = useState(null)
+  const [perfTxVisible, setPerfTxVisible] = useState(false)
   const [perfTxList, setPerfTxList] = useState([])
   const [perfTxEmojiMap, setPerfTxEmojiMap] = useState({})
   const [perfTxLoading, setPerfTxLoading] = useState(false)
+  const [incomeTxCard, setIncomeTxCard] = useState(null)
+  const [incomeTxVisible, setIncomeTxVisible] = useState(false)
+  const [incomeTxList, setIncomeTxList] = useState([])
+  const [incomeTxEmojiMap, setIncomeTxEmojiMap] = useState({})
+  const [incomeTxLoading, setIncomeTxLoading] = useState(false)
+  const [expenseTxCard, setExpenseTxCard] = useState(null)
+  const [expenseTxVisible, setExpenseTxVisible] = useState(false)
+  const [expenseTxList, setExpenseTxList] = useState([])
+  const [expenseTxEmojiMap, setExpenseTxEmojiMap] = useState({})
+  const [expenseTxLoading, setExpenseTxLoading] = useState(false)
   const [pointInfoEditing, setPointInfoEditing] = useState(false)
   const [pointInfoUsable, setPointInfoUsable] = useState('')
   const [pointInfoCarryover, setPointInfoCarryover] = useState('')
@@ -2608,10 +2929,10 @@ function BudgetInner() {
   const [detailId, setDetailId] = useState(null) // 계좌 상세 창
   const [detailRev, setDetailRev] = useState(0) // 예수금 저장 후 상세 창을 다시 불러오기 위한 번호
   const accountStripRef = useDragScrollX()
-  const [acctOrderMode, setAcctOrderMode] = useState(false)
+  // 아래 투자 목록과 같은 꾹 누르기 기준(300ms, 8px)으로 맞춘다 — 모드 전환 없이 바로 끌 수 있다
   const acctSensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } })
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
   )
   function handleAccountDragEnd(e) {
     const { active, over } = e
@@ -2628,6 +2949,8 @@ function BudgetInner() {
   const [invSheetVisible, setInvSheetVisible] = useState(false)
   const [editInv, setEditInv] = useState(null)
   const [confirmInv, setConfirmInv] = useState(null)
+  const [tradeItem, setTradeItem] = useState(null) // 목록에서 바로 매매 기록 중인 종목
+  const [noAcctOpen, setNoAcctOpen] = useState(false) // 계좌 없는 종목 목록 창
   // 예산 탭이 길어지면서 밑에 있는 섹션(특히 저축 목표)이 안 보인다는 피드백 —
   // 평소엔 4개 섹션(은행·예적금·저축목표·투자)을 요약 카드 2x2 그리드로만 보여주고,
   // 하나를 누르면 그 섹션의 기존 상세 화면(목록·필터·추가 버튼 등)으로 전환한다.
@@ -2771,10 +3094,10 @@ function BudgetInner() {
   }, [data, searchParams])
 
   useEffect(() => {
-    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || goalSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!confirmGoal || !!addAmountGoal || !!convertCard || !!pointInfoCard || !!perfTxCard
+    const open = addSheetOpen || editSheetOpen || savingsSheetOpen || invSheetOpen || goalSheetOpen || !!confirmCard || !!confirmSavings || !!confirmInv || !!confirmGoal || !!addAmountGoal || !!convertCard || !!pointInfoCard || !!perfTxCard || !!incomeTxCard || !!expenseTxCard
     document.body.classList.toggle('sheet-open', open)
     return () => document.body.classList.remove('sheet-open')
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard, incomeTxCard, expenseTxCard])
 
   // 안드로이드 뒤로가기로 열린 시트 닫기 — 그리드→상세 화면 전환도 일종의
   // "화면 안 이동"이라, 시트/확인창이 하나도 안 열려있을 때는 뒤로가기로 상세
@@ -2796,12 +3119,22 @@ function BudgetInner() {
       if (addAmountGoal) { setAddAmountGoal(null); return }
       if (convertCard) { setConvertCard(null); return }
       if (pointInfoCard) { setPointInfoCard(null); return }
-      if (perfTxCard) { setPerfTxCard(null); return }
+      if (perfTxCard) { closePerfTx(); return }
+      if (incomeTxCard) { closeIncomeTx(); return }
+      if (expenseTxCard) { closeExpenseTx(); return }
       if (activeSection) { closeDetail(); return }
     }
     window.addEventListener('appBackButton', handler)
     return () => window.removeEventListener('appBackButton', handler)
-  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard, activeSection])
+  }, [addSheetOpen, editSheetOpen, savingsSheetOpen, invSheetOpen, goalSheetOpen, confirmCard, confirmSavings, confirmInv, confirmGoal, addAmountGoal, convertCard, pointInfoCard, perfTxCard, incomeTxCard, expenseTxCard, activeSection])
+
+  // 하단바에서 이미 보고 있는 예산 탭을 다시 누르면, 투자·예적금 등 하위 화면에
+  // 들어가 있어도 그리드(초기 화면)로 되돌아간다
+  useEffect(() => {
+    const onReselect = e => { if (e.detail?.path === '/budget' && activeSection) closeDetail() }
+    window.addEventListener('bottomNavReselect', onReselect)
+    return () => window.removeEventListener('bottomNavReselect', onReselect)
+  }, [activeSection])
 
   async function handleConvert() {
     if (!convertCard) return
@@ -2821,17 +3154,58 @@ function BudgetInner() {
     }
   }
 
-  async function openPerfTx(card) {
+  // 아래에서 슬라이드 업되는 애니메이션 — 시트를 먼저(데이터 로딩과 상관없이) 띄우고,
+  // 다음 프레임에 visible을 켜서 transform이 "요청한 시점부터"가 아니라 "실제로 화면에
+  // 그려진 다음부터" 걸리게 한다. 데이터가 늦게 와도 이미 뜬 시트 안에서 로딩 문구만
+  // 바뀌므로, 시트 자체가 버벅이며 나타나는 일이 없다.
+  function openPerfTx(card) {
     setPerfTxCard(card)
     setPerfTxList([])
     setPerfTxLoading(true)
-    try {
-      const d = await api.get(`/api/cards/${card.id}/perf-transactions`)
+    requestAnimationFrame(() => requestAnimationFrame(() => setPerfTxVisible(true)))
+    api.get(`/api/cards/${card.id}/perf-transactions`).then(d => {
       setPerfTxList(d.transactions || [])
       setPerfTxEmojiMap(d.emoji_map || {})
-    } finally {
-      setPerfTxLoading(false)
-    }
+    }).finally(() => setPerfTxLoading(false))
+  }
+  function closePerfTx() {
+    setPerfTxVisible(false)
+    setTimeout(() => setPerfTxCard(null), 300)
+  }
+
+  function openIncomeTx(card) {
+    setIncomeTxCard(card)
+    setIncomeTxList([])
+    setIncomeTxLoading(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setIncomeTxVisible(true)))
+    api.get(`/api/cards/${card.id}/income-transactions`).then(d => {
+      // 실제 수입 거래와 캐시백 받은 거래를 한 목록으로 합쳐서 날짜순으로 보여준다
+      const merged = [
+        ...(d.income || []).map(t => ({ ...t, _kind: 'income' })),
+        ...(d.cashback_only || []).map(t => ({ ...t, _kind: 'cashback' })),
+      ].sort((a, b) => (b.date + (b.time || '')).localeCompare(a.date + (a.time || '')))
+      setIncomeTxList(merged)
+      setIncomeTxEmojiMap(d.emoji_map || {})
+    }).finally(() => setIncomeTxLoading(false))
+  }
+  function closeIncomeTx() {
+    setIncomeTxVisible(false)
+    setTimeout(() => setIncomeTxCard(null), 300)
+  }
+
+  function openExpenseTx(card) {
+    setExpenseTxCard(card)
+    setExpenseTxList([])
+    setExpenseTxLoading(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setExpenseTxVisible(true)))
+    api.get(`/api/cards/${card.id}/expense-transactions`).then(d => {
+      setExpenseTxList(d.transactions || [])
+      setExpenseTxEmojiMap(d.emoji_map || {})
+    }).finally(() => setExpenseTxLoading(false))
+  }
+  function closeExpenseTx() {
+    setExpenseTxVisible(false)
+    setTimeout(() => setExpenseTxCard(null), 300)
   }
 
   async function handlePointBalanceSave() {
@@ -3133,11 +3507,11 @@ function BudgetInner() {
             <SortableSection items={accountCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('account', o)}
               renderItem={(card, dnd) => (
                 <div key={card.id}>
-                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onPerfClick={() => openPerfTx(card)} dnd={dnd} hideAmounts={hideBalance} />
+                  <SwipeCard card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onPerfClick={() => openPerfTx(card)} onIncomeClick={() => openIncomeTx(card)} onExpenseClick={() => openExpenseTx(card)} dnd={dnd} hideAmounts={hideBalance} />
                   {(linkedByAccount[card.id] || []).map(lc => (
                     <div key={lc.id} style={{ marginLeft: 16, position: 'relative' }}>
                       <div style={{ position: 'absolute', left: -12, top: 0, bottom: 12, width: 2, background: '#e8d5ff', borderRadius: 1 }} />
-                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} onPerfClick={() => openPerfTx(lc)} linkedAccountName={card.name} hideAmounts={hideBalance} />
+                      <SwipeCard card={lc} onEdit={() => openEdit(lc)} onDelete={() => setConfirmCard(lc)} onPerfClick={() => openPerfTx(lc)} onIncomeClick={() => openIncomeTx(lc)} onExpenseClick={() => openExpenseTx(lc)} linkedAccountName={card.name} hideAmounts={hideBalance} />
                     </div>
                   ))}
                 </div>
@@ -3150,7 +3524,7 @@ function BudgetInner() {
                 </div>
                 <SortableSection items={pointCards} sortable={cardSort === '기본'} onReorder={o => reorderCards('point', o)}
                   renderItem={(card, dnd) => (
-                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => { setConvertCard(card); setConvertAmount(''); setConvertAmountError(false) }} onPointInfo={() => { setPointInfoCard(card); setPointInfoEditing(false) }} onPerfClick={() => openPerfTx(card)} dnd={dnd} hideAmounts={hideBalance} />
+                    <SwipeCard key={card.id} card={card} onEdit={() => openEdit(card)} onDelete={() => setConfirmCard(card)} onConvert={() => { setConvertCard(card); setConvertAmount(''); setConvertAmountError(false) }} onPointInfo={() => { setPointInfoCard(card); setPointInfoEditing(false) }} onPerfClick={() => openPerfTx(card)} onIncomeClick={() => openIncomeTx(card)} onExpenseClick={() => openExpenseTx(card)} dnd={dnd} hideAmounts={hideBalance} />
                   )} />
               </>
             )}
@@ -3494,10 +3868,17 @@ function BudgetInner() {
           <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '22px 20px', width: 'min(88vw,340px)' }}>
             {!acctEdit.confirmDelete ? (<>
               <div className="fw-bold mb-3">계좌 수정</div>
-              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사</p>
+              <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사 · 은행</p>
+              <InstTypeToggle value={acctEdit.instType || 'broker'} onChange={v => setAcctEdit(c => ({ ...c, instType: v, brokerName: '', broker: '', linkedCardId: null }))} />
               <div style={{ marginBottom: 12 }}>
-                <BrokerSearch value={acctEdit.brokerName || ''} onChange={v => setAcctEdit(c => ({ ...c, brokerName: v, broker: keyOfName(v) }))} />
+                {(acctEdit.instType || 'broker') === 'bank'
+                  ? <BankPicker value={acctEdit.brokerName || ''} onChange={v => setAcctEdit(c => ({ ...c, brokerName: v, broker: '', linkedCardId: null }))} />
+                  : <BrokerSearchPicker value={acctEdit.brokerName || ''} onChange={v => setAcctEdit(c => ({ ...c, brokerName: v, broker: keyOfName(v) }))} />}
               </div>
+              {(acctEdit.instType || 'broker') === 'bank' && (
+                <LinkedCardSuggest bankName={acctEdit.brokerName || ''} cards={data.card_stats || []} value={acctEdit.linkedCardId}
+                  onChange={v => setAcctEdit(c => ({ ...c, linkedCardId: v }))} />
+              )}
               <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>계좌 종류</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {INVEST_KINDS.map(k => {
@@ -3510,7 +3891,7 @@ function BudgetInner() {
               </div>
               {(
                 <div style={{ marginBottom: 12 }}>
-                  <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>증권사 로고 (선택)</p>
+                  <p className="mb-1 text-muted" style={{ fontSize: '0.78rem', fontWeight: 600 }}>로고 (선택)</p>
                   <div className="d-flex align-items-center gap-2">
                     <label htmlFor="acct-icon-input" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10, border: '1.5px dashed var(--border-light)', color: '#b088f9', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}>
                       {acctEdit.iconPreview
@@ -3544,7 +3925,7 @@ function BudgetInner() {
               <div className="d-flex gap-2 mb-3">
                 <button className="btn flex-fill" disabled={!acctEdit.name.trim()} style={{ background: 'linear-gradient(135deg,#b088f9,#7baff0)', color: 'white', border: 'none', borderRadius: 10 }}
                   onClick={async () => {
-                    await api.put(`/api/invest-accounts/${acctEdit.id}`, { name: acctEdit.name.trim(), broker: acctEdit.broker, broker_name: (acctEdit.brokerName || '').trim(), kind: acctEdit.kind || null, opened_at: acctEdit.openedAt || null, principal: parseInt((acctEdit.principal || '').replace(/,/g, '')) || null })
+                    await api.put(`/api/invest-accounts/${acctEdit.id}`, { name: acctEdit.name.trim(), broker: acctEdit.broker, broker_name: (acctEdit.brokerName || '').trim(), kind: acctEdit.kind || null, linked_card_id: acctEdit.linkedCardId || null, opened_at: acctEdit.openedAt || null, principal: parseInt((acctEdit.principal || '').replace(/,/g, '')) || null })
                     if (acctEdit.iconBlob) {
                       const fd = new FormData()
                       fd.append('icon', acctEdit.iconBlob)
@@ -3572,7 +3953,7 @@ function BudgetInner() {
         document.body
       )}
 
-      <AccountAddSheet open={acctAddOpen} onClose={() => setAcctAddOpen(false)} onCreated={() => load()} />
+      <AccountAddSheet open={acctAddOpen} onClose={() => setAcctAddOpen(false)} onCreated={() => load()} cards={data.card_stats || []} />
       <AccountDetailSheet key={`${detailId}-${detailRev}`} accountId={detailId} onClose={() => setDetailId(null)} onCashEdit={c => setCashEdit(c)} />
 
       <ImageCropper file={acctEdit?.cropFile || null}
@@ -3601,20 +3982,38 @@ function BudgetInner() {
       )}
 
       {(data.investments || []).some(i => !i.account_id) && (
-        <div style={{ fontSize: '0.8rem', color: '#e67e22', background: 'rgba(230,126,34,0.1)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
-          <i className="bi bi-exclamation-circle me-1" />계좌가 없는 종목 {(data.investments || []).filter(i => !i.account_id).length}개 — 수정에서 투자 계좌를 지정해 주세요
-        </div>
+        <button type="button" onClick={() => setNoAcctOpen(true)}
+          style={{ width: '100%', textAlign: 'left', border: 'none', fontSize: '0.8rem', color: '#e67e22', background: 'rgba(230,126,34,0.1)', borderRadius: 10, padding: '8px 12px', marginBottom: 10, cursor: 'pointer' }}>
+          <i className="bi bi-exclamation-circle me-1" />계좌가 없는 종목 {(data.investments || []).filter(i => !i.account_id).length}개
+        </button>
+      )}
+
+      {noAcctOpen && createPortal(
+        <div onClick={e => e.target === e.currentTarget && setNoAcctOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '20px', width: 'min(88vw,360px)', maxHeight: '70dvh', display: 'flex', flexDirection: 'column' }}>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <h6 className="mb-0 fw-bold">계좌가 없는 종목</h6>
+              <button onClick={() => setNoAcctOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>&times;</button>
+            </div>
+            <p className="text-muted mb-2" style={{ fontSize: '0.8rem' }}>눌러서 바로 수정 창을 열고 투자 계좌를 지정할 수 있어요.</p>
+            <div style={{ overflowY: 'auto' }}>
+              {(data.investments || []).filter(i => !i.account_id).map(i => (
+                <button key={i.id} type="button" onClick={() => { setNoAcctOpen(false); openInvEdit(i) }}
+                  style={{ width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid var(--border-light)', background: 'none', padding: '10px 2px', fontSize: '0.9rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{i.name}</span>
+                  <i className="bi bi-chevron-right" style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
       {(
 
         <div>
         <div className="d-flex justify-content-end mb-2">
-          {(data.invest_accounts || []).length > 1 && (
-            <button type="button" onClick={() => setAcctOrderMode(v => !v)}
-              style={{ padding: '6px 14px', borderRadius: 12, border: `1.5px solid ${acctOrderMode ? '#b088f9' : 'var(--border-light)'}`, background: acctOrderMode ? 'rgba(176,136,249,0.1)' : 'transparent', color: acctOrderMode ? '#b088f9' : 'var(--text-secondary)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', marginRight: 8 }}>
-              {acctOrderMode ? '완료' : '순서 변경'}
-            </button>
-          )}
           <button type="button" onClick={() => setAcctAddOpen(true)}
             style={{ padding: '6px 14px', borderRadius: 12, border: '1.5px dashed #b088f9', background: 'transparent', color: '#b088f9', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <i className="bi bi-plus-lg" style={{ fontSize: '0.85rem' }} />
@@ -3629,9 +4028,9 @@ function BudgetInner() {
             const gain = a.holdings_value - a.purchase_value
             const pct = a.purchase_value ? (gain / a.purchase_value * 100).toFixed(1) : '0.0'
             return (
-              <SortableAccountCard key={a.id} id={a.id} enabled={acctOrderMode}>
+              <SortableAccountCard key={a.id} id={a.id}>
               <div onClick={e => { if (e.target.closest('button')) return; setDetailId(a.id) }} style={{ cursor: 'pointer', minWidth: 170, padding: '12px 14px', borderRadius: 14, background: 'linear-gradient(135deg,rgba(176,136,249,0.12),rgba(123,175,240,0.12))', border: '1px solid var(--border-light)', flexShrink: 0, position: 'relative' }}>
-                <button type="button" onClick={() => setAcctEdit({ id: a.id, name: a.name, kind: a.kind || '', broker: a.broker || '', brokerName: a.broker_name || brokerOf(a.broker)?.name || '', openedAt: a.opened_at || '', principal: a.principal ? Math.round(a.principal).toLocaleString('ko-KR') : '', confirmDelete: false, hasIcon: !!a.has_custom_icon, iconVersion: a.icon_v, iconPreview: null, iconBlob: null, removeIcon: false, cropFile: null })}
+                <button type="button" onClick={() => setAcctEdit({ id: a.id, name: a.name, kind: a.kind || '', broker: a.broker || '', brokerName: a.broker_name || brokerOf(a.broker)?.name || '', instType: !a.broker && BANKS.some(b => b[0] === a.broker_name) ? 'bank' : 'broker', linkedCardId: a.linked_card_id || null, openedAt: a.opened_at || '', principal: a.principal ? Math.round(a.principal).toLocaleString('ko-KR') : '', confirmDelete: false, hasIcon: !!a.has_custom_icon, iconVersion: a.icon_v, iconPreview: null, iconBlob: null, removeIcon: false, cropFile: null })}
                   style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.9rem', padding: 2, cursor: 'pointer' }} aria-label="계좌 수정">
                   <i className="bi bi-gear" />
                 </button>
@@ -3684,9 +4083,9 @@ function BudgetInner() {
                 await api.post('/api/investments/reorder', { ids: newOrder.map(i => i.id) })
               }}
               renderItem={(item, dnd) => (
-                <InvestmentItem key={item.id} item={item}
+                <InvestmentItem key={item.id} item={item} kind={kindById[item.account_id]}
                   onEdit={() => openInvEdit(item)}
-                  onDelete={() => setConfirmInv(item)} dnd={dnd} hideAmounts={hideInvest} />
+                  onDelete={() => setConfirmInv(item)} onTrade={() => setTradeItem(item)} dnd={dnd} hideAmounts={hideInvest} />
               )} />
           )}
           <div className="card mb-4" style={{ borderRadius: 14, border: '1.5px solid var(--border)' }}>
@@ -3703,7 +4102,7 @@ function BudgetInner() {
                 return (
                   <div className="d-flex justify-content-between align-items-center mt-1">
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{invFilter === 'all' ? '총 수익' : '선택 수익'}</span>
-                    <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '0.95rem', color: profit >= 0 ? '#198754' : '#dc3545' }}>
+                    <span className={`amt-mask${hideInvest ? ' amt-hidden' : ''}`} style={{ fontWeight: 700, fontSize: '0.95rem', color: profit >= 0 ? '#e74c3c' : '#3b82f6' }}>
                       {profit >= 0 ? '+' : ''}{fmt(profit)}원 ({profit >= 0 ? '+' : ''}{pct}%)
                     </span>
                   </div>
@@ -3725,6 +4124,7 @@ function BudgetInner() {
       <SavingsSheet open={savingsSheetOpen} visible={savingsSheetVisible} onClose={closeSavingsSheet} onSaved={load} editItem={editSavings} isaAccounts={(data?.invest_accounts || []).filter(acc => (acc.kind || '').includes('신탁형'))} />
 
       <InvestmentSheet open={invSheetOpen} visible={invSheetVisible} onClose={closeInvSheet} onSaved={load} editItem={editInv} accounts={data?.invest_accounts || []} onAccountsChanged={load} />
+      <TradeQuickSheet item={tradeItem} accounts={data?.invest_accounts || []} onClose={() => setTradeItem(null)} onSaved={load} />
 
       <GoalSheet open={goalSheetOpen} visible={goalSheetVisible} onClose={closeGoalSheet} onSaved={loadGoals} editItem={editGoal} savingsList={data?.savings || []} investmentList={data?.investments || []} accountList={data?.invest_accounts || []} />
 
@@ -3773,12 +4173,12 @@ function BudgetInner() {
       )}
 
       {perfTxCard && (
-        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center' }}
-          onClick={e => e.target === e.currentTarget && setPerfTxCard(null)}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '75dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px' }}>
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: perfTxVisible ? 1 : 0, transition: 'opacity 0.25s ease' }}
+          onClick={e => e.target === e.currentTarget && closePerfTx()}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '75dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px', transform: perfTxVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
             <div className="d-flex justify-content-between align-items-center mb-1">
               <h6 className="mb-0 fw-bold">{perfTxCard.name} · 이달 실적 내역</h6>
-              <button onClick={() => setPerfTxCard(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+              <button onClick={closePerfTx} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
             </div>
             <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>{fmt(perfTxCard.spent)} / {fmt(perfTxCard.target)}원 · {perfTxCard.percent}%</p>
             <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
@@ -3806,6 +4206,108 @@ function BudgetInner() {
                       {byDate[date].map((tx, i) => (
                         <div key={tx.id} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
                           <TxItem tx={tx} emojiMap={perfTxEmojiMap} showBalance={false} showTime />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {incomeTxCard && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: incomeTxVisible ? 1 : 0, transition: 'opacity 0.25s ease' }}
+          onClick={e => e.target === e.currentTarget && closeIncomeTx()}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '75dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px', transform: incomeTxVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-1">
+              <h6 className="mb-0 fw-bold">{incomeTxCard.name} · 이달 수입 내역</h6>
+              <button onClick={closeIncomeTx} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+            </div>
+            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>수입 + 캐시백 합계 {fmt(incomeTxCard.total_income)}원</p>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+              {incomeTxLoading ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>불러오는 중…</p>
+              ) : incomeTxList.length === 0 ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>이달 수입에 해당하는 내역이 없습니다</p>
+              ) : (() => {
+                const byDate = incomeTxList.reduce((acc, tx) => {
+                  if (!acc[tx.date]) acc[tx.date] = []
+                  acc[tx.date].push(tx)
+                  return acc
+                }, {})
+                const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+                return dates.map(date => (
+                  <div key={date} className="mb-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        +{fmt(byDate[date].reduce((s, t) => s + (t._kind === 'income' ? t.amount : t.cashback), 0))}원
+                      </span>
+                    </div>
+                    <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                      {byDate[date].map((tx, i) => (
+                        <div key={`${tx._kind}-${tx.id}`} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                          {tx._kind === 'income'
+                            ? <TxItem tx={tx} emojiMap={incomeTxEmojiMap} showBalance={false} showTime />
+                            : (
+                              <div className="d-flex justify-content-between align-items-center">
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    🎁 {tx.description || tx.category || '카드 사용'} 캐시백
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{tx.time ? `${tx.time} · ` : ''}결제 {fmt(tx.amount)}원</div>
+                                </div>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#198754', flexShrink: 0 }}>+{fmt(tx.cashback)}원</span>
+                              </div>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expenseTxCard && (
+        <div style={{ display: 'flex', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 2000, alignItems: 'flex-end', justifyContent: 'center', opacity: expenseTxVisible ? 1 : 0, transition: 'opacity 0.25s ease' }}
+          onClick={e => e.target === e.currentTarget && closeExpenseTx()}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '75dvh', display: 'flex', flexDirection: 'column', padding: '20px 16px', transform: expenseTxVisible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.32s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-1">
+              <h6 className="mb-0 fw-bold">{expenseTxCard.name} · 이달 지출 내역</h6>
+              <button onClick={closeExpenseTx} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 4px' }}>&times;</button>
+            </div>
+            <p className="text-muted mb-2" style={{ fontSize: '0.78rem' }}>{fmt(expenseTxCard.total_expense)}원</p>
+            <div style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1 }}>
+              {expenseTxLoading ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>불러오는 중…</p>
+              ) : expenseTxList.length === 0 ? (
+                <p className="text-center text-muted" style={{ fontSize: '0.82rem', padding: '20px 0' }}>이달 지출에 해당하는 내역이 없습니다</p>
+              ) : (() => {
+                const byDate = expenseTxList.reduce((acc, tx) => {
+                  if (!acc[tx.date]) acc[tx.date] = []
+                  acc[tx.date].push(tx)
+                  return acc
+                }, {})
+                const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+                return dates.map(date => (
+                  <div key={date} className="mb-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 4px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>{fmtDate(date)}</span>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        -{fmt(byDate[date].reduce((s, t) => s + t.amount, 0))}원
+                      </span>
+                    </div>
+                    <div style={{ borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                      {byDate[date].map((tx, i) => (
+                        <div key={tx.id} style={{ padding: '12px 14px', background: 'var(--bg-card)', borderBottom: i < byDate[date].length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                          <TxItem tx={tx} emojiMap={expenseTxEmojiMap} showBalance={false} showTime />
                         </div>
                       ))}
                     </div>

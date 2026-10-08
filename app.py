@@ -324,6 +324,7 @@ with app.app_context():
         "ALTER TABLE notice ADD COLUMN app VARCHAR(20) NOT NULL DEFAULT 'gaegyebu'",
         'ALTER TABLE "transaction" ADD COLUMN point_pool VARCHAR(20)',
         'ALTER TABLE card ADD COLUMN point_converted_cycle INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE invest_account ADD COLUMN linked_card_id INTEGER',
     ]:
         try:
             with db.engine.connect() as conn:
@@ -883,7 +884,11 @@ def _savings_stats(s, extra_deposit=0):
     _manual_count = getattr(s, 'manual_count', None)
     months_elapsed = _manual_count if _manual_count is not None else months_elapsed_auto
     days_total = max(1, (end - start).days)
-    days_elapsed = max(0, min(days_total, (today - start).days)) if _manual_count is None else int(_manual_count / months_total * days_total)
+    # 진행률은 "회차"(납입 횟수)가 아니라 실제로 지난 날짜 기준 — 일시정지하거나 회차를
+    # 수동으로 고쳐도 달력상 시간은 그대로 흐르므로, manual_count로 바뀌지 않게 한다.
+    # (전에는 manual_count를 달 수 비율로 환산해 썼는데, 시작일이 월초가 아니면 월 경계를
+    # 넘는 순간 실제보다 날짜가 훨씬 많이 지난 것처럼 계산돼 일시정지하자마자 %가 튀었다.)
+    days_elapsed = max(0, min(days_total, (today - start).days))
     progress = min(100.0, round(days_elapsed / days_total * 100, 1))
     d_day = (end - today).days
     rate = s.interest_rate or 0
@@ -1094,6 +1099,7 @@ def _linked_savings_deposits(aid, uid, year=None):
 def _invest_account_list(uid, stats_list):
     # 투자 계좌 잔고 = 계좌에 든 종목들의 현재 평가금액 합 + 예수금
     accts = InvestAccount.query.filter_by(user_id=uid).order_by(InvestAccount.position, InvestAccount.id).all()
+    card_names = {c.id: c.name for c in Card.query.filter_by(user_id=uid).all()}
     out = []
     for a in accts:
         held = [st for st in stats_list if st.get('account_id') == a.id]
@@ -1104,6 +1110,7 @@ def _invest_account_list(uid, stats_list):
             'cash': int(a.cash or 0),
             'cash_set': bool(a.cash_set),
             'broker': a.broker or '',
+            'linked_card_id': a.linked_card_id, 'linked_card_name': card_names.get(a.linked_card_id, ''),
             'holdings_value': holdings_value,
             'balance': holdings_value + (int(a.cash or 0) if a.cash_set else 0),
             'purchase_value': sum(st['purchase_value'] for st in held),
@@ -1742,6 +1749,59 @@ def api_card_perf_transactions(card_id):
     emoji_map = {c.name: c.icon for c in all_cats}
     txs = Transaction.query.filter_by(user_id=uid, card=card.name).all()
     matched = [t for t in txs if t.type == 'expense' and t.date.startswith(current_month) and _is_perf_tx(t, excl_cats)]
+    matched.sort(key=lambda t: (t.date, t.time or ''), reverse=True)
+    return jsonify({
+        'transactions': [{'id': t.id, 'date': t.date, 'time': t.time or '', 'type': t.type, 'category': t.category,
+                           'description': t.description or '', 'amount': t.amount, 'card': t.card or '',
+                           'exclude_perf': bool(t.exclude_perf), 'exclude_stats': bool(t.exclude_stats),
+                           'has_receipt': bool(getattr(t, 'has_receipt', False)), 'cashback': t.cashback or 0}
+                          for t in matched],
+        'emoji_map': emoji_map,
+    })
+
+@app.route('/api/cards/<int:card_id>/income-transactions')
+@login_required
+def api_card_income_transactions(card_id):
+    # 예산 탭의 "이달 수입"이 어떤 거래들로 계산됐는지 보여준다 — 실제 수입 거래와,
+    # 캐시백을 받은 거래(결제형은 지출 거래에 캐시백이 붙는다)를 함께 보여준다.
+    # card_stats의 display_income(=수입 + 캐시백 합계)과 같은 조건으로 걸러야 숫자가 일치한다.
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    current_month = datetime.now(_KST).strftime('%Y-%m')
+    all_cats = Category.query.filter_by(user_id=uid).all()
+    excl_cats = {c.name for c in all_cats if c.exclude_stats}
+    emoji_map = {c.name: c.icon for c in all_cats}
+    names = [card.name] + [c.name for c in Card.query.filter_by(user_id=uid, linked_account_id=card.id).all()]
+    txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.card.in_(names)).all()
+    month_txs = [t for t in txs if t.date.startswith(current_month) and _is_stats_tx(t, excl_cats)]
+
+    def _shape(t):
+        return {'id': t.id, 'date': t.date, 'time': t.time or '', 'type': t.type, 'category': t.category,
+                'description': t.description or '', 'amount': t.amount, 'card': t.card or '',
+                'exclude_perf': bool(t.exclude_perf), 'exclude_stats': bool(t.exclude_stats),
+                'has_receipt': bool(getattr(t, 'has_receipt', False)), 'cashback': t.cashback or 0}
+
+    income = [_shape(t) for t in month_txs if t.type == 'income']
+    # 결제형 캐시백은 지출 거래에 붙으므로, 지출 거래 중 캐시백이 있는 것만 따로 뽑는다
+    cashback_only = [_shape(t) for t in month_txs if t.type == 'expense' and (t.cashback or 0) > 0]
+    income.sort(key=lambda t: (t['date'], t['time']), reverse=True)
+    cashback_only.sort(key=lambda t: (t['date'], t['time']), reverse=True)
+    return jsonify({'income': income, 'cashback_only': cashback_only, 'emoji_map': emoji_map})
+
+@app.route('/api/cards/<int:card_id>/expense-transactions')
+@login_required
+def api_card_expense_transactions(card_id):
+    # 예산 탭의 "이달 지출"이 어떤 거래들로 계산됐는지 보여준다 — card_stats의
+    # display_expense와 같은 조건(이번 달 지출 + 카드 일치 + 통계 제외 아님)으로 걸러야 숫자가 일치한다.
+    uid = session['user_id']
+    card = Card.query.filter_by(id=card_id, user_id=uid).first_or_404()
+    current_month = datetime.now(_KST).strftime('%Y-%m')
+    all_cats = Category.query.filter_by(user_id=uid).all()
+    excl_cats = {c.name for c in all_cats if c.exclude_stats}
+    emoji_map = {c.name: c.icon for c in all_cats}
+    names = [card.name] + [c.name for c in Card.query.filter_by(user_id=uid, linked_account_id=card.id).all()]
+    txs = Transaction.query.filter_by(user_id=uid).filter(Transaction.card.in_(names)).all()
+    matched = [t for t in txs if t.type == 'expense' and t.date.startswith(current_month) and _is_stats_tx(t, excl_cats)]
     matched.sort(key=lambda t: (t.date, t.time or ''), reverse=True)
     return jsonify({
         'transactions': [{'id': t.id, 'date': t.date, 'time': t.time or '', 'type': t.type, 'category': t.category,
@@ -2752,6 +2812,8 @@ def api_budget():
                     display_income += sum(tx.amount for tx in ltxs if tx.type == 'income' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_expense += sum(tx.amount for tx in ltxs if tx.type == 'expense' and tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
                     display_cashback += sum(tx.cashback or 0 for tx in ltxs if tx.date.startswith(current_month) and _is_stats_tx(tx, excl_stat_cats_budget))
+            # 캐시백은 결제형이든 충전형이든 "받은 돈"이니 이달 수입에도 더해서 한눈에 보이게 한다
+            display_income += display_cashback
             # linked card: show account card's balance
             if linked_account_id and linked_account_id in card_by_id:
                 acc = card_by_id[linked_account_id]
@@ -2927,6 +2989,16 @@ INVEST_KINDS = ['종합', '신탁형 ISA', '중개형 ISA', '일반형 ISA', '�
 
 def _clean_kind(v):
     return v if v in INVEST_KINDS else None
+
+def _clean_linked_card(v, uid):
+    # 펀드처럼 은행에 연결된 투자 계좌가 예산 탭에 이미 등록된 같은 은행 계좌(Card)를 표시용으로 가리키게 한다
+    if v in (None, '', 0, '0'):
+        return None
+    try:
+        cid = int(v)
+    except (TypeError, ValueError):
+        return None
+    return cid if Card.query.filter_by(id=cid, user_id=uid).first() else None
 
 def _check_invest_account(uid, aid):
     # 모든 종목은 투자 계좌에 속해야 한다 — 없거나 남의 계좌면 None
@@ -3137,12 +3209,15 @@ def api_invest_accounts():
                           broker_name=(body.get('broker_name') or '').strip()[:60] or None,
                           kind=_clean_kind(body.get('kind')),
                           opened_at=body.get('opened_at') or None,
-                          principal=float(body['principal']) if body.get('principal') not in (None, '') else None)
+                          principal=float(body['principal']) if body.get('principal') not in (None, '') else None,
+                          linked_card_id=_clean_linked_card(body.get('linked_card_id'), uid))
         db.session.add(a)
         db.session.commit()
         return jsonify({'ok': True, 'id': a.id})
     accts = InvestAccount.query.filter_by(user_id=uid).order_by(InvestAccount.position, InvestAccount.id).all()
-    return jsonify([{'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '', 'kind': a.kind or '', 'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a)} for a in accts])
+    card_names = {c.id: c.name for c in Card.query.filter_by(user_id=uid).all()}
+    return jsonify([{'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '', 'kind': a.kind or '', 'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a),
+                      'linked_card_id': a.linked_card_id, 'linked_card_name': card_names.get(a.linked_card_id, '')} for a in accts])
 
 @app.route('/api/invest-accounts/order', methods=['POST'])
 @login_required
@@ -3165,6 +3240,9 @@ def api_invest_account(aid):
     if request.method == 'DELETE':
         # 계좌를 지워도 보유 종목은 남기고 계좌 연결만 푼다
         Investment.query.filter_by(user_id=uid, account_id=aid).update({'account_id': None})
+        InvestDeposit.query.filter_by(account_id=aid, user_id=uid).delete()
+        InvestYear.query.filter_by(account_id=aid, user_id=uid).delete()
+        InvestSnapshot.query.filter_by(account_id=aid, user_id=uid).delete()
         if os.path.exists(_acct_icon_path(uid, aid)):
             os.remove(_acct_icon_path(uid, aid))
         db.session.delete(a)
@@ -3180,6 +3258,8 @@ def api_invest_account(aid):
         a.broker = (data.get('broker') or '')[:30] or None
     if 'broker_name' in data:
         a.broker_name = (data.get('broker_name') or '').strip()[:60] or None
+    if 'linked_card_id' in data:
+        a.linked_card_id = _clean_linked_card(data.get('linked_card_id'), uid)
     if 'kind' in data:
         a.kind = _clean_kind(data.get('kind'))
     if 'opened_at' in data:
@@ -3406,9 +3486,11 @@ def api_invest_account_detail(aid):
         except ValueError:
             days_open = None
     principal = a.principal or 0
+    linked_card = Card.query.filter_by(id=a.linked_card_id, user_id=uid).first() if a.linked_card_id else None
     return jsonify({
         'id': a.id, 'name': a.name, 'broker': a.broker or '', 'broker_name': a.broker_name or '',
         'has_custom_icon': bool(a.has_custom_icon), 'icon_v': _acct_icon_version(a),
+        'linked_card_id': a.linked_card_id, 'linked_card_name': linked_card.name if linked_card else '',
         'cash': int(a.cash or 0), 'cash_set': bool(a.cash_set),
         'opened_at': a.opened_at or '', 'days_open': days_open,
         'kind': a.kind or '', 'isa': isa_info, 'pension': pension_info,
@@ -3473,6 +3555,7 @@ def api_investment(iid):
     uid = session['user_id']
     inv = Investment.query.filter_by(id=iid, user_id=uid).first_or_404()
     if request.method == 'DELETE':
+        InvestmentTrade.query.filter_by(investment_id=iid, user_id=uid).delete()
         db.session.delete(inv)
         db.session.commit()
         return jsonify({'ok': True})

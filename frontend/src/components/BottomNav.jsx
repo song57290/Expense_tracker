@@ -85,6 +85,9 @@ export default function BottomNav() {
         }} />
         {ITEMS.map(({ path, icon, label }, i) => (
           <Link key={path} to={path} ref={el => tabRefs.current[i] = el}
+            // 이미 보고 있는 탭을 다시 누르면 라우트는 그대로라 아무 일도 안 일어나는데,
+            // 초기 화면(맨 위/그리드)으로 되돌리는 건 각 페이지가 맡도록 이벤트로 알려준다
+            onClick={() => { if (path === pathname) window.dispatchEvent(new CustomEvent('bottomNavReselect', { detail: { path } })) }}
             style={{ color: 'white', textDecoration: 'none', padding: '4px 20px', position: 'relative', zIndex: 1 }}
             className="text-center">
             <i className={`bi ${icon} fs-5 d-block`} />

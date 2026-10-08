@@ -243,6 +243,8 @@ class InvestAccount(db.Model):
     principal = db.Column(db.Float, nullable=True)
     # 직접 올린 로고 여부 (증권사가 '기타'일 때 사용)
     has_custom_icon = db.Column(db.Boolean, nullable=False, default=False)
+    # 펀드처럼 은행에 연결된 계좌일 때, 예산 탭에 이미 등록된 같은 은행 계좌(Card)와 연결 — 표시용, 잔고는 합산하지 않는다
+    linked_card_id = db.Column(db.Integer, nullable=True)
 
 class InvestYear(db.Model):
     # 연도별 기록: 그 해 연말 잔고와 순입금(입금-출금). 과거 연도는 직접 입력한다

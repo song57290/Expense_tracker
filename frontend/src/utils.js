@@ -150,6 +150,21 @@ export function fmt(n) {
   return Number(n).toLocaleString('ko-KR')
 }
 
+// 큰 금액을 억/만원 단위로 줄여서 보여준다 (1억 2,345만원 → "1.2억", 1천만원 → "1,000만").
+// 1만원 미만은 그냥 fmt()와 같은 콤마 표기를 그대로 쓴다.
+export function fmtKr(n) {
+  const num = Number(n) || 0
+  const v = Math.abs(num)
+  if (v >= 100000000) {
+    const s = (num / 100000000).toFixed(1)
+    return (s.endsWith('.0') ? s.slice(0, -2) : s) + '억'
+  }
+  if (v >= 10000) {
+    return Math.round(num / 10000).toLocaleString('ko-KR') + '만'
+  }
+  return fmt(num)
+}
+
 // 금액 입력창은 콤마(,)가 매 입력마다 자동으로 붙었다 떨어졌다 하는데, 이때 React가
 // value를 새로 세팅하면 커서가 항상 맨 끝으로 밀려서 중간 자리를 고치기 어려웠다.
 // 커서 직전에 있던 "숫자 개수"를 기준으로, 새로 포맷된 문자열에서 같은 개수만큼의
@@ -168,6 +183,17 @@ export function restoreCaretAfterFormat(inputEl, formattedValue) {
     }
     try { inputEl.setSelectionRange(pos, pos) } catch {}
   })
+}
+
+// 수량·단가처럼 소수점이 들어갈 수 있는 입력에 천 단위 콤마를 붙인다.
+// 정수 부분만 콤마로 묶고, 소수점과 그 뒤 숫자는 그대로 둔다.
+export function formatDecimalComma(raw) {
+  if (!raw) return ''
+  const dot = raw.indexOf('.')
+  const intPart = dot === -1 ? raw : raw.slice(0, dot)
+  const decPart = dot === -1 ? '' : raw.slice(dot)
+  const intFmt = intPart ? parseInt(intPart, 10).toLocaleString('ko-KR') : ''
+  return intFmt + decPart
 }
 
 export function today() {

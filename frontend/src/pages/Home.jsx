@@ -517,7 +517,7 @@ export default function Home() {
                 value: hiddenParts, onChange: setHiddenParts,
               }]} />
           </span>
-          <span className="s-arrow" style={{ transform: summaryOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+          <i className="bi bi-chevron-down s-arrow" style={{ transform: summaryOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </div>
       </div>
       <div ref={summaryCollapseRef} className="s-collapse" style={{ maxHeight: summaryOpen ? (summaryCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
@@ -562,7 +562,7 @@ export default function Home() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCardStatOpen(o => !o)}>
               <h5 className="card-title mb-0">카드 실적</h5>
-              <span className="s-arrow" style={{ transform: cardStatOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              <i className="bi bi-chevron-down s-arrow" style={{ transform: cardStatOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </div>
             <div ref={cardStatCollapseRef} className="s-collapse" style={{ maxHeight: cardStatOpen ? (cardStatCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
@@ -615,18 +615,17 @@ export default function Home() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setCatOpen(o => !o)}>
               <h5 className="card-title mb-0">카테고리별 지출 <span className="text-muted fw-normal" style={{ fontSize: '0.78rem' }}></span></h5>
-              <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              <i className="bi bi-chevron-down s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </div>
             <div ref={catCollapseRef} className="s-collapse" style={{ maxHeight: catOpen ? (catCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
               const catEntries = Object.entries(data.category_totals).sort(([, a], [, b]) => b - a)
-              const maxAmt = catEntries[0]?.[1] || 1
               return catEntries.map(([cat, amt]) => {
                 const pct = catSum > 0 ? Math.round(amt / catSum * 100) : 0
-                // 막대는 평소엔 카테고리끼리 상대 비교가 되게 최대 80%까지만 채우지만,
-                // 이 카테고리가 이번 달 지출 전부(100%)라면 비교할 다른 막대가 없는
-                // 셈이라 끝까지 꽉 채운다 — 안 그러면 "(100%)" 글자랑 안 맞아 보인다.
-                const barWidth = pct >= 100 ? 100 : (amt / maxAmt * 80)
+                // 막대는 옆에 쓰인 (N%)와 같은 값으로 채운다 — 전에는 최댓값 대비 상대
+                // 비교용으로 따로 계산해서, 글자는 65%인데 막대는 80%대로 보이는 등
+                // 숫자와 막대가 안 맞아 보이는 문제가 있었다.
+                const barWidth = pct
                 return (
                   <div key={cat} className="mb-2 mt-2">
                     <div className="d-flex justify-content-between align-items-center mb-1">
@@ -654,7 +653,7 @@ export default function Home() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setAddOpen(o => !o)}>
             <h5 className="card-title mb-0">내역 추가</h5>
-            <span className="s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            <i className="bi bi-chevron-down s-arrow" style={{ transform: addOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
           </div>
           <div ref={addCollapseRef} className="s-collapse" style={{ maxHeight: addOpen ? addContentHeight + 'px' : '0', overflow: addCollapseSettled ? 'visible' : 'hidden' }}
             onTransitionEnd={e => { if (e.propertyName === 'max-height' && addOpen) setAddCollapseSettled(true) }}>
@@ -869,7 +868,7 @@ export default function Home() {
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div className="d-flex align-items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setTxOpen(o => !o)}>
               <h3 className="card-title mb-0">내역 목록</h3>
-              <span className="s-arrow" style={{ transform: txOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              <i className="bi bi-chevron-down s-arrow" style={{ transform: txOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
             </div>
             <div className="d-flex align-items-center gap-2">
               {selectMode && filtered.length > 0 && (

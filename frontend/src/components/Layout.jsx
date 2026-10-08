@@ -50,6 +50,14 @@ export default function Layout({ user, onLogout }) {
 
   useEffect(() => { window.scrollTo(0, 0) }, [location.pathname])
 
+  // 하단바에서 이미 보고 있는 탭을 다시 누르면 맨 위로 스크롤한다 (각 페이지가 자기
+  // 안의 하위 화면을 접는 건 따로 이 이벤트를 들어서 처리한다 — 예산 탭의 그리드 등)
+  useEffect(() => {
+    const onReselect = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.addEventListener('bottomNavReselect', onReselect)
+    return () => window.removeEventListener('bottomNavReselect', onReselect)
+  }, [])
+
   useEffect(() => { dragXRef.current = 0; setDragX(0) }, [location.pathname])
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ListToolbar, filterSortItems } from './ListTools.jsx'
+import { bankLogo } from '../utils.js'
 import { createPortal } from 'react-dom'
 
 // 증권사 목록. 로고 이미지는 static/brokers/{key}.png 에 두면 자동으로 쓰고, 없으면 아래 색 배지를 보여 준다
@@ -39,6 +40,9 @@ export const keyOfName = name => BROKERS.find(b => b.name === (name || '').trim(
 // 다크모드에서 로고 색이 배경에 묻히는 증권사는 흰색 버전 파일을 쓴다
 const DARK_LOGO = { kakaopay: 'kakaopay_white' }
 
+// 같은 금융지주 계열이라 증권사 전용 로고 대신 은행 로고를 그대로 쓰는 경우 (예: 신한투자증권 → 신한은행)
+const BANK_LOGO_OVERRIDE = { shinhan: '/static/cards/sinhanbank.png' }
+
 function isDarkMode() {
   const theme = document.documentElement.dataset.theme
   if (theme) return theme === 'dark'
@@ -46,9 +50,11 @@ function isDarkMode() {
 }
 
 export function BrokerBadge({ brokerKey, size = 26, customSrc = null, label = '' }) {
-  // static/brokers/{key}.svg 를 먼저 찾고, 없으면 .png, 그것도 없으면 이름 배지
+  // static/brokers/{key}.svg 를 먼저 찾고, 없으면 .png, 증권사 목록에도 없으면 은행 로고(이름으로 매칭)를,
+  // 그마저도 없으면 이름 배지를 보여 준다 — 펀드처럼 은행에 연결된 계좌를 위한 것
   const [stage, setStage] = useState(0)
   const [customFailed, setCustomFailed] = useState(false)
+  const [bankFailed, setBankFailed] = useState(false)
   // 테마가 바뀌면(설정 화면의 다크/라이트, 기기 설정) 창을 다시 열지 않아도 바로 로고가 바뀌도록 감시한다
   const [dark, setDark] = useState(isDarkMode)
   useEffect(() => {
@@ -68,10 +74,19 @@ export function BrokerBadge({ brokerKey, size = 26, customSrc = null, label = ''
     return <img src={customSrc} alt="" onError={() => setCustomFailed(true)}
       style={{ width: size, height: size, borderRadius: 8, objectFit: 'contain', flexShrink: 0 }} />
   }
+  if (brokerKey && BANK_LOGO_OVERRIDE[brokerKey]) {
+    return <img src={BANK_LOGO_OVERRIDE[brokerKey]} alt=""
+      style={{ width: size, height: size, borderRadius: 8, objectFit: 'contain', flexShrink: 0 }} />
+  }
   if (brokerKey && stage < 2) {
     const ext = stage === 0 ? 'svg' : 'png'
     const file = (dark && DARK_LOGO[brokerKey]) || brokerKey
     return <img src={`/static/brokers/${file}.${ext}`} alt="" onError={() => setStage(stage + 1)}
+      style={{ width: size, height: size, borderRadius: 8, objectFit: 'contain', flexShrink: 0 }} />
+  }
+  const bLogo = !brokerKey ? bankLogo(label) : null
+  if (bLogo && !bankFailed) {
+    return <img src={bLogo} alt="" onError={() => setBankFailed(true)}
       style={{ width: size, height: size, borderRadius: 8, objectFit: 'contain', flexShrink: 0 }} />
   }
   return (
@@ -156,7 +171,7 @@ export function BrokerPicker({ value, onChange, allowNone = false, placeholder =
 }
 
 // 입력한 글자로 증권사 목록을 걸러 보여주는 입력칸. 목록을 누르면 그 이름이 들어가고, 목록에 없으면 직접 입력한 이름이 쓰인다
-export function BrokerSearch({ value, onChange, placeholder = '증권사 검색 또는 직접 입력', error = false }) {
+export function BrokerSearch({ value, onChange, onPick, placeholder = '증권사 검색 또는 직접 입력', error = false }) {
   const items = filterSortItems(BROKERS, value, null, b => b.name)
   return (
     <div>
@@ -169,7 +184,7 @@ export function BrokerSearch({ value, onChange, placeholder = '증권사 검색 
         {items.map(b => {
           const on = b.name === value
           return (
-            <div key={b.key} onClick={() => onChange(b.name)}
+            <div key={b.key} onClick={() => { onChange(b.name); onPick?.(b.name) }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: on ? 'rgba(176,136,249,0.08)' : 'transparent', borderBottom: '1px solid var(--border-light)' }}>
               <BrokerBadge brokerKey={b.key} size={26} />
               <span style={{ flex: 1, fontSize: '0.9rem', color: on ? '#b088f9' : 'var(--text-primary)', fontWeight: on ? 600 : 400 }}>{b.name}</span>

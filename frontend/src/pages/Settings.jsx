@@ -628,7 +628,7 @@ export default function Settings() {
               )}
               <button onClick={() => setNoticeOpen(o => !o)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
-                <span className="s-arrow" style={{ transform: noticeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                <i className="bi bi-chevron-down s-arrow" style={{ transform: noticeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
               </button>
             </div>
           </div>
@@ -685,7 +685,7 @@ export default function Settings() {
                                 style={{ background: 'none', border: 'none', color: '#dc3545', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px' }}>삭제</button>
                             </>
                           )}
-                          <span className="s-arrow" style={{ transform: expandedNotice === n.id ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
+                          <i className="bi bi-chevron-down s-arrow" style={{ transform: expandedNotice === n.id ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }} />
                         </div>
                       </div>
                       <div className="s-collapse" style={{ maxHeight: expandedNotice === n.id ? '400px' : '0' }}>
@@ -713,7 +713,7 @@ export default function Settings() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" onClick={() => setHelpOpen(o => !o)} style={{ cursor: 'pointer' }}>
             <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>❓ 도움말</div>
-            <span className="s-arrow" style={{ transform: helpOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            <i className="bi bi-chevron-down s-arrow" style={{ transform: helpOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
           </div>
           <div className="s-collapse" style={{ maxHeight: helpOpen ? '1200px' : '0' }}>
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -727,7 +727,7 @@ export default function Settings() {
                         <span onClick={e => { e.stopPropagation(); setEditHelpId(editHelpId === h.id ? null : h.id); setEditHelpForm({ icon: h.icon, title: h.title, desc: h.desc }) }}
                           style={{ fontSize: '0.78rem', color: '#b088f9', padding: '2px 8px', borderRadius: 6, background: 'var(--bg-accent)', fontWeight: 600 }}>편집</span>
                       )}
-                      <span className="s-arrow" style={{ transform: helpItem === h.title ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }}>▼</span>
+                      <i className="bi bi-chevron-down s-arrow" style={{ transform: helpItem === h.title ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.75rem' }} />
                     </div>
                   </div>
                   {/* 관리자 편집 폼 */}
@@ -826,7 +826,7 @@ export default function Settings() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" onClick={() => setSecurityOpen(o => !o)} style={{ cursor: 'pointer' }}>
             <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>🔒 보안</div>
-            <span className="s-arrow" style={{ transform: securityOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            <i className="bi bi-chevron-down s-arrow" style={{ transform: securityOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
           </div>
           <div className="s-collapse" style={{ maxHeight: securityOpen ? '1000px' : '0' }}>
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>

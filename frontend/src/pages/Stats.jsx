@@ -9,7 +9,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels'
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { useNavigate } from 'react-router-dom'
 import api from '../api.js'
-import { fmt, fmtMonth, useLocalStorageState } from '../utils.js'
+import { fmt, fmtKr, fmtMonth, useLocalStorageState } from '../utils.js'
 import YearDrum from '../components/YearDrum.jsx'
 import FilterPopup from '../components/FilterPopup.jsx'
 
@@ -107,6 +107,7 @@ export default function Stats() {
   const [barOpen, setBarOpen] = useLocalStorageState('stats_bar_open', true)
   const [assetOpen, setAssetOpen] = useLocalStorageState('stats_asset_open', true)
   const [portfolioOpen, setPortfolioOpen] = useLocalStorageState('stats_portfolio_open', true)
+  const [pfAbbrev, setPfAbbrev] = useLocalStorageState('stats_portfolio_abbrev', false)
   const [cmpOpen, setCmpOpen] = useLocalStorageState('stats_cmp_open', true)
   // 접기 애니메이션이 실제 내용 높이 대신 고정 3000px까지 움직이면 대부분의 시간을
   // 눈에 안 보이는 구간에서 흘려보내다 뒤늦게 움직여 느리게 느껴진다 — 실제 높이를
@@ -367,7 +368,7 @@ export default function Stats() {
                 value: hiddenParts, onChange: setHiddenParts,
               }]} />
           </span>
-          <span className="s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+          <i className="bi bi-chevron-down s-arrow" style={{ transform: catOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </div>
       </div>
       <div ref={catCollapseRef} className="s-collapse" style={{ maxHeight: catOpen ? (catCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
@@ -527,7 +528,7 @@ export default function Stats() {
                 ))}
               </div>
             </div>
-            <span className="s-arrow" style={{ transform: barOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            <i className="bi bi-chevron-down s-arrow" style={{ transform: barOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
           </div>
           <div ref={barCollapseRef} className="s-collapse" style={{ maxHeight: barOpen ? (barCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
@@ -614,7 +615,13 @@ export default function Stats() {
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setPortfolioOpen(o => !o)}>
               <h5 className="card-title mb-0">자산 구성</h5>
-              <span className="s-arrow" style={{ transform: portfolioOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+              <div className="d-flex align-items-center" style={{ gap: 14 }}>
+                <button type="button" onClick={e => { e.stopPropagation(); setPfAbbrev(v => !v) }}
+                  style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 9px', borderRadius: 8, border: '1px solid var(--border-light)', background: pfAbbrev ? 'rgba(176,136,249,0.12)' : 'var(--bg-section)', color: pfAbbrev ? '#b088f9' : 'var(--text-muted)', cursor: 'pointer' }}>
+                  {pfAbbrev ? '1.1억' : '숫자'}
+                </button>
+                <i className="bi bi-chevron-down s-arrow" style={{ transform: portfolioOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+              </div>
             </div>
             <div ref={portfolioCollapseRef} className="s-collapse" style={{ maxHeight: portfolioOpen ? (portfolioCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             {(() => {
@@ -638,7 +645,7 @@ export default function Stats() {
                   ctx.fillStyle = isDark ? '#f0eeff' : '#333'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'middle'
-                  const netLabel = hidePortfolio ? '●●●●●●' : fmt(netTotal) + '원'
+                  const netLabel = hidePortfolio ? '●●●●●●' : (pfAbbrev ? fmtKr(netTotal) : fmt(netTotal)) + '원'
                   // 천단위 콤마로 풀어 쓰면 억/만원 축약 표기보다 훨씬 길어져 도넛
                   // 구멍 밖으로 넘칠 수 있다 — 구멍 크기 대비 실측 너비를 재서
                   // 넘치면 폰트를 줄여 항상 안에 들어오게 맞춘다.
@@ -661,7 +668,7 @@ export default function Stats() {
                 <div className="mt-3">
                   <div style={{ maxWidth: 360, margin: '0 auto 16px' }}>
                     <Doughnut
-                      key={`pf-${hidePortfolio}`}
+                      key={`pf-${hidePortfolio}-${pfAbbrev}`}
                       updateMode="none"
                       data={{ labels, datasets: [{ data: values, backgroundColor: PF_COLORS, borderWidth: 2, hoverOffset: 8 }] }}
                       plugins={[pfCenter, shrinkInactivePlugin]}
@@ -678,7 +685,7 @@ export default function Stats() {
                           setPfTip({
                             label: labels[idx],
                             color: PF_COLORS[idx % PF_COLORS.length],
-                            amount: `${fmt(values[idx])}원 (${assetTotal ? (values[idx] / assetTotal * 100).toFixed(1) : 0}%)`,
+                            amount: `${pfAbbrev ? fmtKr(values[idx]) : fmt(values[idx])}원 (${assetTotal ? (values[idx] / assetTotal * 100).toFixed(1) : 0}%)`,
                           })
                         },
                         plugins: {
@@ -723,7 +730,7 @@ export default function Stats() {
                                 <div style={{ width: 12, height: 12, borderRadius: 3, background: PF_COLORS[i % PF_COLORS.length], flexShrink: 0 }} />
                                 <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                  <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{fmt(item.value)}원</span>
+                                  <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', width: 90, textAlign: 'right' }}>{pfAbbrev ? fmtKr(item.value) : fmt(item.value)}원</span>
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                 </div>
                               </div>
@@ -744,7 +751,7 @@ export default function Stats() {
                                     <div style={{ width: 12, height: 12, borderRadius: 3, background: '#ff6b6b', flexShrink: 0 }} />
                                     <span style={{ flex: 1, fontSize: '0.85rem', color: '#e05555' }}>{item.label}</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                                      <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{fmt(Math.abs(item.value))}원</span>
+                                      <span className={`amt-mask${hidePortfolio ? ' amt-hidden' : ''}`} style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e05555', width: 90, textAlign: 'right' }}>-{pfAbbrev ? fmtKr(Math.abs(item.value)) : fmt(Math.abs(item.value))}원</span>
                                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', width: 38, textAlign: 'right' }}>{pct}%</span>
                                     </div>
                                   </div>
@@ -772,7 +779,7 @@ export default function Stats() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center" style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setAssetOpen(o => !o)}>
             <h5 className="card-title mb-0">총 자산 추이</h5>
-            <span className="s-arrow" style={{ transform: assetOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+            <i className="bi bi-chevron-down s-arrow" style={{ transform: assetOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
           </div>
           <div ref={assetCollapseRef} className="s-collapse" style={{ maxHeight: assetOpen ? (assetCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
             <div className="d-flex align-items-center gap-2 mt-2 mb-1" onClick={e => e.stopPropagation()}>
@@ -1050,7 +1057,7 @@ export default function Stats() {
                     value: cmpSelected === null ? 'all' : Array.from(cmpSelected),
                     onChange: next => setCmpSelected(next === 'all' ? null : new Set(next)),
                   }]} />
-                  <span className="s-arrow" onClick={() => setCmpOpen(o => !o)} style={{ transform: cmpOpen ? 'rotate(180deg)' : 'rotate(0deg)', cursor: 'pointer' }}>▼</span>
+                  <i className="bi bi-chevron-down s-arrow" onClick={() => setCmpOpen(o => !o)} style={{ transform: cmpOpen ? 'rotate(180deg)' : 'rotate(0deg)', cursor: 'pointer' }} />
                 </div>
               </div>
               <div ref={cmpCollapseRef} className="s-collapse" style={{ maxHeight: cmpOpen ? (cmpCollapseRef.current?.scrollHeight || 3000) + 'px' : '0' }}>
